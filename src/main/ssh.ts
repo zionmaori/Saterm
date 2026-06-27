@@ -31,6 +31,16 @@ const emitData = (sessionId: SessionId, data: string): void =>
   send('term:data', { sessionId, data } satisfies TermDataEvent)
 const emitExit = (e: TermExitEvent): void => send('term:exit', e)
 
+/** SSH agent endpoint. Unix: $SSH_AUTH_SOCK; Windows: OpenSSH named pipe. */
+function resolveSshAgent(): string | undefined {
+  if (process.platform === 'win32') {
+    // Windows 10+ ships OpenSSH; agent runs as a service exposed on this pipe.
+    // ssh2 accepts the pipe path directly.
+    return '\\\\.\\pipe\\openssh-ssh-agent'
+  }
+  return process.env.SSH_AUTH_SOCK || undefined
+}
+
 /** Default SSH keys we'll auto-try when the host has no identity_file. Mirrors
  *  what OpenSSH does — ssh2 won't do this itself. */
 const DEFAULT_KEY_NAMES = [
@@ -107,7 +117,7 @@ async function openJumpChannel(
   target: { hostname: string; port: number }
 ): Promise<{ sock: ClientChannel; client: Client }> {
   const jumpIds = await loadIdentities(jumpHost.identityFile)
-  const agent = process.env.SSH_AUTH_SOCK || undefined
+  const agent = resolveSshAgent()
   const jumpClient = await dialDirect({
     host: jumpHost.hostname,
     port: jumpHost.port,
@@ -133,7 +143,7 @@ export async function connectSsh(args: SshConnectArgs): Promise<void> {
   let savedPassword = await getSshSecret(host.id, 'password')
   let savedPassphrase = await getSshSecret(host.id, 'passphrase')
   const identities = await loadIdentities(host.identityFile)
-  const agent = process.env.SSH_AUTH_SOCK || undefined
+  const agent = resolveSshAgent()
 
   let jumpClient: Client | undefined
   let proxySock: ClientChannel | undefined

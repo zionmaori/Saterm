@@ -19,12 +19,18 @@
   background: var(--bg-1);
   border-bottom: 1px solid var(--border);
   display: grid;
+  /* macOS reserves 80px on the left for traffic lights. Windows/Linux have
+     system controls on the right, so the left can be flush. */
   grid-template-columns: 80px 1fr 80px;
   align-items: center;
   font-size: var(--fs-xs);
   color: var(--text-dim);
   letter-spacing: 0.01em;
   user-select: none;
+}
+
+.titlebar.titlebar-non-mac {
+  grid-template-columns: 12px 1fr 80px;
 }
 
 .titlebar-spacer {

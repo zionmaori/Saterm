@@ -14,7 +14,17 @@ const send = (event: string, payload: unknown): void => {
   for (const win of BrowserWindow.getAllWindows()) win.webContents.send(event, payload)
 }
 
+const isWindows = process.platform === 'win32'
+
 const defaultShell = (): string => {
+  if (isWindows) {
+    // Prefer modern PowerShell if it's on PATH; node-pty resolves bare exe names.
+    // Fall back to Windows PowerShell, then cmd.exe.
+    const comspec = process.env.COMSPEC
+    if (comspec && existsSync(comspec)) return comspec
+    // Bare names — node-pty walks PATH.
+    return 'powershell.exe'
+  }
   const env = process.env.SHELL
   if (env && existsSync(env)) return env
   for (const candidate of ['/bin/zsh', '/bin/bash', '/bin/sh']) {
@@ -22,6 +32,10 @@ const defaultShell = (): string => {
   }
   return '/bin/sh'
 }
+
+/** Login-shell flag varies by OS. macOS/Linux use `-l`; Windows shells don't
+ *  understand it, and PowerShell loads the user profile automatically. */
+const defaultShellArgs = (): string[] => (isWindows ? [] : ['-l'])
 
 export function spawnPty(args: PtySpawnArgs): void {
   const cwd = args.cwd && existsSync(args.cwd) ? args.cwd : homedir()
@@ -32,13 +46,15 @@ export function spawnPty(args: PtySpawnArgs): void {
     COLORTERM: 'truecolor',
     LANG: process.env.LANG ?? 'en_US.UTF-8'
   }
-  const pty = spawn(shell, ['-l'], {
+  const pty = spawn(shell, defaultShellArgs(), {
     name: 'xterm-256color',
     cols: args.cols,
     rows: args.rows,
     cwd,
-    env
-  })
+    env,
+    // ConPTY is the supported Windows backend on Win10 1809+. Harmless on macOS.
+    useConpty: isWindows ? true : undefined
+  } as Parameters<typeof spawn>[2])
   sessions.set(args.sessionId, { pty })
   pty.onData((data) => send('term:data', { sessionId: args.sessionId, data } satisfies TermDataEvent))
   pty.onExit(({ exitCode, signal }) => {

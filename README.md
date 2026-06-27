@@ -44,17 +44,51 @@ npx electron-builder install-app-deps
 
 ## Build a distributable
 
+### macOS
+
 ```bash
-npm run build:mac           # produces dist/Termion-<version>-arm64.dmg
+npm run build:mac           # produces dist/termion-<version>.dmg
 ```
 The DMG is unsigned (personal use). Drag to /Applications. If macOS
 quarantines it, run `xattr -d com.apple.quarantine /Applications/termion.app`.
 
+### Windows
+
+Build on a Windows machine (Windows 10 1809+ or Windows 11):
+
+```powershell
+git clone https://github.com/zionmaori/Termion C:\Projects\termion
+cd C:\Projects\termion
+npm install                 # postinstall rebuilds native modules
+npm run build:win           # produces dist\termion-<version>-setup.exe
+```
+
+Prerequisites:
+- **Node.js 20+** and **npm 10+**
+- **Git for Windows** (provides `git.exe` for the Git panel)
+- **OpenSSH agent service** running (Windows 10/11; check `Get-Service ssh-agent`)
+- *Optional:* **Subversion** (`svn.exe` on PATH) for the SVN panel
+- *Optional:* **ripgrep** for `⌘⇧F` search (`winget install BurntSushi.ripgrep.MSVC`)
+- *Optional:* **Visual Studio Build Tools 2022** with the C++ workload — only
+  needed if a prebuilt native module isn't available for your Node/Electron combo.
+  Most installs don't need this.
+
+Each `npm run build:win` bumps the patch version (`1.0.1` → `1.0.2`) so the
+installer is named uniquely. SmartScreen will warn on first launch — click
+**More info → Run anyway** (the installer is unsigned, same as the macOS DMG).
+
+AI copilots: set `ANTHROPIC_API_KEY` (or `ANTHROPIC_AUTH_TOKEN` + the gateway
+env vars) in your PowerShell `$PROFILE` *or* in System Properties → Environment
+Variables. Termion reads from both on launch.
+
 ## Where data lives
 
-- **DB** (hosts, projects, layout): `~/Library/Application Support/Termion/termion.db`
-- **Secrets**: macOS Keychain, service `Termion`, account `ssh:<id>:password|passphrase`
-- **SSH keys**: read straight from the paths in `~/.ssh/config` or the host form.
+| | macOS | Windows |
+|---|---|---|
+| DB | `~/Library/Application Support/Termion/termion.db` | `%APPDATA%\Termion\termion.db` |
+| Secrets | macOS Keychain (service `Termion`) | Windows Credential Manager (target `Termion`) |
+| SSH keys | `~/.ssh/*` | `%USERPROFILE%\.ssh\*` |
+| SSH agent | `$SSH_AUTH_SOCK` | OpenSSH named pipe (`\\.\pipe\openssh-ssh-agent`) |
 
 ## Layout
 

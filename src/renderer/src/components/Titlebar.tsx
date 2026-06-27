@@ -14,11 +14,16 @@ interface Props {
  */
 export default function Titlebar({ onOpenPalette }: Props): React.JSX.Element {
   const [version, setVersion] = useState<string | null>(null)
+  const [platform, setPlatform] = useState<NodeJS.Platform | null>(null)
   useEffect(() => {
     void window.api.app.version().then(setVersion)
+    void window.api.app.platform().then(setPlatform)
   }, [])
+  // macOS leaves 80px for the traffic lights; Windows/Linux have system controls
+  // on the right, so the left edge can flush up against the search pill.
+  const isMac = platform === 'darwin'
   return (
-    <div className="titlebar">
+    <div className={`titlebar ${isMac ? 'titlebar-mac' : 'titlebar-non-mac'}`}>
       <div className="titlebar-spacer" />
       <button
         type="button"

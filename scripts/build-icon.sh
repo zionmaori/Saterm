@@ -42,7 +42,17 @@ mv "$ROOT/build/icon.svg.png" "$PNG_BUILD"
 sips -z 512 512 "$PNG_BUILD" --out "$PNG_BUILD" >/dev/null
 cp "$PNG_BUILD" "$PNG_RES"
 
+# Windows .ico — multi-resolution, 16/32/48/64/128/256.
+ICO="$ROOT/build/icon.ico"
+node "$ROOT/scripts/png-to-ico.cjs" "$ICO" \
+  "$ICONSET/icon_16x16.png" \
+  "$ICONSET/icon_32x32.png" \
+  "$ICONSET/icon_32x32@2x.png" \
+  "$ICONSET/icon_128x128.png" \
+  "$ICONSET/icon_256x256.png"
+
 echo "Wrote:"
 echo "  $ICNS"
+echo "  $ICO"
 echo "  $PNG_BUILD"
 echo "  $PNG_RES"

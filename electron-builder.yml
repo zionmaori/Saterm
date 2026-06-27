@@ -13,11 +13,19 @@ asarUnpack:
   - resources/**
 win:
   executableName: termion
+  icon: build/icon.ico
+  target:
+    - nsis
 nsis:
   artifactName: ${name}-${version}-setup.${ext}
   shortcutName: ${productName}
   uninstallDisplayName: ${productName}
   createDesktopShortcut: always
+  oneClick: false
+  allowToChangeInstallationDirectory: true
+  perMachine: false
+  installerIcon: build/icon.ico
+  uninstallerIcon: build/icon.ico
 mac:
   entitlementsInherit: build/entitlements.mac.plist
   extendInfo:

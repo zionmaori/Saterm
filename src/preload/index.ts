@@ -34,7 +34,8 @@ const on = <T>(channel: string, fn: Listener<T>): (() => void) => {
 
 const api = {
   app: {
-    version: (): Promise<string> => ipcRenderer.invoke('app:version')
+    version: (): Promise<string> => ipcRenderer.invoke('app:version'),
+    platform: (): Promise<NodeJS.Platform> => ipcRenderer.invoke('app:platform')
   },
   kv: {
     get: (key: string): Promise<string | null> => ipcRenderer.invoke('kv:get', key),

@@ -21,7 +21,10 @@ function createWindow(): void {
     x: bounds?.x,
     y: bounds?.y,
     show: false,
-    titleBarStyle: 'hiddenInset',
+    // macOS: hide the titlebar so the in-app Titlebar component owns the chrome,
+    // with traffic lights overlayed. Windows/Linux: use the system frame so the
+    // user gets native min/max/close in the top-right.
+    titleBarStyle: process.platform === 'darwin' ? 'hiddenInset' : 'default',
     backgroundColor: '#0a0c10',
     ...(process.platform === 'linux' ? { icon } : {}),
     webPreferences: {

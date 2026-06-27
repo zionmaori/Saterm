@@ -79,6 +79,7 @@ export function registerIpcHandlers(): void {
   // KV
   // App metadata
   ipcMain.handle('app:version', () => app.getVersion())
+  ipcMain.handle('app:platform', () => process.platform)
 
   ipcMain.handle('kv:get', (_e, key: string) => kvGet(key))
   ipcMain.handle('kv:set', (_e, key: string, value: string) => kvSet(key, value))
