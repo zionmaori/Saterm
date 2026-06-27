@@ -1,6 +1,7 @@
 import Anthropic, { APIError } from '@anthropic-ai/sdk'
 import { BrowserWindow } from 'electron'
 import { readEnv } from './shellEnv'
+import { getAiApiKey, setAiApiKey, clearAiApiKey } from './keychain'
 import type {
   AiContext,
   AiDeltaEvent,
@@ -45,17 +46,45 @@ function parseCustomHeaders(raw: string | null): Record<string, string> {
   return out
 }
 
-export function initAi(): AiStatus {
-  const apiKey = readEnv('ANTHROPIC_API_KEY')
-  const authToken = readEnv('ANTHROPIC_AUTH_TOKEN')
-  const baseURL = readEnv('ANTHROPIC_BASE_URL')
-  // Model fallback chain: ANTHROPIC_MODEL (explicit) → opus default → built-in.
+/** Build the Anthropic client from a resolved (key, env vars) pair. The key
+ *  may come from env (`ANTHROPIC_API_KEY`/`AUTH_TOKEN`) or fallback to a value
+ *  stored in macOS Keychain on a fresh machine. */
+function buildClient(opts: {
+  apiKey: string | null
+  authToken: string | null
+  baseURL: string | null
+  customHeaders: Record<string, string>
+}): AiStatus {
+  if (!opts.apiKey && !opts.authToken) {
+    unavailableReason =
+      'Not signed in. Set ANTHROPIC_API_KEY in your shell, or sign in below with an API key from console.anthropic.com.'
+    return { available: false, reason: unavailableReason, model: activeModel, models: tierModels }
+  }
+  try {
+    const cfg: ConstructorParameters<typeof Anthropic>[0] = {}
+    if (opts.apiKey) cfg.apiKey = opts.apiKey
+    if (opts.authToken) cfg.authToken = opts.authToken
+    if (opts.baseURL) cfg.baseURL = opts.baseURL
+    if (Object.keys(opts.customHeaders).length > 0) cfg.defaultHeaders = opts.customHeaders
+    client = new Anthropic(cfg)
+    unavailableReason = null
+    return { available: true, model: activeModel, models: tierModels }
+  } catch (err) {
+    unavailableReason = (err as Error).message
+    return { available: false, reason: unavailableReason, model: activeModel, models: tierModels }
+  }
+}
+
+function readEnvConfig(): {
+  apiKey: string | null
+  authToken: string | null
+  baseURL: string | null
+  customHeaders: Record<string, string>
+} {
   activeModel =
     readEnv('ANTHROPIC_MODEL') ??
     readEnv('ANTHROPIC_DEFAULT_OPUS_MODEL') ??
     DEFAULT_MODEL
-
-  // Per-tier model ids — only populated when the user has set them.
   tierModels = {}
   const opus = readEnv('ANTHROPIC_DEFAULT_OPUS_MODEL')
   const sonnet = readEnv('ANTHROPIC_DEFAULT_SONNET_MODEL')
@@ -63,27 +92,61 @@ export function initAi(): AiStatus {
   if (opus) tierModels.opus = opus
   if (sonnet) tierModels.sonnet = sonnet
   if (haiku) tierModels.haiku = haiku
-
-  if (!apiKey && !authToken) {
-    unavailableReason =
-      'No ANTHROPIC_API_KEY or ANTHROPIC_AUTH_TOKEN found in environment or your login shell (~/.zshrc / ~/.bash_profile). Add the export and relaunch Termion.'
-    return { available: false, reason: unavailableReason, model: activeModel, models: tierModels }
+  return {
+    apiKey: readEnv('ANTHROPIC_API_KEY'),
+    authToken: readEnv('ANTHROPIC_AUTH_TOKEN'),
+    baseURL: readEnv('ANTHROPIC_BASE_URL'),
+    customHeaders: parseCustomHeaders(readEnv('ANTHROPIC_CUSTOM_HEADERS'))
   }
+}
 
+/** Sync init at startup. Considers only env vars; Keychain is consulted by
+ *  the async `reinitAi()` shortly after, which can flip status to available
+ *  without an app restart. */
+export function initAi(): AiStatus {
+  return buildClient(readEnvConfig())
+}
+
+/** Reload credentials. Env vars are priority; if none, Keychain. Callable any
+ *  time (e.g. after the user signs in via the renderer). */
+export async function reinitAi(): Promise<AiStatus> {
+  const cfg = readEnvConfig()
+  if (!cfg.apiKey && !cfg.authToken) {
+    const stored = await getAiApiKey()
+    if (stored) cfg.apiKey = stored
+  }
+  return buildClient(cfg)
+}
+
+/** Save a pasted API key after validating it. Throws on validation failure
+ *  so the renderer can surface a clear error. */
+export async function signInWithApiKey(apiKey: string): Promise<AiStatus> {
+  const trimmed = apiKey.trim()
+  if (!trimmed.startsWith('sk-ant-')) {
+    throw new Error('Key should start with "sk-ant-". Generate one at console.anthropic.com/settings/keys.')
+  }
+  // Validate by attempting a tiny call. count_tokens is cheap and confirms the
+  // key is valid + has at least the standard messages scope.
+  const probe = new Anthropic({ apiKey: trimmed })
   try {
-    const opts: ConstructorParameters<typeof Anthropic>[0] = {}
-    if (apiKey) opts.apiKey = apiKey
-    if (authToken) opts.authToken = authToken
-    if (baseURL) opts.baseURL = baseURL
-    const headers = parseCustomHeaders(readEnv('ANTHROPIC_CUSTOM_HEADERS'))
-    if (Object.keys(headers).length > 0) opts.defaultHeaders = headers
-    client = new Anthropic(opts)
-    unavailableReason = null
-    return { available: true, model: activeModel, models: tierModels }
+    await probe.messages.countTokens({
+      model: 'claude-haiku-4-5',
+      messages: [{ role: 'user', content: 'ping' }]
+    })
   } catch (err) {
-    unavailableReason = (err as Error).message
-    return { available: false, reason: unavailableReason, model: activeModel, models: tierModels }
+    const msg = err instanceof APIError ? `${err.status} ${err.message}` : (err as Error).message
+    throw new Error(`Key did not validate: ${msg}`)
   }
+  await setAiApiKey(trimmed)
+  return await reinitAi()
+}
+
+/** Forget the stored API key. The next request will fall back to env vars if
+ *  any, otherwise the chat panel goes back to the sign-in screen. */
+export async function signOut(): Promise<AiStatus> {
+  await clearAiApiKey()
+  client = null
+  return await reinitAi()
 }
 
 export function aiStatus(): AiStatus {

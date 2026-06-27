@@ -10,7 +10,7 @@ import { importSshConfig } from './sshconfig'
 import { importKnownHosts } from './knownhosts'
 import { recategorizeAll } from './hosts'
 import { addProject, refreshAllProjectVcs } from './projects'
-import { initAi } from './ai'
+import { initAi, reinitAi } from './ai'
 
 function createWindow(): void {
   const boundsRaw = kvGet('window.bounds')
@@ -119,7 +119,12 @@ app.whenReady().then(async () => {
   const changed = refreshAllProjectVcs()
   if (changed) console.log(`[vcs] refreshed ${changed} project entries`)
   const ai = initAi()
-  if (!ai.available) console.log(`[ai] disabled: ${ai.reason}`)
+  if (!ai.available) {
+    // Try Keychain fallback for fresh machines / no env vars.
+    const refreshed = await reinitAi()
+    if (refreshed.available) console.log('[ai] using API key from Keychain')
+    else console.log(`[ai] disabled: ${refreshed.reason}`)
+  }
 
   app.on('browser-window-created', (_, window) => optimizer.watchWindowShortcuts(window))
 

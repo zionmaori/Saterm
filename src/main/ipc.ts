@@ -64,7 +64,7 @@ import {
   svnDelete,
   svnLog
 } from './svn'
-import { aiStatus, startStream, cancelStream } from './ai'
+import { aiStatus, startStream, cancelStream, signInWithApiKey, signOut, reinitAi } from './ai'
 import type {
   AiStreamArgs,
   HostInput,
@@ -211,6 +211,9 @@ export function registerIpcHandlers(): void {
 
   // AI
   ipcMain.handle('ai:status', () => aiStatus())
+  ipcMain.handle('ai:reinit', () => reinitAi())
+  ipcMain.handle('ai:signIn', (_e, apiKey: string) => signInWithApiKey(apiKey))
+  ipcMain.handle('ai:signOut', () => signOut())
   ipcMain.handle('ai:stream', (_e, args: AiStreamArgs) => {
     // fire and forget — events stream back via send()
     void startStream(args)

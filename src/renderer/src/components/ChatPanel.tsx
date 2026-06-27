@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { useAi } from '../store/ai'
+import AiSignIn from './AiSignIn'
 import type { AiContext, AiKind, AiMessage, AiTier } from '../../../shared/types'
 
 const TIER_LABEL: Record<AiTier, string> = {
@@ -130,6 +131,20 @@ export default function ChatPanel({
               New
             </button>
           )}
+          {status?.available && (
+            <button
+              title="Sign out (clears API key from Keychain)"
+              onClick={async () => {
+                if (!confirm('Sign out and forget the saved API key?')) return
+                await window.api.ai.signOut()
+                await useAi.getState().refreshStatus()
+              }}
+              style={{ padding: '2px 8px' }}
+              className="ghost"
+            >
+              Sign out
+            </button>
+          )}
           {onClose && (
             <button onClick={onClose} title="Close" style={{ padding: '2px 8px' }}>
               ×
@@ -138,12 +153,10 @@ export default function ChatPanel({
         </div>
       </div>
 
-      {!status?.available && (
-        <div className="chat-banner danger">
-          {status?.reason ?? 'AI unavailable.'}
-        </div>
-      )}
+      {!status?.available && <AiSignIn reason={status?.reason} />}
 
+      {status?.available && (
+      <>
       <div className="chat-scroll" ref={scrollRef}>
         {session?.history.map((m, i) => (
           <ChatMessage
@@ -208,6 +221,8 @@ export default function ChatPanel({
           )}
         </div>
       </div>
+      </>
+      )}
     </div>
   )
 }

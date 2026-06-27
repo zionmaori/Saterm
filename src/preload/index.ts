@@ -150,6 +150,9 @@ const api = {
   },
   ai: {
     status: (): Promise<AiStatus> => ipcRenderer.invoke('ai:status'),
+    reinit: (): Promise<AiStatus> => ipcRenderer.invoke('ai:reinit'),
+    signIn: (apiKey: string): Promise<AiStatus> => ipcRenderer.invoke('ai:signIn', apiKey),
+    signOut: (): Promise<AiStatus> => ipcRenderer.invoke('ai:signOut'),
     stream: (args: AiStreamArgs): Promise<void> => ipcRenderer.invoke('ai:stream', args),
     cancel: (streamId: string): Promise<void> => ipcRenderer.invoke('ai:cancel', streamId),
     onStart: (fn: Listener<AiStartEvent>) => on('ai:start', fn),

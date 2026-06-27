@@ -81,6 +81,30 @@ AI copilots: set `ANTHROPIC_API_KEY` (or `ANTHROPIC_AUTH_TOKEN` + the gateway
 env vars) in your PowerShell `$PROFILE` *or* in System Properties → Environment
 Variables. Termion reads from both on launch.
 
+## Releasing
+
+`.github/workflows/release.yml` builds the macOS `.dmg` on a hosted runner
+whenever you push a `v*` tag and attaches it to a draft GitHub Release.
+
+```sh
+# 1. Bump the version locally so package.json + the .dmg name agree.
+npm run version:patch     # 1.0.2 → 1.0.3   (or version:minor / version:major)
+git add package.json package-lock.json
+git commit -m "Release v$(node -p \"require('./package.json').version\")"
+
+# 2. Tag and push.
+git tag "v$(node -p \"require('./package.json').version\")"
+git push && git push --tags
+```
+
+A few minutes later: GitHub → Releases → draft `Termion vX.Y.Z` with
+`termion-X.Y.Z.dmg` attached and auto-generated release notes. Review and
+click **Publish release**. Existing `dist/*.dmg` files on your laptop are
+unrelated — feel free to delete them.
+
+To delete a release you regret: `Releases → … → Delete release`, then
+`git push --delete origin v1.0.3` to drop the tag too.
+
 ## Where data lives
 
 | | macOS | Windows |
