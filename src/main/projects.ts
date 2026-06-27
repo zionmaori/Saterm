@@ -49,7 +49,42 @@ export function addProject(path: string): Project {
 }
 
 export function touchProject(id: number): void {
-  getDb().prepare('UPDATE projects SET last_opened_at = ? WHERE id = ?').run(Date.now(), id)
+  // Refresh `vcs` while we're here — projects can gain a .git after import.
+  const row = getDb().prepare('SELECT path FROM projects WHERE id = ?').get(id) as
+    | { path: string }
+    | undefined
+  if (row) {
+    const vcs = detectVcs(row.path)
+    getDb()
+      .prepare('UPDATE projects SET last_opened_at = ?, vcs = ? WHERE id = ?')
+      .run(Date.now(), vcs, id)
+  }
+}
+
+/** Re-detect VCS for every project. Called once on startup so existing rows
+ *  pick up a newly-created .git/.svn dir without forcing the user to re-add. */
+export function refreshAllProjectVcs(): number {
+  const db = getDb()
+  const rows = db.prepare('SELECT id, path FROM projects').all() as {
+    id: number
+    path: string
+  }[]
+  const upd = db.prepare('UPDATE projects SET vcs = ? WHERE id = ?')
+  let changed = 0
+  const tx = db.transaction((items: typeof rows) => {
+    for (const r of items) {
+      const v = detectVcs(r.path)
+      const cur = db.prepare('SELECT vcs FROM projects WHERE id = ?').get(r.id) as
+        | { vcs: string }
+        | undefined
+      if (cur && cur.vcs !== v) {
+        upd.run(v, r.id)
+        changed++
+      }
+    }
+  })
+  tx(rows)
+  return changed
 }
 
 export function removeProject(id: number): void {
@@ -62,12 +97,20 @@ export interface DirEntry {
   isDir: boolean
 }
 
-const IGNORED_DIRS = new Set(['.git', '.svn', 'node_modules', '.next', 'dist', 'out', '.DS_Store'])
+/** Dirs to hide from the file tree. These are noise (build output, dependency
+ *  caches), not "hidden" in the dotfile sense. Dotfiles/dotdirs like .git,
+ *  .env, .vscode are now shown — like `ls -a`. */
+const IGNORED_DIRS = new Set(['node_modules', '.next', 'dist', 'out'])
+const IGNORED_FILE_PREFIXES = ['.DS_']
 
 export async function readDir(path: string): Promise<DirEntry[]> {
   const entries = await readdir(path, { withFileTypes: true })
   const filtered = entries
-    .filter((e) => !IGNORED_DIRS.has(e.name) && !e.name.startsWith('.DS_'))
+    .filter(
+      (e) =>
+        !IGNORED_DIRS.has(e.name) &&
+        !IGNORED_FILE_PREFIXES.some((p) => e.name.startsWith(p))
+    )
     .map((e) => ({
       name: e.name,
       path: join(path, e.name),
@@ -111,6 +154,18 @@ export interface QuickOpenEntry {
   absPath: string
 }
 
+/** Quick-open + ripgrep search SHOULD skip .git etc. — different rules from
+ *  the visible file tree. The tree is a browser; this is a code search. */
+const QUICKOPEN_IGNORED_DIRS = new Set([
+  ...IGNORED_DIRS,
+  '.git',
+  '.svn',
+  '.hg',
+  '.cache',
+  '.idea',
+  '.vscode'
+])
+
 export async function quickOpenList(root: string, limit = 5000): Promise<QuickOpenEntry[]> {
   const out: QuickOpenEntry[] = []
   const stack: string[] = [root]
@@ -123,7 +178,7 @@ export async function quickOpenList(root: string, limit = 5000): Promise<QuickOp
       continue
     }
     for (const e of entries) {
-      if (IGNORED_DIRS.has(e.name)) continue
+      if (QUICKOPEN_IGNORED_DIRS.has(e.name)) continue
       const p = join(dir, e.name)
       if (e.isDirectory()) {
         stack.push(p)

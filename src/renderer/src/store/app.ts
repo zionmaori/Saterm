@@ -65,7 +65,9 @@ export const useApp = create<AppState>((set, get) => ({
   },
 
   openProjectTab: (project) => {
-    void window.api.projects.touch(project.id)
+    // Touch refreshes last_opened_at AND re-detects vcs server-side, so a
+    // project that gained a .git after first import now reports it.
+    void window.api.projects.touch(project.id).then(() => get().refreshProjects())
     const existing = get().tabs.find((t) => t.kind === 'project' && t.projectId === project.id)
     if (existing) {
       set({ activeTabId: existing.id })

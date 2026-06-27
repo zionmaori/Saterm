@@ -9,7 +9,7 @@ import { registerIpcHandlers } from './ipc'
 import { importSshConfig } from './sshconfig'
 import { importKnownHosts } from './knownhosts'
 import { recategorizeAll } from './hosts'
-import { addProject } from './projects'
+import { addProject, refreshAllProjectVcs } from './projects'
 import { initAi } from './ai'
 
 function createWindow(): void {
@@ -116,6 +116,8 @@ app.whenReady().then(async () => {
   await firstLaunchImport()
   backfillCategoriesOnce()
   seedProjectsOnce()
+  const changed = refreshAllProjectVcs()
+  if (changed) console.log(`[vcs] refreshed ${changed} project entries`)
   const ai = initAi()
   if (!ai.available) console.log(`[ai] disabled: ${ai.reason}`)
 
