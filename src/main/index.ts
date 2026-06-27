@@ -1,0 +1,130 @@
+import { app, shell, BrowserWindow } from 'electron'
+import { join } from 'path'
+import { electronApp, optimizer, is } from '@electron-toolkit/utils'
+import icon from '../../resources/icon.png?asset'
+import { homedir } from 'os'
+import { existsSync, readdirSync, statSync } from 'fs'
+import { getDb, kvGet, kvSet } from './db'
+import { registerIpcHandlers } from './ipc'
+import { importSshConfig } from './sshconfig'
+import { importKnownHosts } from './knownhosts'
+import { recategorizeAll } from './hosts'
+import { addProject } from './projects'
+import { initAi } from './ai'
+
+function createWindow(): void {
+  const boundsRaw = kvGet('window.bounds')
+  const bounds = boundsRaw ? (JSON.parse(boundsRaw) as { x?: number; y?: number; width: number; height: number }) : null
+  const mainWindow = new BrowserWindow({
+    width: bounds?.width ?? 1400,
+    height: bounds?.height ?? 900,
+    x: bounds?.x,
+    y: bounds?.y,
+    show: false,
+    titleBarStyle: 'hiddenInset',
+    backgroundColor: '#0a0c10',
+    ...(process.platform === 'linux' ? { icon } : {}),
+    webPreferences: {
+      preload: join(__dirname, '../preload/index.js'),
+      sandbox: false,
+      contextIsolation: true
+    }
+  })
+
+  mainWindow.on('ready-to-show', () => mainWindow.show())
+
+  mainWindow.webContents.setWindowOpenHandler((details) => {
+    shell.openExternal(details.url)
+    return { action: 'deny' }
+  })
+
+  const saveBounds = (): void => {
+    const b = mainWindow.getBounds()
+    kvSet('window.bounds', JSON.stringify(b))
+  }
+  mainWindow.on('resize', saveBounds)
+  mainWindow.on('move', saveBounds)
+  mainWindow.on('close', saveBounds)
+
+  if (is.dev && process.env['ELECTRON_RENDERER_URL']) {
+    mainWindow.loadURL(process.env['ELECTRON_RENDERER_URL'])
+  } else {
+    mainWindow.loadFile(join(__dirname, '../renderer/index.html'))
+  }
+}
+
+async function firstLaunchImport(): Promise<void> {
+  if (kvGet('imports.firstLaunchDone') === '1') return
+  try {
+    const ssh = await importSshConfig()
+    const known = await importKnownHosts()
+    console.log(
+      `[first-launch] imported ${ssh.added} from ssh_config, ${known.added} from known_hosts`
+    )
+  } catch (err) {
+    console.error('[first-launch] import failed', err)
+  } finally {
+    kvSet('imports.firstLaunchDone', '1')
+  }
+}
+
+function seedProjectsOnce(): void {
+  if (kvGet('projects.seededV1') === '1') return
+  const root = join(homedir(), 'Projects')
+  if (!existsSync(root)) {
+    kvSet('projects.seededV1', '1')
+    return
+  }
+  let count = 0
+  try {
+    for (const name of readdirSync(root)) {
+      if (name.startsWith('.')) continue
+      const full = `${root}/${name}`
+      try {
+        if (!statSync(full).isDirectory()) continue
+      } catch {
+        continue
+      }
+      try {
+        addProject(full)
+        count++
+      } catch {
+        /* duplicate path or other — ignore */
+      }
+    }
+  } catch (err) {
+    console.error('[seed projects] failed', err)
+  }
+  kvSet('projects.seededV1', '1')
+  if (count) console.log(`[seed projects] added ${count} from ${root}`)
+}
+
+function backfillCategoriesOnce(): void {
+  if (kvGet('hosts.categorizedV2') === '1') return
+  const n = recategorizeAll()
+  kvSet('hosts.categorizedV2', '1')
+  if (n) console.log(`[backfill] categorized ${n} hosts`)
+}
+
+app.whenReady().then(async () => {
+  electronApp.setAppUserModelId('com.termion.app')
+  getDb()
+  registerIpcHandlers()
+  await firstLaunchImport()
+  backfillCategoriesOnce()
+  seedProjectsOnce()
+  const ai = initAi()
+  if (!ai.available) console.log(`[ai] disabled: ${ai.reason}`)
+
+  app.on('browser-window-created', (_, window) => optimizer.watchWindowShortcuts(window))
+
+  createWindow()
+
+  app.on('activate', () => {
+    if (BrowserWindow.getAllWindows().length === 0) createWindow()
+  })
+})
+
+app.on('window-all-closed', () => {
+  if (process.platform !== 'darwin') app.quit()
+})

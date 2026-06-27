@@ -1,0 +1,49 @@
+# Dependencies / builds
+node_modules/
+dist/
+out/
+build/icon.iconset/
+
+# Logs & caches
+*.log
+*.log.*
+.eslintcache
+.cache/
+.vite/
+.parcel-cache/
+
+# Editor / OS noise
+.DS_Store
+.idea/
+*.swp
+
+# Secrets — never commit
+.env
+.env.*
+!.env.example
+*.local
+
+# SQLite / user data (just in case anything ever lands inside the repo)
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+*.sqlite
+*.sqlite3
+termion.db*
+
+# Private keys (paranoid catch-all)
+*.pem
+*.key
+id_rsa
+id_rsa.pub
+id_ed25519
+id_ed25519.pub
+*.p12
+*.pfx
+
+# AI tooling assistants — don't leak local prompts/memory
+.claude/
+.cursor/
+.continue/
+.aider*
