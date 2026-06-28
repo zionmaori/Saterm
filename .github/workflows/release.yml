@@ -41,6 +41,8 @@ jobs:
           npx electron-builder install-app-deps
 
       - name: Build
+        env:
+          NODE_OPTIONS: --max-old-space-size=6144
         run: |
           npx electron-vite build
           npx electron-builder --win --publish=never
@@ -55,7 +57,7 @@ jobs:
           files: dist/*.exe
 
   build-linux:
-    name: Build Linux (.AppImage, .deb)
+    name: Build Linux (.AppImage, .deb, .rpm)
     runs-on: ubuntu-latest
     timeout-minutes: 30
 
@@ -98,6 +100,8 @@ jobs:
           npx electron-builder install-app-deps
 
       - name: Build
+        env:
+          NODE_OPTIONS: --max-old-space-size=6144
         run: |
           npx electron-vite build
           npx electron-builder --linux --publish=never
@@ -146,6 +150,8 @@ jobs:
           npx electron-builder install-app-deps
 
       - name: Build .dmg
+        env:
+          NODE_OPTIONS: --max-old-space-size=6144
         run: |
           npx electron-vite build
           npx electron-builder --mac --publish=never
