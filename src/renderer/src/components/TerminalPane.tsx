@@ -9,6 +9,7 @@ import type { Tab } from '../store/app'
 interface Props {
   tab: Tab
   visible: boolean
+  resizeKey?: number | string
 }
 
 const THEME = {
@@ -35,7 +36,7 @@ const THEME = {
   brightWhite: '#f0f6fc'
 }
 
-export default function TerminalPane({ tab, visible }: Props): React.JSX.Element {
+export default function TerminalPane({ tab, visible, resizeKey }: Props): React.JSX.Element {
   const hostRef = useRef<HTMLDivElement>(null)
   const termRef = useRef<Terminal | null>(null)
   const fitRef = useRef<FitAddon | null>(null)
@@ -177,6 +178,26 @@ export default function TerminalPane({ tab, visible }: Props): React.JSX.Element
     }
     return undefined
   }, [visible, tab.id])
+
+  // Re-fit when the container is repositioned (e.g. terminal flips top/bottom).
+  useEffect(() => {
+    if (resizeKey === undefined) return
+    const t = setTimeout(() => {
+      try {
+        fitRef.current?.fit()
+        if (termRef.current && fitRef.current) {
+          void window.api.term.resize({
+            sessionId: tab.id,
+            cols: termRef.current.cols,
+            rows: termRef.current.rows
+          })
+        }
+      } catch {
+        /* noop */
+      }
+    }, 50)
+    return () => clearTimeout(t)
+  }, [resizeKey, tab.id])
 
   return (
     <div className="terminal-host" ref={hostRef} style={{ display: visible ? 'block' : 'none' }}>

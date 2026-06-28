@@ -355,7 +355,7 @@ export default function ProjectView({ tab, visible }: Props): React.JSX.Element 
           </button>
         </div>
         <div style={{ flex: 1, minHeight: 0, display: 'flex' }}>
-          <TerminalPane tab={bottomTabRef.current!} visible={visible} />
+          <TerminalPane tab={bottomTabRef.current!} visible={visible} resizeKey={termAtBottom ? 1 : 0} />
         </div>
       </div>
       <div style={{ gridColumn: 3, gridRow: 2 }}>
