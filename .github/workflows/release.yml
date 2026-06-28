@@ -79,7 +79,6 @@ jobs:
             libatk-bridge2.0-0 \
             libgtk-3-0 \
             libxss1 \
-            libgconf-2-4 \
             fakeroot \
             rpm
 
