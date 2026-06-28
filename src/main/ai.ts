@@ -810,7 +810,7 @@ async function startStreamGemini(args: AiStreamArgs): Promise<void> {
   let usage: AiUsage = { inputTokens: 0, outputTokens: 0, cacheReadInputTokens: 0, cacheCreationInputTokens: 0 }
 
   try {
-    const stream = geminiClient.models.generateContentStream({
+    const stream = await geminiClient.models.generateContentStream({
       model: geminiModel,
       contents: contents as Parameters<typeof geminiClient.models.generateContentStream>[0]['contents'],
       config: {
@@ -829,17 +829,22 @@ async function startStreamGemini(args: AiStreamArgs): Promise<void> {
     }
 
     let toolCallCounter = 0
-    for await (const chunk of stream) {
+    const iter = stream[Symbol.asyncIterator]()
+    while (true) {
       if (controller.signal.aborted) break
+      const { value: chunk, done } = await iter.next()
+      if (done) break
 
-      for (const part of chunk.candidates?.[0]?.content?.parts ?? []) {
-        if ((part as { text?: string }).text) {
-          textBuf += (part as { text: string }).text
-          if (!flushTimer) flushTimer = setTimeout(() => { flushTimer = null; flush() }, 16)
-        }
-        const fnCall = (part as { functionCall?: { name: string; args: unknown } }).functionCall
-        if (fnCall) {
-          flush()
+      const text = chunk.text
+      if (text) {
+        textBuf += text
+        if (!flushTimer) flushTimer = setTimeout(() => { flushTimer = null; flush() }, 16)
+      }
+
+      const fnCalls = chunk.functionCalls
+      if (fnCalls?.length) {
+        flush()
+        for (const fnCall of fnCalls) {
           send('ai:tool_use', {
             streamId: args.streamId,
             id: `gemini-tool-${toolCallCounter++}`,

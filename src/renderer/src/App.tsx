@@ -4,6 +4,7 @@ import { useAi } from './store/ai'
 import Sidebar from './components/Sidebar'
 import TabBar from './components/TabBar'
 import TerminalPane from './components/TerminalPane'
+import LocalTerminalView from './components/LocalTerminalView'
 import ProjectView from './components/ProjectView'
 import AuthPrompt from './components/AuthPrompt'
 import CommandPalette from './components/CommandPalette'
@@ -121,6 +122,7 @@ export default function App(): React.JSX.Element {
             {tabs.map((t) => {
               const visible = t.id === activeTabId
               if (t.kind === 'project') return <ProjectView key={t.id} tab={t} visible={visible} />
+              if (t.kind === 'local') return <LocalTerminalView key={t.id} tab={t} visible={visible} />
               return <TerminalPane key={t.id} tab={t} visible={visible} />
             })}
           </div>

@@ -937,6 +937,23 @@
   border-bottom: 1px solid var(--border);
 }
 
+.local-term-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 4px 10px;
+  background: var(--bg-2);
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+.local-term-title {
+  font-size: 11px;
+  color: var(--text-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
 .shell-select {
   font-size: 10px;
   background: transparent;
