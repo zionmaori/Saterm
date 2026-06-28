@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { PanelBottom, PanelTop } from 'lucide-react'
 import { useApp, type Tab } from '../store/app'
 import FileTree from './FileTree'
 import { CodeEditor, languageFor, type Selection } from './Editor'
@@ -54,6 +55,7 @@ export default function ProjectView({ tab, visible }: Props): React.JSX.Element 
   const [treeWidth, setTreeWidth] = useState(240)
   const [vcsWidth, setVcsWidth] = useState(320)
   const [termHeight, setTermHeight] = useState(220)
+  const [termAtBottom, setTermAtBottom] = useState(false)
   const layoutKey = `project.layout:${project?.id ?? 'default'}`
 
   useEffect(() => {
@@ -62,23 +64,23 @@ export default function ProjectView({ tab, visible }: Props): React.JSX.Element 
       treeWidth?: number
       vcsWidth?: number
       termHeight?: number
+      termAtBottom?: boolean
     }>(layoutKey).then((saved) => {
       if (cancelled || !saved) return
       if (typeof saved.treeWidth === 'number') setTreeWidth(saved.treeWidth)
       if (typeof saved.vcsWidth === 'number') setVcsWidth(saved.vcsWidth)
       if (typeof saved.termHeight === 'number') setTermHeight(saved.termHeight)
+      if (typeof saved.termAtBottom === 'boolean') setTermAtBottom(saved.termAtBottom)
     })
-    return () => {
-      cancelled = true
-    }
+    return () => { cancelled = true }
   }, [layoutKey])
 
   useEffect(() => {
     const t = setTimeout(() => {
-      void window.api.kv.setJSON(layoutKey, { treeWidth, vcsWidth, termHeight })
+      void window.api.kv.setJSON(layoutKey, { treeWidth, vcsWidth, termHeight, termAtBottom })
     }, 300)
     return () => clearTimeout(t)
-  }, [layoutKey, treeWidth, vcsWidth, termHeight])
+  }, [layoutKey, treeWidth, vcsWidth, termHeight, termAtBottom])
 
   if (!bottomTabRef.current) {
     bottomTabRef.current = {
@@ -205,7 +207,9 @@ export default function ProjectView({ tab, visible }: Props): React.JSX.Element 
         flex: 1,
         minWidth: 0,
         gridTemplateColumns: `${treeWidth}px 6px 1fr 6px ${vcsWidth}px`,
-        gridTemplateRows: `${termHeight}px 6px 1fr`
+        gridTemplateRows: termAtBottom
+          ? `1fr 6px ${termHeight}px`
+          : `${termHeight}px 6px 1fr`
       }}
     >
       <FileTree root={repoPath} onOpenFile={openFile} selectedPath={activePath} />
@@ -218,7 +222,7 @@ export default function ProjectView({ tab, visible }: Props): React.JSX.Element 
         ariaLabel="Resize file tree"
       />
 
-      <div className="editor-wrap">
+      <div className="editor-wrap" style={termAtBottom ? { gridRow: 1 } : undefined}>
         <div className="editor-tabs">
           {open.map((f) => {
             const name = f.path.split('/').pop() ?? f.path
@@ -339,8 +343,17 @@ export default function ProjectView({ tab, visible }: Props): React.JSX.Element 
         )}
       </div>
 
-      <div className="bottom-term" style={{ gridColumn: 3, gridRow: 1 }}>
-        <div className="bottom-term-header">Terminal — {repoPath}</div>
+      <div className="bottom-term" style={{ gridColumn: 3, gridRow: termAtBottom ? 3 : 1 }}>
+        <div className="bottom-term-header">
+          <span>Terminal — {repoPath}</span>
+          <button
+            className="bottom-term-flip"
+            onClick={() => setTermAtBottom((v) => !v)}
+            title={termAtBottom ? 'Move terminal to top' : 'Move terminal to bottom'}
+          >
+            {termAtBottom ? <PanelTop size={12} strokeWidth={2} /> : <PanelBottom size={12} strokeWidth={2} />}
+          </button>
+        </div>
         <div style={{ flex: 1, minHeight: 0, display: 'flex' }}>
           <TerminalPane tab={bottomTabRef.current!} visible={visible} />
         </div>
@@ -352,6 +365,7 @@ export default function ProjectView({ tab, visible }: Props): React.JSX.Element 
           onSize={setTermHeight}
           min={80}
           max={1200}
+          inverse={termAtBottom}
           ariaLabel="Resize terminal"
         />
       </div>

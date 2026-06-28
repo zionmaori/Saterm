@@ -19,9 +19,7 @@
   background: var(--bg-1);
   border-bottom: 1px solid var(--border);
   display: grid;
-  /* macOS reserves 80px on the left for traffic lights. Windows/Linux have
-     system controls on the right, so the left can be flush. */
-  grid-template-columns: 80px 1fr 80px;
+  grid-template-columns: 120px 1fr 120px;
   align-items: center;
   font-size: var(--fs-xs);
   color: var(--text-dim);
@@ -30,11 +28,55 @@
 }
 
 .titlebar.titlebar-non-mac {
-  grid-template-columns: 12px 1fr 80px;
+  grid-template-columns: 80px 1fr 120px;
 }
 
-.titlebar-spacer {
-  /* Left column — reserved for macOS traffic lights (window controls). */
+.titlebar-left,
+.titlebar-right {
+  -webkit-app-region: no-drag;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0 8px;
+}
+
+.titlebar-right {
+  justify-content: flex-end;
+}
+
+.titlebar-icon-btn {
+  -webkit-app-region: no-drag;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-dimer);
+  cursor: pointer;
+  padding: 0;
+}
+
+.titlebar-icon-btn:hover {
+  background: var(--bg-3);
+  color: var(--text);
+}
+
+.titlebar-icon-btn.active {
+  color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.theme-toggle {
+  display: flex;
+  align-items: center;
+  background: var(--bg-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 2px;
+  gap: 1px;
 }
 
 .titlebar-search {
@@ -77,9 +119,6 @@
 }
 
 .titlebar-meta {
-  -webkit-app-region: no-drag;
-  justify-self: end;
-  padding-right: 12px;
   display: inline-flex;
   align-items: baseline;
   gap: 6px;
@@ -103,6 +142,18 @@
   display: grid;
   grid-template-columns: var(--sidebar-width) 1fr;
   min-height: 0;
+  transition: grid-template-columns 0.18s ease;
+}
+
+.main.sidebar-hidden {
+  grid-template-columns: 0 1fr;
+}
+
+.main.sidebar-hidden .sidebar2 {
+  overflow: hidden;
+  min-width: 0;
+  width: 0;
+  border-right: none;
 }
 
 .sidebar,
@@ -875,12 +926,35 @@
 }
 
 .project .bottom-term-header {
-  padding: 4px 10px;
+  padding: 4px 6px 4px 10px;
   font-size: 11px;
   color: var(--text-dim);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
   text-transform: uppercase;
   background: var(--bg-2);
   border-bottom: 1px solid var(--border);
+}
+
+.bottom-term-flip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-dimer);
+  cursor: pointer;
+  padding: 0;
+  flex-shrink: 0;
+}
+
+.bottom-term-flip:hover {
+  background: var(--bg-3);
+  color: var(--text);
 }
 
 .tree-row {

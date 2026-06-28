@@ -1,6 +1,6 @@
 {
   "name": "termion",
-  "version": "1.0.5",
+  "version": "1.0.7",
   "description": "An Electron application with React and TypeScript",
   "main": "./out/main/index.js",
   "author": "example.com",
@@ -20,6 +20,7 @@
     "build:mac": "electron-vite build && electron-builder --mac",
     "prebuild:win": "npm version patch --no-git-tag-version --silent",
     "build:win": "electron-vite build && electron-builder --win",
+    "prebuild:linux": "npm version patch --no-git-tag-version --silent",
     "build:linux": "electron-vite build && electron-builder --linux",
     "build:icon": "./scripts/build-icon.sh",
     "version:patch": "npm version patch --no-git-tag-version",

@@ -5,11 +5,114 @@ on:
     tags:
       - 'v*'   # v1.0.3, v2.0.0-beta.1, etc.
 
-# Allow the job to create releases.
 permissions:
   contents: write
 
 jobs:
+  build-windows:
+    name: Build Windows (.exe)
+    runs-on: windows-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Derive version from tag
+        id: ver
+        shell: bash
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "Releasing v$VERSION"
+
+      - name: Sync package.json version to tag
+        run: npm version "${{ steps.ver.outputs.version }}" --no-git-tag-version --allow-same-version --silent
+
+      - name: Install dependencies
+        run: |
+          npm ci
+          npx electron-builder install-app-deps
+
+      - name: Build
+        run: |
+          npx electron-vite build
+          npx electron-builder --win --publish=never
+
+      - name: Upload to release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: Termion ${{ github.ref_name }}
+          draft: true
+          generate_release_notes: true
+          files: dist/*.exe
+
+  build-linux:
+    name: Build Linux (.AppImage, .deb)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install Linux build dependencies
+        run: |
+          sudo apt-get update -q
+          sudo apt-get install -y \
+            libsecret-1-dev \
+            libsecret-1-0 \
+            libnss3 \
+            libatk-bridge2.0-0 \
+            libgtk-3-0 \
+            libxss1 \
+            libgconf-2-4 \
+            fakeroot \
+            rpm
+
+      - name: Derive version from tag
+        id: ver
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "Releasing v$VERSION"
+
+      - name: Sync package.json version to tag
+        run: npm version "${{ steps.ver.outputs.version }}" --no-git-tag-version --allow-same-version --silent
+
+      - name: Install dependencies
+        run: |
+          npm ci
+          npx electron-builder install-app-deps
+
+      - name: Build
+        run: |
+          npx electron-vite build
+          npx electron-builder --linux --publish=never
+
+      - name: Upload to release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: Termion ${{ github.ref_name }}
+          draft: true
+          files: |
+            dist/*.AppImage
+            dist/*.deb
+
   build-mac:
     name: Build macOS (.dmg)
     runs-on: macos-latest
@@ -28,7 +131,6 @@ jobs:
       - name: Derive version from tag
         id: ver
         run: |
-          # GITHUB_REF_NAME is "v1.0.3" — strip the v.
           VERSION="${GITHUB_REF_NAME#v}"
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
           echo "Releasing v$VERSION"
@@ -39,37 +141,20 @@ jobs:
             --no-git-tag-version --allow-same-version --silent
 
       - name: Install dependencies
-        # `npm ci` skips the postinstall on some runners; we run install-app-deps
-        # explicitly to rebuild native modules (better-sqlite3, node-pty, keytar)
-        # against Electron's ABI for this runner's arch.
         run: |
           npm ci
           npx electron-builder install-app-deps
 
       - name: Build .dmg
-        # build:mac normally runs prebuild:mac which patch-bumps; the tag IS
-        # the version here, so call electron-vite + electron-builder directly.
         run: |
           npx electron-vite build
           npx electron-builder --mac --publish=never
 
-      - name: Compute artifact paths
-        id: artifacts
-        run: |
-          DMG=$(ls dist/termion-*.dmg | head -1)
-          BLOCKMAP="$DMG.blockmap"
-          echo "dmg=$DMG"        >> "$GITHUB_OUTPUT"
-          echo "blockmap=$BLOCKMAP" >> "$GITHUB_OUTPUT"
-          ls -la dist/
-
-      - name: Create or update draft Release
+      - name: Upload to release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ github.ref_name }}
           name: Termion ${{ github.ref_name }}
           draft: true
           generate_release_notes: true
-          fail_on_unmatched_files: true
-          files: |
-            ${{ steps.artifacts.outputs.dmg }}
-            ${{ steps.artifacts.outputs.blockmap }}
+          files: dist/*.dmg

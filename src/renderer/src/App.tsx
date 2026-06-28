@@ -8,8 +8,12 @@ import ProjectView from './components/ProjectView'
 import AuthPrompt from './components/AuthPrompt'
 import CommandPalette from './components/CommandPalette'
 import TerminalCopilot from './components/TerminalCopilot'
-import Titlebar from './components/Titlebar'
+import Titlebar, { type Theme } from './components/Titlebar'
 import type { AuthPromptEvent } from '../../shared/types'
+
+function readLS<T extends string>(key: string, fallback: T): T {
+  try { return (localStorage.getItem(key) as T) ?? fallback } catch { return fallback }
+}
 
 export default function App(): React.JSX.Element {
   const ready = useApp((s) => s.ready)
@@ -22,13 +26,26 @@ export default function App(): React.JSX.Element {
   const [paletteOpen, setPaletteOpen] = useState(false)
   const [quickOpenOpen, setQuickOpenOpen] = useState(false)
   const [terminalCopilotOpen, setTerminalCopilotOpen] = useState(false)
+  const [sidebarOpen, setSidebarOpen] = useState(() => readLS('sidebarOpen', 'true') !== 'false')
+  const [theme, setTheme] = useState<Theme>(() => readLS<Theme>('theme', 'dark'))
 
   const installAiListeners = useAi((s) => s.installListeners)
   const refreshAiStatus = useAi((s) => s.refreshStatus)
 
+  // Apply theme class to <html>
   useEffect(() => {
-    void restoreLayout()
-  }, [restoreLayout])
+    const html = document.documentElement
+    html.classList.remove('theme-light', 'theme-system')
+    if (theme === 'light') html.classList.add('theme-light')
+    else if (theme === 'system') html.classList.add('theme-system')
+    localStorage.setItem('theme', theme)
+  }, [theme])
+
+  useEffect(() => {
+    localStorage.setItem('sidebarOpen', String(sidebarOpen))
+  }, [sidebarOpen])
+
+  useEffect(() => { void restoreLayout() }, [restoreLayout])
 
   useEffect(() => {
     installAiListeners()
@@ -52,6 +69,9 @@ export default function App(): React.JSX.Element {
       } else if (meta && e.key.toLowerCase() === 'j') {
         e.preventDefault()
         setTerminalCopilotOpen((v) => !v)
+      } else if (meta && e.key.toLowerCase() === 'b') {
+        e.preventDefault()
+        setSidebarOpen((v) => !v)
       } else if (e.key === 'Escape') {
         setPaletteOpen(false)
         setQuickOpenOpen(false)
@@ -69,9 +89,7 @@ export default function App(): React.JSX.Element {
 
   const onAuthReply = (secret: string | null, remember: boolean): void => {
     const current = authQueue[0]
-    if (current) {
-      void window.api.ssh.authReply(current.sessionId, secret, remember)
-    }
+    if (current) void window.api.ssh.authReply(current.sessionId, secret, remember)
     setAuthQueue((q) => q.slice(1))
   }
 
@@ -79,8 +97,14 @@ export default function App(): React.JSX.Element {
 
   return (
     <div className="app">
-      <Titlebar onOpenPalette={() => setPaletteOpen(true)} />
-      <div className="main">
+      <Titlebar
+        onOpenPalette={() => setPaletteOpen(true)}
+        sidebarOpen={sidebarOpen}
+        onToggleSidebar={() => setSidebarOpen((v) => !v)}
+        theme={theme}
+        onTheme={setTheme}
+      />
+      <div className={`main${sidebarOpen ? '' : ' sidebar-hidden'}`}>
         <Sidebar />
         <div className="content">
           <TabBar />
@@ -103,8 +127,6 @@ export default function App(): React.JSX.Element {
       {terminalCopilotOpen &&
         activeTab &&
         (() => {
-          // On SSH / local terminals, target the tab itself. On project tabs,
-          // target the bottom terminal that the ProjectView owns.
           const target =
             activeTab.kind === 'project'
               ? (window as Window & { __termionProjectTerm?: Map<string, import('./store/app').Tab> })

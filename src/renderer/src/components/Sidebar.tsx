@@ -408,7 +408,7 @@ function Section({
   right?: React.ReactNode
   children: React.ReactNode
 }): React.JSX.Element {
-  const [open, setOpen] = useState(true)
+  const [open, setOpen] = useState(false)
   return (
     <div className="sidebar2-section">
       <div className="sidebar2-section-header" onClick={() => setOpen((v) => !v)}>

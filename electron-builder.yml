@@ -39,11 +39,13 @@ dmg:
 linux:
   target:
     - AppImage
-    - snap
     - deb
+  icon: resources/icon.png
   maintainer: electronjs.org
   category: Utility
 appImage:
+  artifactName: ${name}-${version}.${ext}
+deb:
   artifactName: ${name}-${version}.${ext}
 npmRebuild: false
 publish:
