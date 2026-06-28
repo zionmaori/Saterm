@@ -76,12 +76,17 @@ function isAvailable(): boolean {
 
 function buildStatus(): AiStatus {
   const available = isAvailable()
+  const configured: AiProvider[] = []
+  if (anthropicClient !== null) configured.push('anthropic')
+  if (openAIClient !== null) configured.push('openai')
+  if (geminiClient !== null) configured.push('gemini')
   return {
     available,
     reason: available ? undefined : (unavailableReason ?? 'Not configured'),
     provider: activeProvider,
     model: activeModel(),
     models: activeProvider === 'anthropic' ? anthropicTierModels : {},
+    configured,
   }
 }
 

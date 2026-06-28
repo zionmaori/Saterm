@@ -9,6 +9,7 @@ import AuthPrompt from './components/AuthPrompt'
 import CommandPalette from './components/CommandPalette'
 import TerminalCopilot from './components/TerminalCopilot'
 import Titlebar, { type Theme } from './components/Titlebar'
+import HelpModal from './components/HelpModal'
 import type { AuthPromptEvent } from '../../shared/types'
 
 function readLS<T extends string>(key: string, fallback: T): T {
@@ -28,6 +29,7 @@ export default function App(): React.JSX.Element {
   const [terminalCopilotOpen, setTerminalCopilotOpen] = useState(false)
   const [sidebarOpen, setSidebarOpen] = useState(() => readLS('sidebarOpen', 'true') !== 'false')
   const [theme, setTheme] = useState<Theme>(() => readLS<Theme>('theme', 'dark'))
+  const [helpOpen, setHelpOpen] = useState(false)
 
   const installAiListeners = useAi((s) => s.installListeners)
   const refreshAiStatus = useAi((s) => s.refreshStatus)
@@ -103,6 +105,7 @@ export default function App(): React.JSX.Element {
         onToggleSidebar={() => setSidebarOpen((v) => !v)}
         theme={theme}
         onTheme={setTheme}
+        onHelp={() => setHelpOpen(true)}
       />
       <div className={`main${sidebarOpen ? '' : ' sidebar-hidden'}`}>
         <Sidebar />
@@ -140,6 +143,7 @@ export default function App(): React.JSX.Element {
           )
         })()}
 
+      {helpOpen && <HelpModal onClose={() => setHelpOpen(false)} />}
       {authQueue[0] && <AuthPrompt event={authQueue[0]} onReply={onAuthReply} />}
 
       <CommandPalette

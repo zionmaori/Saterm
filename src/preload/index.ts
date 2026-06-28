@@ -16,6 +16,7 @@ import type {
   Project,
   PtySpawnArgs,
   SessionId,
+  ShellOption,
   SshConnectArgs,
   TagCount,
   TermDataEvent,
@@ -92,6 +93,7 @@ const api = {
     onAuthPrompt: (fn: Listener<AuthPromptEvent>) => on('ssh:auth-prompt', fn)
   },
   pty: {
+    shells: (): Promise<ShellOption[]> => ipcRenderer.invoke('pty:shells'),
     spawn: (args: PtySpawnArgs): Promise<void> => ipcRenderer.invoke('pty:spawn', args)
   },
   term: {

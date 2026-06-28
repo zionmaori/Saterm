@@ -77,6 +77,12 @@ export interface PtySpawnArgs {
   cwd?: string
   cols: number
   rows: number
+  shell?: string
+}
+
+export interface ShellOption {
+  label: string
+  path: string
 }
 
 export interface TermResizeArgs {
@@ -228,4 +234,6 @@ export interface AiStatus {
   model: string
   /** Map of tier → resolved model id, for tiers the user has configured. */
   models: Partial<Record<AiTier, string>>
+  /** Which providers currently have stored credentials. */
+  configured: AiProvider[]
 }

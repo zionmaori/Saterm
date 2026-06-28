@@ -137,20 +137,6 @@ export default function ChatPanel({
               New
             </button>
           )}
-          {status?.available && (
-            <button
-              title="Sign out (clears API key from Keychain)"
-              onClick={async () => {
-                if (!confirm('Sign out and forget the saved API key?')) return
-                await window.api.ai.signOut()
-                await useAi.getState().refreshStatus()
-              }}
-              style={{ padding: '2px 8px' }}
-              className="ghost"
-            >
-              Sign out
-            </button>
-          )}
           {onClose && (
             <button onClick={onClose} title="Close" style={{ padding: '2px 8px' }}>
               ×
@@ -212,17 +198,28 @@ export default function ChatPanel({
               </>
             )}
           </div>
-          {status?.available && status.provider && (
-            <span
-              className="provider-badge"
-              title={`Switch AI provider (currently ${PROVIDER_LABEL[status.provider]})`}
-              onClick={async () => {
-                await window.api.ai.signOut()
-                await useAi.getState().refreshStatus()
-              }}
-            >
-              {PROVIDER_LABEL[status.provider]}
-            </span>
+          {status && (
+            <div className="provider-switcher">
+              {(['anthropic', 'openai', 'gemini'] as AiProvider[]).map((p) => {
+                const isActive = status.provider === p
+                const isConfigured = status.configured?.includes(p)
+                return (
+                  <button
+                    key={p}
+                    className={`provider-pill${isActive ? ' active' : ''}${isConfigured && !isActive ? ' configured' : ''}`}
+                    title={isConfigured ? `Switch to ${PROVIDER_LABEL[p]}` : `Add ${PROVIDER_LABEL[p]}`}
+                    onClick={async () => {
+                      await window.api.ai.setProvider(p)
+                      await useAi.getState().refreshStatus()
+                    }}
+                    disabled={isActive && !!session?.streamId}
+                  >
+                    {PROVIDER_LABEL[p]}
+                    {!isConfigured && <span className="provider-pill-add">+</span>}
+                  </button>
+                )
+              })}
+            </div>
           )}
           {session?.streamId ? (
             <button onClick={() => void cancel(sessionKey)} className="danger">

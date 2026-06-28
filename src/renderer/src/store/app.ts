@@ -9,7 +9,7 @@ export interface Tab {
   hostId?: number
   projectId?: number
   cwd?: string
-  // For local terminals: cwd at open time. For project tabs: the project root.
+  shell?: string
 }
 
 interface AppState {

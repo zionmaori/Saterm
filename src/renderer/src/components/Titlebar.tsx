@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Monitor, Moon, PanelLeft, Search, Sun } from 'lucide-react'
+import { HelpCircle, Monitor, Moon, PanelLeft, Search, Sun } from 'lucide-react'
 
 export type Theme = 'dark' | 'light' | 'system'
 
@@ -9,9 +9,10 @@ interface Props {
   onToggleSidebar: () => void
   theme: Theme
   onTheme: (t: Theme) => void
+  onHelp: () => void
 }
 
-export default function Titlebar({ onOpenPalette, sidebarOpen, onToggleSidebar, theme, onTheme }: Props): React.JSX.Element {
+export default function Titlebar({ onOpenPalette, sidebarOpen, onToggleSidebar, theme, onTheme, onHelp }: Props): React.JSX.Element {
   const [version, setVersion] = useState<string | null>(null)
   const [platform, setPlatform] = useState<NodeJS.Platform | null>(null)
   useEffect(() => {
@@ -71,6 +72,14 @@ export default function Titlebar({ onOpenPalette, sidebarOpen, onToggleSidebar, 
             <Moon size={13} strokeWidth={2} />
           </button>
         </div>
+        <button
+          type="button"
+          className="titlebar-icon-btn"
+          onClick={onHelp}
+          title="Help & Guide"
+        >
+          <HelpCircle size={13} strokeWidth={2} />
+        </button>
         <div className="titlebar-meta" title={version ? `Termion v${version}` : 'Termion'}>
           <span className="titlebar-meta-name">Termion</span>
           {version && <span className="titlebar-meta-version">v{version}</span>}

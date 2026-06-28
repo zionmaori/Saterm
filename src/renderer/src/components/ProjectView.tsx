@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { PanelBottom, PanelTop } from 'lucide-react'
+import type { ShellOption } from '../../../shared/types'
 import { useApp, type Tab } from '../store/app'
 import FileTree from './FileTree'
 import { CodeEditor, languageFor, type Selection } from './Editor'
@@ -56,6 +57,9 @@ export default function ProjectView({ tab, visible }: Props): React.JSX.Element 
   const [vcsWidth, setVcsWidth] = useState(320)
   const [termHeight, setTermHeight] = useState(220)
   const [termAtBottom, setTermAtBottom] = useState(false)
+  const [shells, setShells] = useState<ShellOption[]>([])
+  const [shell, setShell] = useState<string>('')
+  const [shellKey, setShellKey] = useState(0)
   const layoutKey = `project.layout:${project?.id ?? 'default'}`
 
   useEffect(() => {
@@ -82,12 +86,17 @@ export default function ProjectView({ tab, visible }: Props): React.JSX.Element 
     return () => clearTimeout(t)
   }, [layoutKey, treeWidth, vcsWidth, termHeight, termAtBottom])
 
+  useEffect(() => {
+    void window.api.pty.shells().then(setShells)
+  }, [])
+
   if (!bottomTabRef.current) {
     bottomTabRef.current = {
       id: bottomTabId,
       kind: 'local',
       title: 'terminal',
-      cwd: repoPath
+      cwd: repoPath,
+      shell: shell || undefined
     }
   }
 
@@ -345,7 +354,31 @@ export default function ProjectView({ tab, visible }: Props): React.JSX.Element 
 
       <div className="bottom-term" style={{ gridColumn: 3, gridRow: termAtBottom ? 3 : 1 }}>
         <div className="bottom-term-header">
-          <span>Terminal — {repoPath}</span>
+          <span>Terminal</span>
+          {shells.length > 1 && (
+            <select
+              className="shell-select"
+              value={shell}
+              onChange={(e) => {
+                const next = e.target.value
+                setShell(next)
+                bottomTabRef.current = {
+                  id: bottomTabId,
+                  kind: 'local',
+                  title: 'terminal',
+                  cwd: repoPath,
+                  shell: next || undefined
+                }
+                setShellKey((k) => k + 1)
+              }}
+              title="Switch shell (restarts terminal)"
+            >
+              <option value="">Default</option>
+              {shells.map((s) => (
+                <option key={s.path} value={s.path}>{s.label}</option>
+              ))}
+            </select>
+          )}
           <button
             className="bottom-term-flip"
             onClick={() => setTermAtBottom((v) => !v)}
@@ -355,7 +388,7 @@ export default function ProjectView({ tab, visible }: Props): React.JSX.Element 
           </button>
         </div>
         <div style={{ flex: 1, minHeight: 0, display: 'flex' }}>
-          <TerminalPane tab={bottomTabRef.current!} visible={visible} resizeKey={termAtBottom ? 1 : 0} />
+          <TerminalPane key={`${bottomTabId}-${shellKey}`} tab={bottomTabRef.current!} visible={visible} resizeKey={termAtBottom ? 1 : 0} />
         </div>
       </div>
       <div style={{ gridColumn: 3, gridRow: 2 }}>

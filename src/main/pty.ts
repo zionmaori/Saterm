@@ -2,7 +2,8 @@ import { spawn, type IPty } from 'node-pty'
 import { BrowserWindow } from 'electron'
 import { homedir } from 'os'
 import { existsSync } from 'fs'
-import type { PtySpawnArgs, SessionId, TermDataEvent, TermExitEvent } from '../shared/types'
+import { execSync } from 'child_process'
+import type { PtySpawnArgs, SessionId, ShellOption, TermDataEvent, TermExitEvent } from '../shared/types'
 
 interface Session {
   pty: IPty
@@ -16,13 +17,78 @@ const send = (event: string, payload: unknown): void => {
 
 const isWindows = process.platform === 'win32'
 
+// Git Bash search paths (most common Git for Windows install locations).
+const GIT_BASH_CANDIDATES = [
+  'C:\\Program Files\\Git\\bin\\bash.exe',
+  'C:\\Program Files (x86)\\Git\\bin\\bash.exe',
+  'C:\\Program Files\\Git\\usr\\bin\\bash.exe'
+]
+
+function findGitBash(): string | null {
+  for (const p of GIT_BASH_CANDIDATES) {
+    if (existsSync(p)) return p
+  }
+  // Also check if git is on PATH and derive bash.exe relative to it.
+  try {
+    const gitPath = execSync('where git', { encoding: 'utf8', timeout: 2000 }).split('\n')[0].trim()
+    if (gitPath) {
+      // C:\Program Files\Git\cmd\git.exe → C:\Program Files\Git\bin\bash.exe
+      const base = gitPath.replace(/\\cmd\\git\.exe$/i, '')
+      const candidate = `${base}\\bin\\bash.exe`
+      if (existsSync(candidate)) return candidate
+    }
+  } catch {
+    /* git not on PATH */
+  }
+  return null
+}
+
+export function detectShells(): ShellOption[] {
+  if (!isWindows) {
+    const shells: ShellOption[] = []
+    const envShell = process.env.SHELL
+    if (envShell && existsSync(envShell)) {
+      shells.push({ label: envShell.split('/').pop() ?? envShell, path: envShell })
+    }
+    for (const p of ['/bin/zsh', '/bin/bash', '/bin/fish', '/bin/sh']) {
+      if (p !== envShell && existsSync(p)) {
+        shells.push({ label: p.split('/').pop() ?? p, path: p })
+      }
+    }
+    return shells
+  }
+
+  const shells: ShellOption[] = []
+
+  // PowerShell 7+ (pwsh)
+  try {
+    const pwsh = execSync('where pwsh', { encoding: 'utf8', timeout: 2000 }).split('\n')[0].trim()
+    if (pwsh && existsSync(pwsh)) shells.push({ label: 'PowerShell 7 (pwsh)', path: pwsh })
+  } catch { /* not installed */ }
+
+  // Windows PowerShell 5
+  const ps5 = `${process.env.SystemRoot ?? 'C:\\Windows'}\\System32\\WindowsPowerShell\\v1.0\\powershell.exe`
+  if (existsSync(ps5)) shells.push({ label: 'Windows PowerShell', path: ps5 })
+
+  // Git Bash
+  const gitBash = findGitBash()
+  if (gitBash) shells.push({ label: 'Git Bash', path: gitBash })
+
+  // WSL
+  const wsl = `${process.env.SystemRoot ?? 'C:\\Windows'}\\System32\\wsl.exe`
+  if (existsSync(wsl)) shells.push({ label: 'WSL', path: wsl })
+
+  // cmd.exe
+  const cmd = process.env.COMSPEC ?? 'C:\\Windows\\System32\\cmd.exe'
+  if (existsSync(cmd)) shells.push({ label: 'Command Prompt (cmd)', path: cmd })
+
+  return shells
+}
+
 const defaultShell = (): string => {
   if (isWindows) {
-    // Prefer modern PowerShell if it's on PATH; node-pty resolves bare exe names.
-    // Fall back to Windows PowerShell, then cmd.exe.
     const comspec = process.env.COMSPEC
     if (comspec && existsSync(comspec)) return comspec
-    // Bare names — node-pty walks PATH.
     return 'powershell.exe'
   }
   const env = process.env.SHELL
@@ -33,26 +99,30 @@ const defaultShell = (): string => {
   return '/bin/sh'
 }
 
-/** Login-shell flag varies by OS. macOS/Linux use `-l`; Windows shells don't
- *  understand it, and PowerShell loads the user profile automatically. */
-const defaultShellArgs = (): string[] => (isWindows ? [] : ['-l'])
+const shellArgs = (shell: string): string[] => {
+  if (!isWindows) return ['-l']
+  const lower = shell.toLowerCase()
+  // Git Bash needs --login -i for a proper interactive session
+  if (lower.includes('bash.exe')) return ['--login', '-i']
+  // WSL and cmd need no extra args; PowerShell loads profile automatically
+  return []
+}
 
 export function spawnPty(args: PtySpawnArgs): void {
   const cwd = args.cwd && existsSync(args.cwd) ? args.cwd : homedir()
-  const shell = defaultShell()
+  const shell = args.shell ?? defaultShell()
   const env: NodeJS.ProcessEnv = {
     ...process.env,
     TERM: 'xterm-256color',
     COLORTERM: 'truecolor',
     LANG: process.env.LANG ?? 'en_US.UTF-8'
   }
-  const pty = spawn(shell, defaultShellArgs(), {
+  const pty = spawn(shell, shellArgs(shell), {
     name: 'xterm-256color',
     cols: args.cols,
     rows: args.rows,
     cwd,
     env,
-    // ConPTY is the supported Windows backend on Win10 1809+. Harmless on macOS.
     useConpty: isWindows ? true : undefined
   } as Parameters<typeof spawn>[2])
   sessions.set(args.sessionId, { pty })

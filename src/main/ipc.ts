@@ -19,7 +19,7 @@ import { importSshConfig } from './sshconfig'
 import { importKnownHosts } from './knownhosts'
 import { clearHostSecrets, getSshSecret, setSshSecret, deleteSshSecret } from './keychain'
 import { connectSsh, writeSsh, resizeSsh, closeSsh, isSshSession, resolveAuthPrompt } from './ssh'
-import { spawnPty, writePty, resizePty, closePty, isPtySession } from './pty'
+import { spawnPty, writePty, resizePty, closePty, isPtySession, detectShells } from './pty'
 import {
   addProject,
   listProjects,
@@ -130,6 +130,7 @@ export function registerIpcHandlers(): void {
   )
 
   // Terminal — local
+  ipcMain.handle('pty:shells', () => detectShells())
   ipcMain.handle('pty:spawn', (_e, args: PtySpawnArgs) => spawnPty(args))
 
   // Terminal — unified
