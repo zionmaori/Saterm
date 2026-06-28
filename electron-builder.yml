@@ -40,12 +40,15 @@ linux:
   target:
     - AppImage
     - deb
+    - rpm
   icon: resources/icon.png
   maintainer: electronjs.org
   category: Utility
 appImage:
   artifactName: ${name}-${version}.${ext}
 deb:
+  artifactName: ${name}-${version}.${ext}
+rpm:
   artifactName: ${name}-${version}.${ext}
 npmRebuild: false
 publish:
