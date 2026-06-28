@@ -3,7 +3,13 @@ import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { useAi } from '../store/ai'
 import AiSignIn from './AiSignIn'
-import type { AiContext, AiKind, AiMessage, AiTier } from '../../../shared/types'
+import type { AiContext, AiKind, AiMessage, AiProvider, AiTier } from '../../../shared/types'
+
+const PROVIDER_LABEL: Record<AiProvider, string> = {
+  anthropic: 'Claude',
+  openai: 'GPT',
+  gemini: 'Gemini',
+}
 
 const TIER_LABEL: Record<AiTier, string> = {
   opus: 'Opus',
@@ -153,7 +159,7 @@ export default function ChatPanel({
         </div>
       </div>
 
-      {!status?.available && <AiSignIn reason={status?.reason} />}
+      {!status?.available && <AiSignIn reason={status?.reason} currentProvider={status?.provider} />}
 
       {status?.available && (
       <>
@@ -186,7 +192,7 @@ export default function ChatPanel({
               ? kind === 'terminal'
                 ? 'Ask about output, request a command… (⌘↵)'
                 : 'Ask about this file, request an edit… (⌘↵)'
-              : 'Set ANTHROPIC_API_KEY and relaunch to enable.'
+              : 'Sign in to an AI provider to enable.'
           }
           value={input}
           onChange={(e) => setInput(e.target.value)}
@@ -206,6 +212,18 @@ export default function ChatPanel({
               </>
             )}
           </div>
+          {status?.available && status.provider && (
+            <span
+              className="provider-badge"
+              title={`Switch AI provider (currently ${PROVIDER_LABEL[status.provider]})`}
+              onClick={async () => {
+                await window.api.ai.signOut()
+                await useAi.getState().refreshStatus()
+              }}
+            >
+              {PROVIDER_LABEL[status.provider]}
+            </span>
+          )}
           {session?.streamId ? (
             <button onClick={() => void cancel(sessionKey)} className="danger">
               Stop

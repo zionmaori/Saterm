@@ -1,7 +1,17 @@
 import Anthropic, { APIError } from '@anthropic-ai/sdk'
+import OpenAI from 'openai'
+import { GoogleGenAI } from '@google/genai'
 import { BrowserWindow } from 'electron'
+import { readFileSync } from 'fs'
+import { homedir } from 'os'
+import { join } from 'path'
 import { readEnv } from './shellEnv'
-import { getAiApiKey, setAiApiKey, clearAiApiKey } from './keychain'
+import {
+  getAiApiKey, setAiApiKey, clearAiApiKey,
+  getAiAuthToken, setAiAuthToken, clearAiAuthToken,
+  getProviderKey, setProviderKey, clearProviderKey,
+  getActiveProvider, saveActiveProvider
+} from './keychain'
 import type {
   AiContext,
   AiDeltaEvent,
@@ -9,28 +19,72 @@ import type {
   AiErrorEvent,
   AiErrorKind,
   AiMessage,
+  AiProvider,
   AiStartEvent,
   AiStatus,
   AiStreamArgs,
   AiTier,
-  AiToolUseEvent
+  AiToolUseEvent,
+  AiUsage
 } from '../shared/types'
 
-const DEFAULT_MODEL = 'claude-opus-4-8'
+// ---- module state -----------------------------------------------------------
 
-let client: Anthropic | null = null
-let activeModel: string = DEFAULT_MODEL
-let tierModels: Partial<Record<AiTier, string>> = {}
+let activeProvider: AiProvider = 'anthropic'
 let unavailableReason: string | null = null
 
-function resolveTier(tier: AiTier | undefined): string {
-  if (tier && tierModels[tier]) return tierModels[tier]!
-  return activeModel
+// Anthropic
+let anthropicClient: Anthropic | null = null
+let anthropicModel = 'claude-opus-4-8'
+let anthropicTierModels: Partial<Record<AiTier, string>> = {}
+
+// OpenAI
+let openAIClient: OpenAI | null = null
+let openAIModel = 'gpt-4o'
+
+// Gemini
+let geminiClient: GoogleGenAI | null = null
+let geminiModel = 'gemini-2.0-flash'
+
+const DEFAULT_MODELS: Record<AiProvider, string> = {
+  anthropic: 'claude-opus-4-8',
+  openai: 'gpt-4o',
+  gemini: 'gemini-2.0-flash',
 }
 
-// Parse ANTHROPIC_CUSTOM_HEADERS — newline-separated "Name: value" entries
-// (Claude Code's convention). Comma-splitting would break header values that
-// legitimately contain commas, so don't.
+// ---- helpers ----------------------------------------------------------------
+
+const send = (channel: string, payload: unknown): void => {
+  for (const win of BrowserWindow.getAllWindows()) win.webContents.send(channel, payload)
+}
+
+function activeModel(): string {
+  switch (activeProvider) {
+    case 'anthropic': return anthropicModel
+    case 'openai': return openAIModel
+    case 'gemini': return geminiModel
+  }
+}
+
+function isAvailable(): boolean {
+  switch (activeProvider) {
+    case 'anthropic': return anthropicClient !== null
+    case 'openai': return openAIClient !== null
+    case 'gemini': return geminiClient !== null
+  }
+}
+
+function buildStatus(): AiStatus {
+  const available = isAvailable()
+  return {
+    available,
+    reason: available ? undefined : (unavailableReason ?? 'Not configured'),
+    provider: activeProvider,
+    model: activeModel(),
+    models: activeProvider === 'anthropic' ? anthropicTierModels : {},
+  }
+}
+
 function parseCustomHeaders(raw: string | null): Record<string, string> {
   if (!raw) return {}
   const out: Record<string, string> = {}
@@ -46,87 +100,134 @@ function parseCustomHeaders(raw: string | null): Record<string, string> {
   return out
 }
 
-/** Build the Anthropic client from a resolved (key, env vars) pair. The key
- *  may come from env (`ANTHROPIC_API_KEY`/`AUTH_TOKEN`) or fallback to a value
- *  stored in macOS Keychain on a fresh machine. */
-function buildClient(opts: {
-  apiKey: string | null
-  authToken: string | null
-  baseURL: string | null
-  customHeaders: Record<string, string>
-}): AiStatus {
-  if (!opts.apiKey && !opts.authToken) {
-    unavailableReason =
-      'Not signed in. Set ANTHROPIC_API_KEY in your shell, or sign in below with an API key from console.anthropic.com.'
-    return { available: false, reason: unavailableReason, model: activeModel, models: tierModels }
+// ---- Anthropic init ---------------------------------------------------------
+
+function readAnthropicEnv(): {
+  apiKey: string | null; authToken: string | null
+  baseURL: string | null; customHeaders: Record<string, string>
+} {
+  anthropicModel =
+    readEnv('ANTHROPIC_MODEL') ?? readEnv('ANTHROPIC_DEFAULT_OPUS_MODEL') ?? DEFAULT_MODELS.anthropic
+  anthropicTierModels = {}
+  const opus = readEnv('ANTHROPIC_DEFAULT_OPUS_MODEL')
+  const sonnet = readEnv('ANTHROPIC_DEFAULT_SONNET_MODEL')
+  const haiku = readEnv('ANTHROPIC_DEFAULT_HAIKU_MODEL')
+  if (opus) anthropicTierModels.opus = opus
+  if (sonnet) anthropicTierModels.sonnet = sonnet
+  if (haiku) anthropicTierModels.haiku = haiku
+  return {
+    apiKey: readEnv('ANTHROPIC_API_KEY'),
+    authToken: readEnv('ANTHROPIC_AUTH_TOKEN'),
+    baseURL: readEnv('ANTHROPIC_BASE_URL'),
+    customHeaders: parseCustomHeaders(readEnv('ANTHROPIC_CUSTOM_HEADERS')),
   }
+}
+
+function initAnthropicClient(opts: {
+  apiKey: string | null; authToken: string | null
+  baseURL: string | null; customHeaders: Record<string, string>
+}): boolean {
+  if (!opts.apiKey && !opts.authToken) return false
   try {
     const cfg: ConstructorParameters<typeof Anthropic>[0] = {}
     if (opts.apiKey) cfg.apiKey = opts.apiKey
     if (opts.authToken) cfg.authToken = opts.authToken
     if (opts.baseURL) cfg.baseURL = opts.baseURL
     if (Object.keys(opts.customHeaders).length > 0) cfg.defaultHeaders = opts.customHeaders
-    client = new Anthropic(cfg)
-    unavailableReason = null
-    return { available: true, model: activeModel, models: tierModels }
-  } catch (err) {
-    unavailableReason = (err as Error).message
-    return { available: false, reason: unavailableReason, model: activeModel, models: tierModels }
+    anthropicClient = new Anthropic(cfg)
+    return true
+  } catch {
+    anthropicClient = null
+    return false
   }
 }
 
-function readEnvConfig(): {
-  apiKey: string | null
-  authToken: string | null
-  baseURL: string | null
-  customHeaders: Record<string, string>
-} {
-  activeModel =
-    readEnv('ANTHROPIC_MODEL') ??
-    readEnv('ANTHROPIC_DEFAULT_OPUS_MODEL') ??
-    DEFAULT_MODEL
-  tierModels = {}
-  const opus = readEnv('ANTHROPIC_DEFAULT_OPUS_MODEL')
-  const sonnet = readEnv('ANTHROPIC_DEFAULT_SONNET_MODEL')
-  const haiku = readEnv('ANTHROPIC_DEFAULT_HAIKU_MODEL')
-  if (opus) tierModels.opus = opus
-  if (sonnet) tierModels.sonnet = sonnet
-  if (haiku) tierModels.haiku = haiku
-  return {
-    apiKey: readEnv('ANTHROPIC_API_KEY'),
-    authToken: readEnv('ANTHROPIC_AUTH_TOKEN'),
-    baseURL: readEnv('ANTHROPIC_BASE_URL'),
-    customHeaders: parseCustomHeaders(readEnv('ANTHROPIC_CUSTOM_HEADERS'))
+// ---- OpenAI init ------------------------------------------------------------
+
+function initOpenAIClient(apiKey: string): boolean {
+  try {
+    openAIClient = new OpenAI({ apiKey })
+    openAIModel = readEnv('OPENAI_MODEL') ?? DEFAULT_MODELS.openai
+    return true
+  } catch {
+    openAIClient = null
+    return false
   }
 }
 
-/** Sync init at startup. Considers only env vars; Keychain is consulted by
- *  the async `reinitAi()` shortly after, which can flip status to available
- *  without an app restart. */
+// ---- Gemini init ------------------------------------------------------------
+
+function initGeminiClient(apiKey: string): boolean {
+  try {
+    geminiClient = new GoogleGenAI({ apiKey })
+    geminiModel = readEnv('GEMINI_MODEL') ?? DEFAULT_MODELS.gemini
+    return true
+  } catch {
+    geminiClient = null
+    return false
+  }
+}
+
+// ---- startup / reinit -------------------------------------------------------
+
 export function initAi(): AiStatus {
-  return buildClient(readEnvConfig())
+  const env = readAnthropicEnv()
+  if (env.apiKey || env.authToken) initAnthropicClient(env)
+  // OpenAI / Gemini env vars
+  const oaiKey = readEnv('OPENAI_API_KEY')
+  if (oaiKey) initOpenAIClient(oaiKey)
+  const gemKey = readEnv('GEMINI_API_KEY') ?? readEnv('GOOGLE_API_KEY')
+  if (gemKey) initGeminiClient(gemKey)
+  return buildStatus()
 }
 
-/** Reload credentials. Env vars are priority; if none, Keychain. Callable any
- *  time (e.g. after the user signs in via the renderer). */
 export async function reinitAi(): Promise<AiStatus> {
-  const cfg = readEnvConfig()
-  if (!cfg.apiKey && !cfg.authToken) {
-    const stored = await getAiApiKey()
-    if (stored) cfg.apiKey = stored
+  // Restore saved provider preference
+  const saved = await getActiveProvider()
+  if (saved && ['anthropic', 'openai', 'gemini'].includes(saved)) {
+    activeProvider = saved as AiProvider
   }
-  return buildClient(cfg)
+
+  // Anthropic
+  const env = readAnthropicEnv()
+  if (!env.apiKey && !env.authToken) {
+    const storedKey = await getAiApiKey()
+    if (storedKey) env.apiKey = storedKey
+    else {
+      const storedToken = await getAiAuthToken()
+      if (storedToken) env.authToken = storedToken
+    }
+  }
+  if (!env.apiKey && !env.authToken) {
+    const provKey = await getProviderKey('anthropic')
+    if (provKey) env.apiKey = provKey
+  }
+  if (env.apiKey || env.authToken) initAnthropicClient(env)
+
+  // OpenAI
+  const oaiEnv = readEnv('OPENAI_API_KEY') ?? await getProviderKey('openai')
+  if (oaiEnv) initOpenAIClient(oaiEnv)
+
+  // Gemini
+  const gemEnv = readEnv('GEMINI_API_KEY') ?? readEnv('GOOGLE_API_KEY') ?? await getProviderKey('gemini')
+  if (gemEnv) initGeminiClient(gemEnv)
+
+  if (!isAvailable()) {
+    unavailableReason = `No credentials for ${activeProvider}. Sign in below.`
+  } else {
+    unavailableReason = null
+  }
+
+  return buildStatus()
 }
 
-/** Save a pasted API key after validating it. Throws on validation failure
- *  so the renderer can surface a clear error. */
+// ---- sign-in ----------------------------------------------------------------
+
 export async function signInWithApiKey(apiKey: string): Promise<AiStatus> {
   const trimmed = apiKey.trim()
   if (!trimmed.startsWith('sk-ant-')) {
     throw new Error('Key should start with "sk-ant-". Generate one at console.anthropic.com/settings/keys.')
   }
-  // Validate by attempting a tiny call. count_tokens is cheap and confirms the
-  // key is valid + has at least the standard messages scope.
   const probe = new Anthropic({ apiKey: trimmed })
   try {
     await probe.messages.countTokens({
@@ -134,33 +235,97 @@ export async function signInWithApiKey(apiKey: string): Promise<AiStatus> {
       messages: [{ role: 'user', content: 'ping' }]
     })
   } catch (err) {
-    const msg = err instanceof APIError ? `${err.status} ${err.message}` : (err as Error).message
-    throw new Error(`Key did not validate: ${msg}`)
+    if (err instanceof APIError && err.status !== 400) {
+      throw new Error(`Key did not validate: ${err.status} ${err.message}`)
+    } else if (!(err instanceof APIError)) {
+      throw new Error(`Key did not validate: ${(err as Error).message}`)
+    }
   }
   await setAiApiKey(trimmed)
+  await setProviderKey('anthropic', trimmed)
+  activeProvider = 'anthropic'
+  await saveActiveProvider('anthropic')
   return await reinitAi()
 }
 
-/** Forget the stored API key. The next request will fall back to env vars if
- *  any, otherwise the chat panel goes back to the sign-in screen. */
+interface ClaudeCodeCredentials {
+  claudeAiOauth?: { accessToken?: string; expiresAt?: number }
+}
+
+export async function signInWithClaudeCode(): Promise<AiStatus> {
+  const credPath = join(homedir(), '.claude', '.credentials.json')
+  let creds: ClaudeCodeCredentials
+  try {
+    creds = JSON.parse(readFileSync(credPath, 'utf8')) as ClaudeCodeCredentials
+  } catch {
+    throw new Error(
+      'Claude Code credentials not found. Run `claude` in a terminal and sign in first.'
+    )
+  }
+  const token = creds.claudeAiOauth?.accessToken
+  const expiresAt = creds.claudeAiOauth?.expiresAt
+  if (!token) throw new Error('No access token in Claude Code credentials. Re-authenticate via the Claude CLI.')
+  if (expiresAt && Date.now() > expiresAt) {
+    throw new Error('Claude Code session expired. Run `claude` in a terminal to refresh it.')
+  }
+  await clearAiApiKey()
+  await setAiAuthToken(token)
+  activeProvider = 'anthropic'
+  await saveActiveProvider('anthropic')
+  return await reinitAi()
+}
+
+export async function signInWithProvider(provider: AiProvider, apiKey: string): Promise<AiStatus> {
+  const trimmed = apiKey.trim()
+  await setProviderKey(provider, trimmed)
+  activeProvider = provider
+  await saveActiveProvider(provider)
+
+  switch (provider) {
+    case 'anthropic':
+      await setAiApiKey(trimmed)
+      break
+    case 'openai':
+      if (!initOpenAIClient(trimmed)) throw new Error('Failed to initialize OpenAI client.')
+      break
+    case 'gemini':
+      if (!initGeminiClient(trimmed)) throw new Error('Failed to initialize Gemini client.')
+      break
+  }
+
+  unavailableReason = null
+  return buildStatus()
+}
+
+export async function setProvider(provider: AiProvider): Promise<AiStatus> {
+  activeProvider = provider
+  await saveActiveProvider(provider)
+  if (!isAvailable()) {
+    unavailableReason = `No credentials for ${provider}. Sign in below.`
+  } else {
+    unavailableReason = null
+  }
+  return buildStatus()
+}
+
 export async function signOut(): Promise<AiStatus> {
   await clearAiApiKey()
-  client = null
-  return await reinitAi()
+  await clearAiAuthToken()
+  await clearProviderKey(activeProvider)
+  switch (activeProvider) {
+    case 'anthropic': anthropicClient = null; break
+    case 'openai': openAIClient = null; break
+    case 'gemini': geminiClient = null; break
+  }
+  unavailableReason = `No credentials for ${activeProvider}. Sign in below.`
+  return buildStatus()
 }
 
 export function aiStatus(): AiStatus {
-  return client
-    ? { available: true, model: activeModel, models: tierModels }
-    : {
-        available: false,
-        reason: unavailableReason ?? 'AI not initialized',
-        model: activeModel,
-        models: tierModels
-      }
+  return buildStatus()
 }
 
-// ----- system prompts (stable; safe to cache) -----
+// ---- system prompts & tools -------------------------------------------------
 
 const TERMINAL_SYSTEM = `You are an expert shell and SRE assistant embedded in a macOS terminal app called Termion. The user may be working on their local Mac or on a remote SSH host.
 
@@ -193,112 +358,140 @@ Rules:
 - Match the existing code style (indentation, quote style, naming). Don't reformat unrelated lines.
 - If the change spans multiple files, ask the user to switch to each file in turn — this tool edits one file at a time.`
 
-const TOOLS_TERMINAL: Anthropic.Messages.ToolUnion[] = [
+// Anthropic tool definitions
+const TOOLS_TERMINAL_ANTHROPIC: Anthropic.Messages.ToolUnion[] = [
   {
     name: 'propose_command',
-    description:
-      'Propose a shell command the user can review and run. The user sees the command in a card with an "Insert" button; nothing runs automatically.',
+    description: 'Propose a shell command the user can review and run. The user sees the command in a card with an "Insert" button; nothing runs automatically.',
     input_schema: {
       type: 'object',
       properties: {
-        command: {
-          type: 'string',
-          description: 'The full command, single line, ready to paste at the prompt.'
-        },
-        why: {
-          type: 'string',
-          description: 'One sentence on what it does and why now.'
-        }
+        command: { type: 'string', description: 'The full command, single line, ready to paste at the prompt.' },
+        why: { type: 'string', description: 'One sentence on what it does and why now.' }
       },
       required: ['command', 'why']
     }
   }
 ]
-
-const TOOLS_EDITOR: Anthropic.Messages.ToolUnion[] = [
+const TOOLS_EDITOR_ANTHROPIC: Anthropic.Messages.ToolUnion[] = [
   {
     name: 'propose_edit',
-    description:
-      'Propose a code change to the current file as a unified diff. The user reviews it in a side-by-side diff editor before any write occurs.',
+    description: 'Propose a code change to the current file as a unified diff. The user reviews it in a side-by-side diff editor before any write occurs.',
     input_schema: {
       type: 'object',
       properties: {
-        unified_diff: {
-          type: 'string',
-          description:
-            'Standard unified diff with --- / +++ / @@ hunk headers. Use the absolute file path on both sides.'
-        },
-        summary: {
-          type: 'string',
-          description: 'One sentence describing what changed.'
-        }
+        unified_diff: { type: 'string', description: 'Standard unified diff with --- / +++ / @@ hunk headers. Use the absolute file path on both sides.' },
+        summary: { type: 'string', description: 'One sentence describing what changed.' }
       },
       required: ['unified_diff', 'summary']
     }
   }
 ]
 
-function renderContext(ctx: AiContext): string {
-  if (ctx.kind === 'terminal') {
-    const where = ctx.hostName
-      ? `SSH host: ${ctx.hostName}`
-      : ctx.cwd
-        ? `Local shell, cwd: ${ctx.cwd}`
-        : 'Local shell'
-    return `<terminal_context>
-${where}
-
-Recent terminal output (most recent at the bottom):
-<scrollback>
-${ctx.scrollback || '(empty)'}
-</scrollback>
-</terminal_context>`
+// OpenAI tool definitions
+const TOOLS_TERMINAL_OPENAI: OpenAI.ChatCompletionTool[] = [
+  {
+    type: 'function',
+    function: {
+      name: 'propose_command',
+      description: 'Propose a shell command the user can review and run. The user sees the command in a card with an "Insert" button; nothing runs automatically.',
+      parameters: {
+        type: 'object',
+        properties: {
+          command: { type: 'string', description: 'The full command, single line, ready to paste at the prompt.' },
+          why: { type: 'string', description: 'One sentence on what it does and why now.' }
+        },
+        required: ['command', 'why']
+      }
+    }
   }
-  // editor
-  const sel = ctx.selection
-    ? `Selection: lines ${ctx.selection.startLine}-${ctx.selection.endLine}
-<selection>
-${ctx.selection.text}
-</selection>`
-    : 'No selection — the whole file is in scope.'
-  return `<editor_context>
-File: ${ctx.filePath}
-Language: ${ctx.language ?? 'unknown'}
-Project root: ${ctx.projectRoot}
+]
+const TOOLS_EDITOR_OPENAI: OpenAI.ChatCompletionTool[] = [
+  {
+    type: 'function',
+    function: {
+      name: 'propose_edit',
+      description: 'Propose a code change as a unified diff. The user reviews it in a side-by-side diff editor before any write occurs.',
+      parameters: {
+        type: 'object',
+        properties: {
+          unified_diff: { type: 'string', description: 'Standard unified diff with --- / +++ / @@ hunk headers.' },
+          summary: { type: 'string', description: 'One sentence describing what changed.' }
+        },
+        required: ['unified_diff', 'summary']
+      }
+    }
+  }
+]
 
-${sel}
-
-Full file:
-<file>
-${ctx.fileContent}
-</file>
-</editor_context>`
+// Gemini tool definitions
+const TOOLS_TERMINAL_GEMINI = {
+  functionDeclarations: [
+    {
+      name: 'propose_command',
+      description: 'Propose a shell command the user can review and run.',
+      parameters: {
+        type: 'OBJECT',
+        properties: {
+          command: { type: 'STRING', description: 'The full command, single line.' },
+          why: { type: 'STRING', description: 'One sentence on what it does and why now.' }
+        },
+        required: ['command', 'why']
+      }
+    }
+  ]
+}
+const TOOLS_EDITOR_GEMINI = {
+  functionDeclarations: [
+    {
+      name: 'propose_edit',
+      description: 'Propose a code change as a unified diff.',
+      parameters: {
+        type: 'OBJECT',
+        properties: {
+          unified_diff: { type: 'STRING', description: 'Standard unified diff with --- / +++ / @@ hunk headers.' },
+          summary: { type: 'STRING', description: 'One sentence describing what changed.' }
+        },
+        required: ['unified_diff', 'summary']
+      }
+    }
+  ]
 }
 
-/** Synthetic tool_result content for our advisory tools. Our `propose_command`
- *  and `propose_edit` tools never *run* anything — the user reviews a card and
- *  clicks Insert/Apply. But the Anthropic API requires a tool_result for every
- *  tool_use before the conversation can continue, so we synthesize one. */
 function syntheticToolResultText(toolName: string): string {
   switch (toolName) {
     case 'propose_command':
-      return 'Proposal shown to the user. They will review it manually and decide whether to insert it into the terminal. No execution result available.'
+      return 'Proposal shown to the user. They will review it manually and decide whether to insert it.'
     case 'propose_edit':
-      return 'Diff shown to the user in a review pane. They will accept or reject it manually. No execution result available.'
+      return 'Diff shown to the user in a review pane. They will accept or reject it manually.'
     default:
       return 'Tool output handled by the user; no result available.'
   }
 }
 
-function toApiMessages(history: AiMessage[], ctx: AiContext, userText: string):
-  Anthropic.Messages.MessageParam[] {
+function renderContext(ctx: AiContext): string {
+  if (ctx.kind === 'terminal') {
+    const where = ctx.hostName
+      ? `SSH host: ${ctx.hostName}`
+      : ctx.cwd ? `Local shell, cwd: ${ctx.cwd}` : 'Local shell'
+    return `<terminal_context>\n${where}\n\nRecent terminal output (most recent at the bottom):\n<scrollback>\n${ctx.scrollback || '(empty)'}\n</scrollback>\n</terminal_context>`
+  }
+  const sel = ctx.selection
+    ? `Selection: lines ${ctx.selection.startLine}-${ctx.selection.endLine}\n<selection>\n${ctx.selection.text}\n</selection>`
+    : 'No selection — the whole file is in scope.'
+  return `<editor_context>\nFile: ${ctx.filePath}\nLanguage: ${ctx.language ?? 'unknown'}\nProject root: ${ctx.projectRoot}\n\n${sel}\n\nFull file:\n<file>\n${ctx.fileContent}\n</file>\n</editor_context>`
+}
+
+// ---- message format adapters ------------------------------------------------
+
+function toAnthropicMessages(
+  history: AiMessage[], ctx: AiContext, userText: string
+): Anthropic.Messages.MessageParam[] {
   const out: Anthropic.Messages.MessageParam[] = []
-  /** ids of tool_use blocks emitted by the most recent assistant turn that
-   *  still need a tool_result before the next user message. */
   let pendingToolUseIds: string[] = []
   let pendingToolNames: Record<string, string> = {}
 
-  const flushPendingToolResults = (): void => {
+  const flushPending = (): void => {
     if (!pendingToolUseIds.length) return
     out.push({
       role: 'user',
@@ -314,23 +507,16 @@ function toApiMessages(history: AiMessage[], ctx: AiContext, userText: string):
 
   for (const m of history) {
     if (m.role === 'user') {
-      flushPendingToolResults()
+      flushPending()
       out.push({ role: 'user', content: m.text })
     } else {
-      // Acknowledge any pending tool_use from a prior assistant turn before
-      // emitting a new assistant turn (shouldn't normally happen, but defensive).
-      flushPendingToolResults()
+      flushPending()
       const blocks: Anthropic.Messages.ContentBlockParam[] = m.blocks.map((b) =>
         b.type === 'text'
           ? { type: 'text' as const, text: b.text }
-          : {
-              type: 'tool_use' as const,
-              id: b.id,
-              name: b.name,
-              input: b.input as Record<string, unknown>
-            }
+          : { type: 'tool_use' as const, id: b.id, name: b.name, input: b.input as Record<string, unknown> }
       )
-      if (blocks.length === 0) continue // skip empty assistant turns (would 400)
+      if (blocks.length === 0) continue
       out.push({ role: 'assistant', content: blocks })
       for (const b of m.blocks) {
         if (b.type === 'tool_use') {
@@ -340,22 +526,80 @@ function toApiMessages(history: AiMessage[], ctx: AiContext, userText: string):
       }
     }
   }
-
-  // Before the new user turn, satisfy any unanswered tool_use blocks.
-  flushPendingToolResults()
-
-  // Final user turn carries the volatile context plus the new question — these
-  // sit AFTER the cache breakpoint so the preamble stays cached across turns.
-  out.push({
-    role: 'user',
-    content: `${renderContext(ctx)}\n\n${userText}`
-  })
+  flushPending()
+  out.push({ role: 'user', content: `${renderContext(ctx)}\n\n${userText}` })
   return out
 }
 
-const send = (channel: string, payload: unknown): void => {
-  for (const win of BrowserWindow.getAllWindows()) win.webContents.send(channel, payload)
+function toOpenAIMessages(
+  history: AiMessage[], ctx: AiContext, userText: string
+): OpenAI.ChatCompletionMessageParam[] {
+  const out: OpenAI.ChatCompletionMessageParam[] = []
+
+  for (const m of history) {
+    if (m.role === 'user') {
+      out.push({ role: 'user', content: m.text })
+    } else {
+      const textContent = m.blocks.filter(b => b.type === 'text').map(b => b.text).join('')
+      const toolBlocks = m.blocks.filter(b => b.type === 'tool_use')
+
+      if (toolBlocks.length > 0) {
+        out.push({
+          role: 'assistant',
+          content: textContent || null,
+          tool_calls: toolBlocks.map((b) => ({
+            id: b.id,
+            type: 'function' as const,
+            function: { name: b.name, arguments: JSON.stringify(b.input) }
+          }))
+        })
+        for (const b of toolBlocks) {
+          out.push({ role: 'tool', tool_call_id: b.id, content: syntheticToolResultText(b.name) })
+        }
+      } else {
+        out.push({ role: 'assistant', content: textContent })
+      }
+    }
+  }
+
+  out.push({ role: 'user', content: `${renderContext(ctx)}\n\n${userText}` })
+  return out
 }
+
+function toGeminiContents(
+  history: AiMessage[], ctx: AiContext, userText: string
+): { role: string; parts: unknown[] }[] {
+  const out: { role: string; parts: unknown[] }[] = []
+
+  for (const m of history) {
+    if (m.role === 'user') {
+      out.push({ role: 'user', parts: [{ text: m.text }] })
+    } else {
+      const parts: unknown[] = []
+      const fnCallParts: unknown[] = []
+      for (const b of m.blocks) {
+        if (b.type === 'text') {
+          parts.push({ text: b.text })
+        } else {
+          fnCallParts.push({ functionCall: { name: b.name, args: b.input } })
+        }
+      }
+      out.push({ role: 'model', parts: [...parts, ...fnCallParts] })
+
+      const fnResponses = m.blocks
+        .filter(b => b.type === 'tool_use')
+        .map(b => ({ functionResponse: { name: b.name, response: { result: syntheticToolResultText(b.name) } } }))
+      if (fnResponses.length > 0) {
+        out.push({ role: 'user', parts: fnResponses })
+      }
+    }
+  }
+
+  out.push({ role: 'user', parts: [{ text: `${renderContext(ctx)}\n\n${userText}` }] })
+  return out
+}
+
+// ---- error classification ---------------------------------------------------
 
 function classifyError(err: unknown): AiErrorKind {
   if (err instanceof Anthropic.AuthenticationError) return 'auth'
@@ -367,20 +611,23 @@ function classifyError(err: unknown): AiErrorKind {
     if (err.status === 429) return 'rate_limit'
     return 'other'
   }
+  if (err instanceof OpenAI.AuthenticationError) return 'auth'
+  if (err instanceof OpenAI.RateLimitError) return 'rate_limit'
+  if (err instanceof OpenAI.APIConnectionError) return 'network'
+  // Gemini errors are plain Error objects
+  const msg = err instanceof Error ? err.message.toLowerCase() : ''
+  if (msg.includes('api_key') || msg.includes('unauthorized') || msg.includes('permission')) return 'auth'
+  if (msg.includes('quota') || msg.includes('rate')) return 'rate_limit'
   return 'other'
 }
 
-// One AbortController per active stream so renderer can cancel.
+// ---- streaming --------------------------------------------------------------
+
 const inflight = new Map<string, AbortController>()
 
-export async function startStream(args: AiStreamArgs): Promise<void> {
-  if (!client) {
-    const evt: AiErrorEvent = {
-      streamId: args.streamId,
-      kind: 'config',
-      message: unavailableReason ?? 'AI not configured'
-    }
-    send('ai:error', evt)
+async function startStreamAnthropic(args: AiStreamArgs): Promise<void> {
+  if (!anthropicClient) {
+    send('ai:error', { streamId: args.streamId, kind: 'config', message: unavailableReason ?? 'Anthropic not configured' } as AiErrorEvent)
     return
   }
 
@@ -388,33 +635,20 @@ export async function startStream(args: AiStreamArgs): Promise<void> {
   inflight.set(args.streamId, controller)
 
   const systemText = args.kind === 'terminal' ? TERMINAL_SYSTEM : EDITOR_SYSTEM
-  const tools = args.kind === 'terminal' ? TOOLS_TERMINAL : TOOLS_EDITOR
-  const messages = toApiMessages(args.history, args.context, args.userText)
+  const tools = args.kind === 'terminal' ? TOOLS_TERMINAL_ANTHROPIC : TOOLS_EDITOR_ANTHROPIC
+  const messages = toAnthropicMessages(args.history, args.context, args.userText)
 
-  const model = resolveTier(args.tier)
-  const startEvt: AiStartEvent = { streamId: args.streamId, model }
-  send('ai:start', startEvt)
+  const resolvedModel = (args.tier && anthropicTierModels[args.tier]) ? anthropicTierModels[args.tier]! : anthropicModel
+  send('ai:start', { streamId: args.streamId, model: resolvedModel } as AiStartEvent)
 
-  let stopReason: string | null = null
-  let usage = {
-    inputTokens: 0,
-    outputTokens: 0,
-    cacheReadInputTokens: 0,
-    cacheCreationInputTokens: 0
-  }
+  let usage: AiUsage = { inputTokens: 0, outputTokens: 0, cacheReadInputTokens: 0, cacheCreationInputTokens: 0 }
 
   try {
-    const stream = client.messages.stream(
+    const stream = anthropicClient.messages.stream(
       {
-        model,
+        model: resolvedModel,
         max_tokens: 16000,
-        system: [
-          {
-            type: 'text',
-            text: systemText,
-            cache_control: { type: 'ephemeral' }
-          }
-        ],
+        system: [{ type: 'text', text: systemText, cache_control: { type: 'ephemeral' } }],
         tools,
         messages
       },
@@ -425,30 +659,18 @@ export async function startStream(args: AiStreamArgs): Promise<void> {
     let flushTimer: NodeJS.Timeout | null = null
     const flush = (): void => {
       if (!textBuf) return
-      const evt: AiDeltaEvent = { streamId: args.streamId, text: textBuf }
-      send('ai:delta', evt)
+      send('ai:delta', { streamId: args.streamId, text: textBuf } as AiDeltaEvent)
       textBuf = ''
     }
 
     stream.on('text', (delta) => {
       textBuf += delta
-      if (!flushTimer) {
-        flushTimer = setTimeout(() => {
-          flushTimer = null
-          flush()
-        }, 16)
-      }
+      if (!flushTimer) flushTimer = setTimeout(() => { flushTimer = null; flush() }, 16)
     })
 
     stream.on('contentBlock', (block) => {
       if (block.type === 'tool_use') {
-        const evt: AiToolUseEvent = {
-          streamId: args.streamId,
-          id: block.id,
-          name: block.name,
-          input: block.input
-        }
-        send('ai:tool_use', evt)
+        send('ai:tool_use', { streamId: args.streamId, id: block.id, name: block.name, input: block.input } as AiToolUseEvent)
       }
     })
 
@@ -456,35 +678,203 @@ export async function startStream(args: AiStreamArgs): Promise<void> {
     if (flushTimer) clearTimeout(flushTimer)
     flush()
 
-    stopReason = final.stop_reason ?? null
     usage = {
       inputTokens: final.usage.input_tokens ?? 0,
       outputTokens: final.usage.output_tokens ?? 0,
       cacheReadInputTokens: final.usage.cache_read_input_tokens ?? 0,
-      cacheCreationInputTokens: final.usage.cache_creation_input_tokens ?? 0
+      cacheCreationInputTokens: final.usage.cache_creation_input_tokens ?? 0,
     }
-
-    const doneEvt: AiDoneEvent = { streamId: args.streamId, stopReason, usage }
-    send('ai:done', doneEvt)
+    send('ai:done', { streamId: args.streamId, stopReason: final.stop_reason ?? null, usage } as AiDoneEvent)
   } catch (err) {
     if (controller.signal.aborted) {
-      // user-cancelled; emit done with no usage so the UI can reset state
-      const doneEvt: AiDoneEvent = {
-        streamId: args.streamId,
-        stopReason: 'cancelled',
-        usage
-      }
-      send('ai:done', doneEvt)
+      send('ai:done', { streamId: args.streamId, stopReason: 'cancelled', usage } as AiDoneEvent)
     } else {
-      const evt: AiErrorEvent = {
-        streamId: args.streamId,
-        kind: classifyError(err),
-        message: err instanceof Error ? err.message : String(err)
-      }
-      send('ai:error', evt)
+      send('ai:error', { streamId: args.streamId, kind: classifyError(err), message: err instanceof Error ? err.message : String(err) } as AiErrorEvent)
     }
   } finally {
     inflight.delete(args.streamId)
+  }
+}
+
+async function startStreamOpenAI(args: AiStreamArgs): Promise<void> {
+  if (!openAIClient) {
+    send('ai:error', { streamId: args.streamId, kind: 'config', message: 'OpenAI not configured. Add an API key.' } as AiErrorEvent)
+    return
+  }
+
+  const controller = new AbortController()
+  inflight.set(args.streamId, controller)
+
+  const systemText = args.kind === 'terminal' ? TERMINAL_SYSTEM : EDITOR_SYSTEM
+  const tools = args.kind === 'terminal' ? TOOLS_TERMINAL_OPENAI : TOOLS_EDITOR_OPENAI
+  const messages = toOpenAIMessages(args.history, args.context, args.userText)
+
+  send('ai:start', { streamId: args.streamId, model: openAIModel } as AiStartEvent)
+
+  let usage: AiUsage = { inputTokens: 0, outputTokens: 0, cacheReadInputTokens: 0, cacheCreationInputTokens: 0 }
+  // accumulate tool call argument chunks: index → {id, name, args}
+  const toolAccum = new Map<number, { id: string; name: string; args: string }>()
+
+  try {
+    const stream = await openAIClient.chat.completions.create(
+      {
+        model: openAIModel,
+        max_tokens: 16000,
+        messages: [{ role: 'system', content: systemText }, ...messages],
+        tools,
+        stream: true,
+        stream_options: { include_usage: true },
+      },
+      { signal: controller.signal }
+    )
+
+    let textBuf = ''
+    let flushTimer: NodeJS.Timeout | null = null
+    const flush = (): void => {
+      if (!textBuf) return
+      send('ai:delta', { streamId: args.streamId, text: textBuf } as AiDeltaEvent)
+      textBuf = ''
+    }
+
+    for await (const chunk of stream) {
+      if (controller.signal.aborted) break
+      const delta = chunk.choices[0]?.delta
+
+      if (delta?.content) {
+        textBuf += delta.content
+        if (!flushTimer) flushTimer = setTimeout(() => { flushTimer = null; flush() }, 16)
+      }
+
+      if (delta?.tool_calls) {
+        for (const tc of delta.tool_calls) {
+          if (!toolAccum.has(tc.index)) toolAccum.set(tc.index, { id: '', name: '', args: '' })
+          const acc = toolAccum.get(tc.index)!
+          if (tc.id) acc.id = tc.id
+          if (tc.function?.name) acc.name += tc.function.name
+          if (tc.function?.arguments) acc.args += tc.function.arguments
+        }
+      }
+
+      if (chunk.usage) {
+        usage = {
+          inputTokens: chunk.usage.prompt_tokens ?? 0,
+          outputTokens: chunk.usage.completion_tokens ?? 0,
+          cacheReadInputTokens: 0,
+          cacheCreationInputTokens: 0,
+        }
+      }
+    }
+
+    if (flushTimer) clearTimeout(flushTimer)
+    flush()
+
+    for (const [, tc] of toolAccum) {
+      let input: unknown = {}
+      try { input = JSON.parse(tc.args) } catch { /* leave as empty */ }
+      send('ai:tool_use', { streamId: args.streamId, id: tc.id, name: tc.name, input } as AiToolUseEvent)
+    }
+
+    const stopReason = toolAccum.size > 0 ? 'tool_use' : 'end_turn'
+    send('ai:done', { streamId: args.streamId, stopReason, usage } as AiDoneEvent)
+  } catch (err) {
+    if (controller.signal.aborted) {
+      send('ai:done', { streamId: args.streamId, stopReason: 'cancelled', usage } as AiDoneEvent)
+    } else {
+      send('ai:error', { streamId: args.streamId, kind: classifyError(err), message: err instanceof Error ? err.message : String(err) } as AiErrorEvent)
+    }
+  } finally {
+    inflight.delete(args.streamId)
+  }
+}
+
+async function startStreamGemini(args: AiStreamArgs): Promise<void> {
+  if (!geminiClient) {
+    send('ai:error', { streamId: args.streamId, kind: 'config', message: 'Gemini not configured. Add an API key.' } as AiErrorEvent)
+    return
+  }
+
+  const controller = new AbortController()
+  inflight.set(args.streamId, controller)
+
+  const systemText = args.kind === 'terminal' ? TERMINAL_SYSTEM : EDITOR_SYSTEM
+  const tools = args.kind === 'terminal' ? TOOLS_TERMINAL_GEMINI : TOOLS_EDITOR_GEMINI
+  const contents = toGeminiContents(args.history, args.context, args.userText)
+
+  send('ai:start', { streamId: args.streamId, model: geminiModel } as AiStartEvent)
+
+  let usage: AiUsage = { inputTokens: 0, outputTokens: 0, cacheReadInputTokens: 0, cacheCreationInputTokens: 0 }
+
+  try {
+    const stream = geminiClient.models.generateContentStream({
+      model: geminiModel,
+      contents: contents as Parameters<typeof geminiClient.models.generateContentStream>[0]['contents'],
+      config: {
+        systemInstruction: systemText,
+        tools: [tools as Parameters<typeof geminiClient.models.generateContentStream>[0]['config'] extends { tools?: infer T } ? T[0] : never],
+        maxOutputTokens: 16000,
+      }
+    })
+
+    let textBuf = ''
+    let flushTimer: NodeJS.Timeout | null = null
+    const flush = (): void => {
+      if (!textBuf) return
+      send('ai:delta', { streamId: args.streamId, text: textBuf } as AiDeltaEvent)
+      textBuf = ''
+    }
+
+    let toolCallCounter = 0
+    for await (const chunk of stream) {
+      if (controller.signal.aborted) break
+
+      for (const part of chunk.candidates?.[0]?.content?.parts ?? []) {
+        if ((part as { text?: string }).text) {
+          textBuf += (part as { text: string }).text
+          if (!flushTimer) flushTimer = setTimeout(() => { flushTimer = null; flush() }, 16)
+        }
+        const fnCall = (part as { functionCall?: { name: string; args: unknown } }).functionCall
+        if (fnCall) {
+          flush()
+          send('ai:tool_use', {
+            streamId: args.streamId,
+            id: `gemini-tool-${toolCallCounter++}`,
+            name: fnCall.name,
+            input: fnCall.args ?? {}
+          } as AiToolUseEvent)
+        }
+      }
+
+      const meta = chunk.usageMetadata
+      if (meta) {
+        usage = {
+          inputTokens: meta.promptTokenCount ?? 0,
+          outputTokens: meta.candidatesTokenCount ?? 0,
+          cacheReadInputTokens: 0,
+          cacheCreationInputTokens: 0,
+        }
+      }
+    }
+
+    if (flushTimer) clearTimeout(flushTimer)
+    flush()
+
+    send('ai:done', { streamId: args.streamId, stopReason: 'end_turn', usage } as AiDoneEvent)
+  } catch (err) {
+    if (controller.signal.aborted) {
+      send('ai:done', { streamId: args.streamId, stopReason: 'cancelled', usage } as AiDoneEvent)
+    } else {
+      send('ai:error', { streamId: args.streamId, kind: classifyError(err), message: err instanceof Error ? err.message : String(err) } as AiErrorEvent)
+    }
+  } finally {
+    inflight.delete(args.streamId)
+  }
+}
+
+export async function startStream(args: AiStreamArgs): Promise<void> {
+  switch (activeProvider) {
+    case 'anthropic': return startStreamAnthropic(args)
+    case 'openai': return startStreamOpenAI(args)
+    case 'gemini': return startStreamGemini(args)
   }
 }
 

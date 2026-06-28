@@ -123,6 +123,8 @@ export interface ImportSshConfigResult {
 
 // ---- AI -------------------------------------------------------------------
 
+export type AiProvider = 'anthropic' | 'openai' | 'gemini'
+
 export type AiKind = 'terminal' | 'editor'
 
 export interface AiTerminalContext {
@@ -221,6 +223,7 @@ export interface AiErrorEvent {
 export interface AiStatus {
   available: boolean
   reason?: string
+  provider: AiProvider
   /** Active default model (the one used when no tier is requested). */
   model: string
   /** Map of tier → resolved model id, for tiers the user has configured. */

@@ -1449,6 +1449,92 @@
   color: var(--accent);
 }
 
+.ai-signin-cta.primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+
+.ai-signin-cta.primary:hover:not(:disabled) {
+  opacity: 0.88;
+  color: #fff;
+  border-color: var(--accent);
+}
+
+.ai-signin-cta:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.ai-signin-divider {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--text-dimer);
+  font-size: var(--fs-xs);
+  margin: 2px 0;
+}
+
+.ai-signin-divider::before,
+.ai-signin-divider::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: var(--border);
+}
+
+/* Provider tabs */
+.ai-provider-tabs {
+  display: flex;
+  gap: 4px;
+  background: var(--bg-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 3px;
+}
+
+.ai-provider-tab {
+  flex: 1;
+  padding: 5px 8px;
+  border: none;
+  border-radius: calc(var(--radius) - 2px);
+  background: transparent;
+  color: var(--text-dim);
+  font-size: var(--fs-sm);
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.12s, color 0.12s;
+}
+
+.ai-provider-tab:hover {
+  background: var(--bg-3);
+  color: var(--text);
+}
+
+.ai-provider-tab.active {
+  background: var(--bg-base);
+  color: var(--text);
+  box-shadow: 0 1px 3px rgba(0,0,0,0.15);
+}
+
+/* Provider badge in chat footer */
+.provider-badge {
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  color: var(--accent);
+  background: var(--accent-soft);
+  border: 1px solid color-mix(in srgb, var(--accent) 30%, transparent);
+  border-radius: var(--radius-sm);
+  padding: 2px 7px;
+  cursor: pointer;
+  user-select: none;
+  letter-spacing: 0.02em;
+}
+
+.provider-badge:hover {
+  opacity: 0.8;
+}
+
 .ai-signin-form {
   display: flex;
   flex-direction: column;
