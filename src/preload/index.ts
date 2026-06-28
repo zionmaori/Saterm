@@ -147,7 +147,11 @@ const api = {
     pull: (path: string) => ipcRenderer.invoke('git:pull', path),
     push: (path: string) => ipcRenderer.invoke('git:push', path),
     log: (path: string) => ipcRenderer.invoke('git:log', path),
-    show: (path: string, hash: string) => ipcRenderer.invoke('git:show', path, hash)
+    show: (path: string, hash: string) => ipcRenderer.invoke('git:show', path, hash),
+    listTags: (path: string): Promise<string[]> => ipcRenderer.invoke('git:listTags', path),
+    createTag: (path: string, tag: string, message?: string): Promise<void> => ipcRenderer.invoke('git:createTag', path, tag, message),
+    pushTags: (path: string): Promise<void> => ipcRenderer.invoke('git:pushTags', path),
+    deleteTag: (path: string, tag: string): Promise<void> => ipcRenderer.invoke('git:deleteTag', path, tag)
   },
   ai: {
     status: (): Promise<AiStatus> => ipcRenderer.invoke('ai:status'),

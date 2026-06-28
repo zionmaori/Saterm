@@ -23,7 +23,7 @@ interface GitLogEntry {
   refs: string
 }
 
-type ViewMode = 'changes' | 'history'
+type ViewMode = 'changes' | 'history' | 'tags'
 
 export default function GitPanel({ repoPath, onOpenLog }: Props): React.JSX.Element {
   const [status, setStatus] = useState<GitStatus | null>(null)
@@ -40,6 +40,9 @@ export default function GitPanel({ repoPath, onOpenLog }: Props): React.JSX.Elem
   const [busy, setBusy] = useState(false)
   const [view, setView] = useState<ViewMode>('changes')
   const [log, setLog] = useState<GitLogEntry[]>([])
+  const [tags, setTags] = useState<string[]>([])
+  const [newTag, setNewTag] = useState('')
+  const [tagMsg, setTagMsg] = useState('')
 
   const refresh = async (): Promise<void> => {
     try {
@@ -224,6 +227,55 @@ export default function GitPanel({ repoPath, onOpenLog }: Props): React.JSX.Elem
     setView('history')
   }
 
+  const openTags = async (): Promise<void> => {
+    const t = await window.api.git.listTags(repoPath)
+    setTags(t)
+    setView('tags')
+  }
+
+  const createTag = async (): Promise<void> => {
+    const tag = newTag.trim()
+    if (!tag) return
+    setBusy(true)
+    try {
+      await window.api.git.createTag(repoPath, tag, tagMsg.trim() || undefined)
+      onOpenLog(`tag created: ${tag}`)
+      setNewTag('')
+      setTagMsg('')
+      const t = await window.api.git.listTags(repoPath)
+      setTags(t)
+    } catch (e) {
+      alert((e as Error).message)
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const pushTags = async (): Promise<void> => {
+    setBusy(true)
+    try {
+      await window.api.git.pushTags(repoPath)
+      onOpenLog('tags pushed — GitHub Actions will start building')
+    } catch (e) {
+      alert((e as Error).message)
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const deleteTag = async (tag: string): Promise<void> => {
+    if (!confirm(`Delete local tag "${tag}"?`)) return
+    setBusy(true)
+    try {
+      await window.api.git.deleteTag(repoPath, tag)
+      setTags((prev) => prev.filter((t) => t !== tag))
+    } catch (e) {
+      alert((e as Error).message)
+    } finally {
+      setBusy(false)
+    }
+  }
+
   return (
     <>
       <div className="vcs-tabs">
@@ -238,6 +290,12 @@ export default function GitPanel({ repoPath, onOpenLog }: Props): React.JSX.Elem
           onClick={() => void openLog()}
         >
           History
+        </div>
+        <div
+          className={`vt ${view === 'tags' ? 'active' : ''}`}
+          onClick={() => void openTags()}
+        >
+          Tags
         </div>
       </div>
       <div className="vcs-body">
@@ -450,7 +508,7 @@ export default function GitPanel({ repoPath, onOpenLog }: Props): React.JSX.Elem
               </>
             )}
           </>
-        ) : (
+        ) : view === 'history' ? (
           <div>
             <button onClick={() => setView('changes')} style={{ marginBottom: 8 }}>
               ← Back to changes
@@ -474,6 +532,77 @@ export default function GitPanel({ repoPath, onOpenLog }: Props): React.JSX.Elem
                 </div>
               </div>
             ))}
+          </div>
+        ) : (
+          <div style={{ padding: '8px 0' }}>
+            <button onClick={() => setView('changes')} style={{ marginBottom: 12 }}>
+              ← Back to changes
+            </button>
+
+            <div className="vcs-section-title">Create tag</div>
+            <div style={{ padding: '4px 8px', display: 'flex', flexDirection: 'column', gap: 6 }}>
+              <input
+                placeholder="Tag name (e.g. v1.0.8)"
+                value={newTag}
+                onChange={(e) => setNewTag(e.target.value)}
+                onKeyDown={(e) => { if (e.key === 'Enter' && !busy) void createTag() }}
+                style={{ fontSize: 12 }}
+              />
+              <input
+                placeholder="Message (optional — creates annotated tag)"
+                value={tagMsg}
+                onChange={(e) => setTagMsg(e.target.value)}
+                style={{ fontSize: 12 }}
+              />
+              <div style={{ display: 'flex', gap: 6 }}>
+                <button
+                  className="primary"
+                  onClick={() => void createTag()}
+                  disabled={busy || !newTag.trim()}
+                >
+                  Create tag
+                </button>
+                <button
+                  onClick={() => void pushTags()}
+                  disabled={busy}
+                  title="Push all local tags to origin — triggers GitHub Actions"
+                >
+                  Push tags →
+                </button>
+              </div>
+            </div>
+
+            <div className="vcs-section-title" style={{ marginTop: 12 }}>
+              Local tags ({tags.length})
+            </div>
+            {tags.length === 0 ? (
+              <div className="empty" style={{ fontSize: 11 }}>No tags yet.</div>
+            ) : (
+              tags.map((t) => (
+                <div
+                  key={t}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    padding: '3px 8px',
+                    fontFamily: 'var(--font-mono)',
+                    fontSize: 11,
+                    borderBottom: '1px solid var(--border)'
+                  }}
+                >
+                  <span style={{ color: 'var(--green)' }}>{t}</span>
+                  <button
+                    className="danger"
+                    style={{ padding: '0 6px', fontSize: 10 }}
+                    onClick={() => void deleteTag(t)}
+                    disabled={busy}
+                  >
+                    delete
+                  </button>
+                </div>
+              ))
+            )}
           </div>
         )}
       </div>

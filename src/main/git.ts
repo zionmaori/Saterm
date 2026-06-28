@@ -139,3 +139,24 @@ export async function gitLog(repoPath: string, limit = 200): Promise<GitLogEntry
 export async function gitShowCommit(repoPath: string, hash: string): Promise<string> {
   return g(repoPath).show([hash])
 }
+
+export async function gitListTags(repoPath: string): Promise<string[]> {
+  const result = await g(repoPath).tags()
+  return [...result.all].reverse()
+}
+
+export async function gitCreateTag(repoPath: string, tag: string, message?: string): Promise<void> {
+  if (message) {
+    await g(repoPath).addAnnotatedTag(tag, message)
+  } else {
+    await g(repoPath).addTag(tag)
+  }
+}
+
+export async function gitPushTags(repoPath: string): Promise<void> {
+  await g(repoPath).pushTags('origin')
+}
+
+export async function gitDeleteTag(repoPath: string, tag: string): Promise<void> {
+  await g(repoPath).tag(['-d', tag])
+}

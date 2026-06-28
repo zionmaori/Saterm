@@ -51,7 +51,11 @@ import {
   gitPull,
   gitPush,
   gitLog,
-  gitShowCommit
+  gitShowCommit,
+  gitListTags,
+  gitCreateTag,
+  gitPushTags,
+  gitDeleteTag
 } from './git'
 import {
   svnStatus,
@@ -196,6 +200,10 @@ export function registerIpcHandlers(): void {
   ipcMain.handle('git:push', (_e, path: string) => gitPush(path))
   ipcMain.handle('git:log', (_e, path: string) => gitLog(path))
   ipcMain.handle('git:show', (_e, path: string, hash: string) => gitShowCommit(path, hash))
+  ipcMain.handle('git:listTags', (_e, path: string) => gitListTags(path))
+  ipcMain.handle('git:createTag', (_e, path: string, tag: string, message?: string) => gitCreateTag(path, tag, message))
+  ipcMain.handle('git:pushTags', (_e, path: string) => gitPushTags(path))
+  ipcMain.handle('git:deleteTag', (_e, path: string, tag: string) => gitDeleteTag(path, tag))
 
   // SVN
   ipcMain.handle('svn:status', (_e, path: string) => svnStatus(path))
