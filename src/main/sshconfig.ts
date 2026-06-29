@@ -2,7 +2,7 @@ import { homedir } from 'os'
 import { readFile } from 'fs/promises'
 import { join, isAbsolute } from 'path'
 import SSHConfig, { LineType } from 'ssh-config'
-import { findHostByName, createHost } from './hosts'
+import { findHostByName, findHostByEndpoint, createHost } from './hosts'
 import type { HostInput, ImportSshConfigResult } from '../shared/types'
 
 interface ResolvedHost {
@@ -86,7 +86,7 @@ export async function importSshConfig(): Promise<ImportSshConfigResult> {
   let added = 0
   let skipped = 0
   for (const h of parsed) {
-    if (findHostByName(h.name)) {
+    if (findHostByName(h.name) || findHostByEndpoint(h.hostname, h.port)) {
       skipped++
       continue
     }

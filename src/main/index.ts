@@ -8,7 +8,7 @@ import { getDb, kvGet, kvSet } from './db'
 import { registerIpcHandlers } from './ipc'
 import { importSshConfig } from './sshconfig'
 import { importKnownHosts } from './knownhosts'
-import { recategorizeAll } from './hosts'
+import { recategorizeAll, dedupHostsByEndpoint } from './hosts'
 import { addProject, refreshAllProjectVcs } from './projects'
 import { initAi, reinitAi } from './ai'
 
@@ -109,12 +109,20 @@ function backfillCategoriesOnce(): void {
   if (n) console.log(`[backfill] categorized ${n} hosts`)
 }
 
+function dedupHostsOnce(): void {
+  if (kvGet('hosts.dedupedV1') === '1') return
+  const n = dedupHostsByEndpoint()
+  kvSet('hosts.dedupedV1', '1')
+  if (n) console.log(`[dedup] merged ${n} duplicate hosts`)
+}
+
 app.whenReady().then(async () => {
   electronApp.setAppUserModelId('com.termion.app')
   getDb()
   registerIpcHandlers()
   await firstLaunchImport()
   backfillCategoriesOnce()
+  dedupHostsOnce()
   seedProjectsOnce()
   const changed = refreshAllProjectVcs()
   if (changed) console.log(`[vcs] refreshed ${changed} project entries`)

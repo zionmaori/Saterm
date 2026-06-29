@@ -2,7 +2,7 @@ import { homedir } from 'os'
 import { readFile } from 'fs/promises'
 import { join } from 'path'
 import { parseSshConfig } from './sshconfig'
-import { findHostByName, createHost } from './hosts'
+import { findHostByName, findHostByEndpoint, createHost } from './hosts'
 import type { HostInput, ImportSshConfigResult } from '../shared/types'
 
 interface KnownHostEntry {
@@ -88,6 +88,11 @@ export async function importKnownHosts(): Promise<ImportSshConfigResult> {
     const user = cfg?.user ?? defaultUser
     const identityFile = cfg?.identityFile ?? null
     const proxyJump = cfg?.proxyJump ?? null
+
+    if (findHostByEndpoint(kh.hostname, port)) {
+      skipped++
+      continue
+    }
 
     let name = deriveName(kh.hostname, port, taken)
     // collision with DB? walk until free

@@ -118,6 +118,113 @@ export function findHostByName(name: string): Host | null {
   return row ? fromRow(row) : null
 }
 
+export function findHostByEndpoint(hostname: string, port: number): Host | null {
+  const row = getDb()
+    .prepare(`${SELECT_HOSTS} WHERE LOWER(h.hostname) = LOWER(?) AND h.port = ?`)
+    .get(hostname, port) as HostRow | undefined
+  return row ? fromRow(row) : null
+}
+
+interface DedupRow {
+  id: number
+  hostname: string
+  port: number
+  pinned_at: number | null
+  last_used_at: number | null
+  identity_file: string | null
+  proxy_jump: string | null
+  group: string | null
+  tag_count: number
+}
+
+/** Collapse hosts that share the same (hostname, port). One keeper is chosen
+ *  per group (pinned > most-recent > most-tagged > has-identity > oldest); the
+ *  losers' tags are merged into the keeper, any non-null fields the keeper is
+ *  missing are filled in from the losers, then the losers are deleted.
+ *
+ *  Returns the number of rows deleted. Safe to call repeatedly — a no-op once
+ *  no duplicates remain.
+ */
+export function dedupHostsByEndpoint(): number {
+  const db = getDb()
+  const rows = db
+    .prepare(
+      `SELECT h.id, h.hostname, h.port, h.pinned_at, h.last_used_at,
+              h.identity_file, h.proxy_jump, h."group" as "group",
+              (SELECT COUNT(*) FROM host_tags WHERE host_id = h.id) as tag_count
+       FROM hosts h`
+    )
+    .all() as DedupRow[]
+
+  const groups = new Map<string, DedupRow[]>()
+  for (const r of rows) {
+    const key = `${r.hostname.toLowerCase()}|${r.port}`
+    const list = groups.get(key)
+    if (list) list.push(r)
+    else groups.set(key, [r])
+  }
+
+  const losers: DedupRow[] = []
+  const merges: { keeper: DedupRow; losers: DedupRow[] }[] = []
+  for (const group of groups.values()) {
+    if (group.length < 2) continue
+    group.sort((a, b) => {
+      if ((a.pinned_at != null) !== (b.pinned_at != null)) return a.pinned_at != null ? -1 : 1
+      const au = a.last_used_at ?? 0
+      const bu = b.last_used_at ?? 0
+      if (au !== bu) return bu - au
+      if (a.tag_count !== b.tag_count) return b.tag_count - a.tag_count
+      if ((a.identity_file != null) !== (b.identity_file != null))
+        return a.identity_file != null ? -1 : 1
+      return a.id - b.id
+    })
+    const [keeper, ...rest] = group
+    merges.push({ keeper, losers: rest })
+    losers.push(...rest)
+  }
+
+  if (!losers.length) return 0
+
+  const insTag = db.prepare('INSERT OR IGNORE INTO host_tags(host_id, tag) VALUES (?, ?)')
+  const getTags = db.prepare('SELECT tag FROM host_tags WHERE host_id = ?')
+  const delHost = db.prepare('DELETE FROM hosts WHERE id = ?')
+  const updKeeper = db.prepare(
+    `UPDATE hosts SET identity_file = ?, proxy_jump = ?, "group" = ?,
+            pinned_at = ?, last_used_at = ? WHERE id = ?`
+  )
+
+  const tx = db.transaction(() => {
+    for (const { keeper, losers: lost } of merges) {
+      let identity = keeper.identity_file
+      let proxy = keeper.proxy_jump
+      let group = keeper.group
+      let pinned = keeper.pinned_at
+      let lastUsed = keeper.last_used_at
+      for (const l of lost) {
+        if (!identity && l.identity_file) identity = l.identity_file
+        if (!proxy && l.proxy_jump) proxy = l.proxy_jump
+        if (!group && l.group) group = l.group
+        if (!pinned && l.pinned_at) pinned = l.pinned_at
+        if ((l.last_used_at ?? 0) > (lastUsed ?? 0)) lastUsed = l.last_used_at
+        const tags = getTags.all(l.id) as { tag: string }[]
+        for (const t of tags) insTag.run(keeper.id, t.tag)
+      }
+      if (
+        identity !== keeper.identity_file ||
+        proxy !== keeper.proxy_jump ||
+        group !== keeper.group ||
+        pinned !== keeper.pinned_at ||
+        lastUsed !== keeper.last_used_at
+      ) {
+        updKeeper.run(identity, proxy, group, pinned, lastUsed, keeper.id)
+      }
+      for (const l of lost) delHost.run(l.id)
+    }
+  })
+  tx()
+  return losers.length
+}
+
 /** Re-derive role/env for every existing host. Used as a one-time backfill on
  *  app start when the schema_version bumps. */
 export function recategorizeAll(): number {
