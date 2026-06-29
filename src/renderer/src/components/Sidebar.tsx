@@ -59,6 +59,8 @@ export default function Sidebar(): React.JSX.Element {
   const [allGroups, setAllGroups] = useState<GroupCount[]>([])
   const [showAllGroups, setShowAllGroups] = useState(false)
   const [groupSort, setGroupSort] = useState<'count' | 'name'>('count')
+  const [hostSort, setHostSort] = useState<'default' | 'name' | 'recent'>('default')
+  const [projectSort, setProjectSort] = useState<'recent' | 'name'>('recent')
   const searchInputRef = useRef<HTMLInputElement>(null)
 
   // ⌘F focuses the search box.
@@ -83,16 +85,23 @@ export default function Sidebar(): React.JSX.Element {
     void window.api.hosts.listGroups().then(setAllGroups)
   }, [hosts])
 
-  const matched = useMemo(
-    () =>
-      hosts.filter(
-        (h) =>
-          hostMatchesQuery(h, query) &&
-          hostMatchesTags(h, activeTags, combine) &&
-          hostMatchesGroups(h, activeGroups)
-      ),
-    [hosts, query, activeTags, combine, activeGroups]
-  )
+  const matched = useMemo(() => {
+    const filtered = hosts.filter(
+      (h) =>
+        hostMatchesQuery(h, query) &&
+        hostMatchesTags(h, activeTags, combine) &&
+        hostMatchesGroups(h, activeGroups)
+    )
+    if (hostSort === 'name') {
+      return [...filtered].sort((a, b) =>
+        a.name.localeCompare(b.name, undefined, { sensitivity: 'base' })
+      )
+    }
+    if (hostSort === 'recent') {
+      return [...filtered].sort((a, b) => (b.lastUsedAt ?? 0) - (a.lastUsedAt ?? 0))
+    }
+    return filtered
+  }, [hosts, query, activeTags, combine, activeGroups, hostSort])
 
   const pinned = useMemo(
     () =>
@@ -135,6 +144,15 @@ export default function Sidebar(): React.JSX.Element {
   }, [allGroups, query, showAllGroups, groupSort])
 
   const noGroupCount = useMemo(() => hosts.filter((h) => !h.group).length, [hosts])
+
+  const sortedProjects = useMemo(() => {
+    if (projectSort === 'name') {
+      return [...projects].sort((a, b) =>
+        a.name.localeCompare(b.name, undefined, { sensitivity: 'base' })
+      )
+    }
+    return [...projects].sort((a, b) => (b.lastOpenedAt ?? 0) - (a.lastOpenedAt ?? 0))
+  }, [projects, projectSort])
 
   const onSaveHost = async (input: HostInput): Promise<void> => {
     if (editing) await window.api.hosts.update(editing.id, input)
@@ -380,6 +398,25 @@ export default function Sidebar(): React.JSX.Element {
           right={
             <>
               <button
+                type="button"
+                className="sidebar2-link"
+                onClick={(e) => {
+                  e.stopPropagation()
+                  setHostSort((s) =>
+                    s === 'default' ? 'name' : s === 'name' ? 'recent' : 'default'
+                  )
+                }}
+                title={
+                  hostSort === 'default'
+                    ? 'Default order — click to sort by name'
+                    : hostSort === 'name'
+                      ? 'Sorted by name — click to sort by recent'
+                      : 'Sorted by recent — click for default order'
+                }
+              >
+                {hostSort === 'default' ? 'sort' : hostSort === 'name' ? 'A–Z' : 'recent'}
+              </button>
+              <button
                 className="sidebar2-icon"
                 title="Import from ~/.ssh/config"
                 onClick={(e) => {
@@ -439,19 +476,36 @@ export default function Sidebar(): React.JSX.Element {
           title="Projects"
           count={projects.length}
           right={
-            <button
-              className="sidebar2-icon"
-              title="Add project"
-              onClick={(e) => {
-                e.stopPropagation()
-                void pickProject()
-              }}
-            >
-              <Plus size={13} />
-            </button>
+            <>
+              <button
+                type="button"
+                className="sidebar2-link"
+                onClick={(e) => {
+                  e.stopPropagation()
+                  setProjectSort((s) => (s === 'recent' ? 'name' : 'recent'))
+                }}
+                title={
+                  projectSort === 'recent'
+                    ? 'Sorted by recent — click to sort by name'
+                    : 'Sorted by name — click to sort by recent'
+                }
+              >
+                {projectSort === 'recent' ? 'A–Z' : 'recent'}
+              </button>
+              <button
+                className="sidebar2-icon"
+                title="Add project"
+                onClick={(e) => {
+                  e.stopPropagation()
+                  void pickProject()
+                }}
+              >
+                <Plus size={13} />
+              </button>
+            </>
           }
         >
-          {projects.map((p) => (
+          {sortedProjects.map((p) => (
             <button
               key={p.id}
               className="sidebar2-row"
