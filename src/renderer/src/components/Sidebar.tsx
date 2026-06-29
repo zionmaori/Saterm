@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Folder, GitBranch, Pin, Plus, Search, Settings2, Star, Tag, Terminal, X } from 'lucide-react'
+import { BotMessageSquare, Folder, GitBranch, Pin, Plus, Search, Settings2, Star, Tag, Terminal, X } from 'lucide-react'
 import { useApp } from '../store/app'
 import { useFilter } from '../store/filter'
-import type { GroupCount, Host, HostInput, TagCount } from '../../../shared/types'
+import type { GroupCount, Host, HostInput, Snippet, TagCount } from '../../../shared/types'
 import HostForm from './HostForm'
+import SnippetForm from './SnippetForm'
 import Chip, { intentForTag } from './Chip'
 
 const PINNED_LIMIT = 12
@@ -59,7 +60,13 @@ export default function Sidebar(): React.JSX.Element {
   const [allGroups, setAllGroups] = useState<GroupCount[]>([])
   const [showAllGroups, setShowAllGroups] = useState(false)
   const [groupSort, setGroupSort] = useState<'count' | 'name'>('count')
+  const [snippets, setSnippets] = useState<Snippet[]>([])
+  const [editingSnippet, setEditingSnippet] = useState<Snippet | null | undefined>(undefined)
   const searchInputRef = useRef<HTMLInputElement>(null)
+
+  const activeTabId = useApp((s) => s.activeTabId)
+  const tabs = useApp((s) => s.tabs)
+  const activeTab = tabs.find((t) => t.id === activeTabId) ?? null
 
   // ⌘F focuses the search box.
   useEffect(() => {
@@ -82,6 +89,11 @@ export default function Sidebar(): React.JSX.Element {
     void window.api.hosts.listTags().then(setAllTags)
     void window.api.hosts.listGroups().then(setAllGroups)
   }, [hosts])
+
+  const refreshSnippets = (): void => {
+    void window.api.snippets.list().then(setSnippets)
+  }
+  useEffect(refreshSnippets, [])
 
   const matched = useMemo(
     () =>
@@ -174,6 +186,33 @@ export default function Sidebar(): React.JSX.Element {
     } catch (e) {
       alert(`Import failed: ${(e as Error).message}`)
     }
+  }
+
+  const onSaveSnippet = async (title: string, body: string, hostFilter: string | null): Promise<void> => {
+    if (editingSnippet) {
+      await window.api.snippets.update(editingSnippet.id, title, body, hostFilter)
+    } else {
+      await window.api.snippets.create(title, body, hostFilter)
+    }
+    setEditingSnippet(undefined)
+    refreshSnippets()
+  }
+
+  const onDeleteSnippet = async (): Promise<void> => {
+    if (!editingSnippet) return
+    await window.api.snippets.delete(editingSnippet.id)
+    setEditingSnippet(undefined)
+    refreshSnippets()
+  }
+
+  const insertSnippet = (body: string): void => {
+    if (!activeTab) return
+    const targetId =
+      activeTab.kind === 'project'
+        ? (window as Window & { __termionProjectTerm?: Map<string, import('../store/app').Tab> })
+            .__termionProjectTerm?.get(activeTab.id)?.id ?? null
+        : activeTab.id
+    if (targetId) window.__termionInsertText?.(targetId, body)
   }
 
   const pickProject = async (): Promise<void> => {
@@ -452,20 +491,78 @@ export default function Sidebar(): React.JSX.Element {
           }
         >
           {projects.map((p) => (
+            <div key={p.id} className="sidebar2-host" title={p.path}>
+              <button
+                className="sidebar2-row"
+                style={{ gridColumn: '1 / span 2', flex: 1, background: 'none', border: 'none', padding: 0, textAlign: 'left' }}
+                onClick={() => openProjectTab(p)}
+              >
+                <Folder size={13} strokeWidth={2} />
+                <span className="sidebar2-row-title">{p.name}</span>
+                {p.vcs !== 'none' && (
+                  <span className="sidebar2-row-meta">
+                    <GitBranch size={10} strokeWidth={2} /> {p.vcs}
+                  </span>
+                )}
+              </button>
+              <button
+                className="sidebar2-icon"
+                title="Open Claude Code in this project"
+                onClick={(e) => {
+                  e.stopPropagation()
+                  openLocalTab(p.path, 'claude')
+                }}
+              >
+                <BotMessageSquare size={13} />
+              </button>
+            </div>
+          ))}
+        </Section>
+        {/* Snippets */}
+        <Section
+          title="Snippets"
+          count={snippets.length}
+          right={
             <button
-              key={p.id}
-              className="sidebar2-row"
-              onClick={() => openProjectTab(p)}
-              title={p.path}
+              className="sidebar2-icon"
+              title="New snippet"
+              onClick={(e) => {
+                e.stopPropagation()
+                setEditingSnippet(null)
+              }}
             >
-              <Folder size={13} strokeWidth={2} />
-              <span className="sidebar2-row-title">{p.name}</span>
-              {p.vcs !== 'none' && (
-                <span className="sidebar2-row-meta">
-                  <GitBranch size={10} strokeWidth={2} /> {p.vcs}
-                </span>
-              )}
+              <Plus size={13} />
             </button>
+          }
+        >
+          {snippets.length === 0 && (
+            <div className="sidebar2-empty">No snippets yet. Click + to add one.</div>
+          )}
+          {snippets.map((s) => (
+            <div key={s.id} className="sidebar2-host">
+              <button
+                className="sidebar2-row"
+                style={{ gridColumn: '1 / span 2', flex: 1, background: 'none', border: 'none', padding: 0, textAlign: 'left' }}
+                onClick={() => insertSnippet(s.body)}
+                title={s.body}
+              >
+                <Terminal size={13} strokeWidth={2} />
+                <span className="sidebar2-row-title">{s.title}</span>
+                {s.hostFilter && (
+                  <span className="sidebar2-row-meta">{s.hostFilter}</span>
+                )}
+              </button>
+              <button
+                className="sidebar2-icon"
+                title="Edit snippet"
+                onClick={(e) => {
+                  e.stopPropagation()
+                  setEditingSnippet(s)
+                }}
+              >
+                <Settings2 size={13} />
+              </button>
+            </div>
           ))}
         </Section>
       </div>
@@ -482,8 +579,23 @@ export default function Sidebar(): React.JSX.Element {
           onDelete={editing ? onDeleteHost : undefined}
         />
       )}
+      {editingSnippet !== undefined && (
+        <SnippetForm
+          initial={editingSnippet}
+          onSave={onSaveSnippet}
+          onCancel={() => setEditingSnippet(undefined)}
+          onDelete={editingSnippet ? onDeleteSnippet : undefined}
+        />
+      )}
     </aside>
   )
+}
+
+declare global {
+  interface Window {
+    __termionInsertText?: (tabId: string, text: string) => void
+    __termionProjectTerm?: Map<string, import('../store/app').Tab>
+  }
 }
 
 // --- Section ---
@@ -499,10 +611,18 @@ function Section({
   right?: React.ReactNode
   children: React.ReactNode
 }): React.JSX.Element {
-  const [open, setOpen] = useState(false)
+  const key = `sidebar.section.${title}`
+  const [open, setOpen] = useState(() => {
+    try { return localStorage.getItem(key) !== 'false' } catch { return true }
+  })
+  const toggle = (): void => {
+    const next = !open
+    setOpen(next)
+    try { localStorage.setItem(key, String(next)) } catch { /* noop */ }
+  }
   return (
     <div className="sidebar2-section">
-      <div className="sidebar2-section-header" onClick={() => setOpen((v) => !v)}>
+      <div className="sidebar2-section-header" onClick={toggle}>
         <span className="sidebar2-section-title">{title}</span>
         <span className="sidebar2-section-count">{count}</span>
         <span className="sidebar2-section-actions" onClick={(e) => e.stopPropagation()}>

@@ -150,12 +150,12 @@ export async function connectSsh(args: SshConnectArgs): Promise<void> {
   if (host.proxyJump) {
     // host.proxyJump may be "user@host:port" or just a saved host name.
     const jh = parseJumpSpec(host.proxyJump)
-    proxySock = (
-      await openJumpChannel(
-        { hostname: jh.hostname, port: jh.port, user: jh.user, identityFile: host.identityFile },
-        { hostname: host.hostname, port: host.port }
-      )
-    ).sock
+    const jump = await openJumpChannel(
+      { hostname: jh.hostname, port: jh.port, user: jh.user, identityFile: host.identityFile },
+      { hostname: host.hostname, port: host.port }
+    )
+    proxySock = jump.sock
+    jumpClient = jump.client
   }
 
   const client = new Client()

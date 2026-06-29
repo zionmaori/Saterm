@@ -130,3 +130,32 @@ export function kvSet(key: string, value: string): void {
     .prepare('INSERT INTO kv(key,value) VALUES(?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value')
     .run(key, value)
 }
+
+// ---- Snippets ---------------------------------------------------------------
+
+export interface SnippetRow {
+  id: number
+  title: string
+  body: string
+  host_filter: string | null
+}
+
+export function listSnippets(): SnippetRow[] {
+  return getDb().prepare('SELECT id, title, body, host_filter FROM snippets ORDER BY title').all() as SnippetRow[]
+}
+
+export function createSnippet(title: string, body: string, hostFilter: string | null): SnippetRow {
+  const db = getDb()
+  const info = db.prepare('INSERT INTO snippets(title, body, host_filter) VALUES (?, ?, ?)').run(title, body, hostFilter)
+  return db.prepare('SELECT id, title, body, host_filter FROM snippets WHERE id = ?').get(info.lastInsertRowid) as SnippetRow
+}
+
+export function updateSnippet(id: number, title: string, body: string, hostFilter: string | null): SnippetRow {
+  const db = getDb()
+  db.prepare('UPDATE snippets SET title = ?, body = ?, host_filter = ? WHERE id = ?').run(title, body, hostFilter, id)
+  return db.prepare('SELECT id, title, body, host_filter FROM snippets WHERE id = ?').get(id) as SnippetRow
+}
+
+export function deleteSnippet(id: number): void {
+  getDb().prepare('DELETE FROM snippets WHERE id = ?').run(id)
+}

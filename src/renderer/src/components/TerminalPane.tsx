@@ -42,6 +42,8 @@ export default function TerminalPane({ tab, visible, resizeKey }: Props): React.
   const fitRef = useRef<FitAddon | null>(null)
   const startedRef = useRef(false)
   const [status, setStatus] = useState<string | null>(null)
+  const [reconnectKey, setReconnectKey] = useState(0)
+  const sessionId = reconnectKey === 0 ? tab.id : `${tab.id}-r${reconnectKey}`
 
   // Initialize xterm once per session id.
   useLayoutEffect(() => {
@@ -102,10 +104,10 @@ export default function TerminalPane({ tab, visible, resizeKey }: Props): React.
     g.__termionTerms.set(tab.id, term)
 
     const offData = window.api.term.onData((evt) => {
-      if (evt.sessionId === tab.id) term.write(evt.data)
+      if (evt.sessionId === sessionId) term.write(evt.data)
     })
     const offExit = window.api.term.onExit((evt) => {
-      if (evt.sessionId === tab.id) {
+      if (evt.sessionId === sessionId) {
         const msg = evt.message ?? `\r\n[session exited${evt.code != null ? ` code=${evt.code}` : ''}${evt.signal ? ` signal=${evt.signal}` : ''}]\r\n`
         term.write(msg)
         setStatus('disconnected')
@@ -113,7 +115,7 @@ export default function TerminalPane({ tab, visible, resizeKey }: Props): React.
     })
 
     term.onData((data) => {
-      void window.api.term.input({ sessionId: tab.id, data })
+      void window.api.term.input({ sessionId, data })
     })
 
     const startSession = async (): Promise<void> => {
@@ -124,10 +126,10 @@ export default function TerminalPane({ tab, visible, resizeKey }: Props): React.
       try {
         if (tab.kind === 'ssh' && tab.hostId) {
           setStatus('connecting…')
-          await window.api.ssh.connect({ sessionId: tab.id, hostId: tab.hostId, cols, rows })
+          await window.api.ssh.connect({ sessionId, hostId: tab.hostId, cols, rows })
           setStatus(null)
         } else if (tab.kind === 'local') {
-          await window.api.pty.spawn({ sessionId: tab.id, cwd: tab.cwd, cols, rows, shell: tab.shell })
+          await window.api.pty.spawn({ sessionId, cwd: tab.cwd, cols, rows, shell: tab.shell })
         }
       } catch (err) {
         const msg = (err as Error).message
@@ -140,7 +142,7 @@ export default function TerminalPane({ tab, visible, resizeKey }: Props): React.
     const ro = new ResizeObserver(() => {
       try {
         fit.fit()
-        void window.api.term.resize({ sessionId: tab.id, cols: term.cols, rows: term.rows })
+        void window.api.term.resize({ sessionId, cols: term.cols, rows: term.rows })
       } catch {
         /* noop */
       }
@@ -154,9 +156,10 @@ export default function TerminalPane({ tab, visible, resizeKey }: Props): React.
       term.dispose()
       termRef.current = null
       fitRef.current = null
+      startedRef.current = false
       g.__termionTerms?.delete(tab.id)
     }
-  }, [tab.id, tab.kind, tab.hostId, tab.cwd])
+  }, [tab.id, tab.kind, tab.hostId, tab.cwd, sessionId])
 
   // Re-fit when the tab becomes visible (xterm needs a real layout).
   useEffect(() => {
@@ -166,7 +169,7 @@ export default function TerminalPane({ tab, visible, resizeKey }: Props): React.
           fitRef.current!.fit()
           termRef.current!.focus()
           void window.api.term.resize({
-            sessionId: tab.id,
+            sessionId,
             cols: termRef.current!.cols,
             rows: termRef.current!.rows
           })
@@ -177,7 +180,7 @@ export default function TerminalPane({ tab, visible, resizeKey }: Props): React.
       return () => clearTimeout(t)
     }
     return undefined
-  }, [visible, tab.id])
+  }, [visible, sessionId])
 
   // Re-fit when the container is repositioned (e.g. terminal flips top/bottom).
   useEffect(() => {
@@ -187,7 +190,7 @@ export default function TerminalPane({ tab, visible, resizeKey }: Props): React.
         fitRef.current?.fit()
         if (termRef.current && fitRef.current) {
           void window.api.term.resize({
-            sessionId: tab.id,
+            sessionId,
             cols: termRef.current.cols,
             rows: termRef.current.rows
           })
@@ -197,7 +200,9 @@ export default function TerminalPane({ tab, visible, resizeKey }: Props): React.
       }
     }, 50)
     return () => clearTimeout(t)
-  }, [resizeKey, tab.id])
+  }, [resizeKey, sessionId])
+
+  const canReconnect = status === 'disconnected' || status === 'failed'
 
   return (
     <div className="terminal-host" ref={hostRef} style={{ display: visible ? 'block' : 'none' }}>
@@ -207,11 +212,25 @@ export default function TerminalPane({ tab, visible, resizeKey }: Props): React.
             position: 'absolute',
             top: 12,
             right: 16,
+            display: 'flex',
+            alignItems: 'center',
+            gap: 8,
             color: 'var(--text-dim)',
             fontSize: 11
           }}
         >
           {status}
+          {canReconnect && (
+            <button
+              style={{ fontSize: 11, padding: '2px 8px' }}
+              onClick={() => {
+                setStatus(null)
+                setReconnectKey((k) => k + 1)
+              }}
+            >
+              Reconnect
+            </button>
+          )}
         </div>
       )}
     </div>

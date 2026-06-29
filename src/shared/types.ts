@@ -44,6 +44,15 @@ export type HostInput = Omit<
   tags?: string[]
 }
 
+export interface Snippet {
+  id: number
+  title: string
+  body: string
+  hostFilter: string | null
+}
+
+export type SnippetInput = Omit<Snippet, 'id'>
+
 export type VcsKind = 'git' | 'svn' | 'none'
 
 export interface Project {

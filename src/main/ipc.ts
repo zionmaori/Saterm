@@ -2,7 +2,7 @@ import { app, dialog, ipcMain } from 'electron'
 import { homedir } from 'os'
 import { join } from 'path'
 import { existsSync } from 'fs'
-import { kvGet, kvSet } from './db'
+import { kvGet, kvSet, listSnippets, createSnippet, updateSnippet, deleteSnippet } from './db'
 import {
   listHosts,
   getHost,
@@ -220,6 +220,20 @@ export function registerIpcHandlers(): void {
   ipcMain.handle('svn:add', (_e, path: string, files: string[]) => svnAdd(path, files))
   ipcMain.handle('svn:delete', (_e, path: string, files: string[]) => svnDelete(path, files))
   ipcMain.handle('svn:log', (_e, path: string) => svnLog(path))
+
+  // Snippets
+  ipcMain.handle('snippets:list', () =>
+    listSnippets().map((r) => ({ id: r.id, title: r.title, body: r.body, hostFilter: r.host_filter }))
+  )
+  ipcMain.handle('snippets:create', (_e, title: string, body: string, hostFilter: string | null) => {
+    const r = createSnippet(title, body, hostFilter)
+    return { id: r.id, title: r.title, body: r.body, hostFilter: r.host_filter }
+  })
+  ipcMain.handle('snippets:update', (_e, id: number, title: string, body: string, hostFilter: string | null) => {
+    const r = updateSnippet(id, title, body, hostFilter)
+    return { id: r.id, title: r.title, body: r.body, hostFilter: r.host_filter }
+  })
+  ipcMain.handle('snippets:delete', (_e, id: number) => deleteSnippet(id))
 
   // AI
   ipcMain.handle('ai:status', () => aiStatus())

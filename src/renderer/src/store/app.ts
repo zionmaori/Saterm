@@ -22,7 +22,7 @@ interface AppState {
   refreshHosts: () => Promise<void>
   refreshProjects: () => Promise<void>
   openSshTab: (host: Host) => Tab
-  openLocalTab: (cwd?: string) => Tab
+  openLocalTab: (cwd?: string, shell?: string) => Tab
   openProjectTab: (project: Project) => Tab
   closeTab: (id: SessionId) => void
   setActiveTab: (id: SessionId) => void
@@ -57,8 +57,9 @@ export const useApp = create<AppState>((set, get) => ({
     return tab
   },
 
-  openLocalTab: (cwd) => {
-    const tab: Tab = { id: uuid(), kind: 'local', title: 'local', cwd }
+  openLocalTab: (cwd, shell) => {
+    const title = shell ? shell.split(/[\\/]/).pop()! : 'local'
+    const tab: Tab = { id: uuid(), kind: 'local', title, cwd, shell }
     set((s) => ({ tabs: [...s.tabs, tab], activeTabId: tab.id }))
     void get().persistLayout()
     return tab

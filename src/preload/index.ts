@@ -18,6 +18,7 @@ import type {
   PtySpawnArgs,
   SessionId,
   ShellOption,
+  Snippet,
   SshConnectArgs,
   TagCount,
   TermDataEvent,
@@ -172,6 +173,14 @@ const api = {
     onToolUse: (fn: Listener<AiToolUseEvent>) => on('ai:tool_use', fn),
     onDone: (fn: Listener<AiDoneEvent>) => on('ai:done', fn),
     onError: (fn: Listener<AiErrorEvent>) => on('ai:error', fn)
+  },
+  snippets: {
+    list: (): Promise<Snippet[]> => ipcRenderer.invoke('snippets:list'),
+    create: (title: string, body: string, hostFilter: string | null): Promise<Snippet> =>
+      ipcRenderer.invoke('snippets:create', title, body, hostFilter),
+    update: (id: number, title: string, body: string, hostFilter: string | null): Promise<Snippet> =>
+      ipcRenderer.invoke('snippets:update', id, title, body, hostFilter),
+    delete: (id: number): Promise<void> => ipcRenderer.invoke('snippets:delete', id)
   },
   svn: {
     status: (path: string) => ipcRenderer.invoke('svn:status', path),
