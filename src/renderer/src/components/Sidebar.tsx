@@ -58,6 +58,7 @@ export default function Sidebar(): React.JSX.Element {
   const [allTags, setAllTags] = useState<TagCount[]>([])
   const [allGroups, setAllGroups] = useState<GroupCount[]>([])
   const [showAllGroups, setShowAllGroups] = useState(false)
+  const [groupSort, setGroupSort] = useState<'count' | 'name'>('count')
   const searchInputRef = useRef<HTMLInputElement>(null)
 
   // ⌘F focuses the search box.
@@ -122,13 +123,16 @@ export default function Sidebar(): React.JSX.Element {
   const untaggedCount = useMemo(() => hosts.filter((h) => h.tags.length === 0).length, [hosts])
 
   const visibleGroups = useMemo(() => {
-    const gs = allGroups
+    const sorted =
+      groupSort === 'name'
+        ? [...allGroups].sort((a, b) => a.group.localeCompare(b.group, undefined, { sensitivity: 'base' }))
+        : allGroups
     if (query) {
       const q = query.toLowerCase()
-      return gs.filter((g) => g.group.toLowerCase().includes(q))
+      return sorted.filter((g) => g.group.toLowerCase().includes(q))
     }
-    return showAllGroups ? gs : gs.slice(0, 12)
-  }, [allGroups, query, showAllGroups])
+    return showAllGroups ? sorted : sorted.slice(0, 12)
+  }, [allGroups, query, showAllGroups, groupSort])
 
   const noGroupCount = useMemo(() => hosts.filter((h) => !h.group).length, [hosts])
 
@@ -248,11 +252,25 @@ export default function Sidebar(): React.JSX.Element {
           title="Groups"
           count={allGroups.length}
           right={
-            activeGroups.length > 0 ? (
-              <button className="sidebar2-link" onClick={() => clearGroups()}>
-                clear
+            <>
+              <button
+                type="button"
+                className="sidebar2-link"
+                onClick={() => setGroupSort((s) => (s === 'count' ? 'name' : 'count'))}
+                title={
+                  groupSort === 'count'
+                    ? 'Sorted by count — click to sort by name'
+                    : 'Sorted by name — click to sort by count'
+                }
+              >
+                {groupSort === 'count' ? 'A–Z' : 'count'}
               </button>
-            ) : null
+              {activeGroups.length > 0 && (
+                <button className="sidebar2-link" onClick={() => clearGroups()}>
+                  clear
+                </button>
+              )}
+            </>
           }
         >
           <div className="tag-rail">
