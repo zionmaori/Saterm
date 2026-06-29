@@ -583,6 +583,85 @@
   cursor: pointer;
 }
 
+/* ===== Combobox (Group picker in HostForm) ===== */
+
+.combobox {
+  position: relative;
+}
+
+.combobox-input {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.combobox-input > input {
+  flex: 1;
+  padding-right: 22px;
+}
+
+.combobox-clear {
+  position: absolute;
+  right: 4px;
+  top: 50%;
+  transform: translateY(-50%);
+  background: transparent;
+  border: none;
+  color: var(--text-dim);
+  font-size: 14px;
+  line-height: 1;
+  padding: 0 4px;
+  cursor: pointer;
+  border-radius: 3px;
+}
+
+.combobox-clear:hover {
+  color: var(--danger);
+  background: var(--danger-soft);
+}
+
+.combobox-list {
+  position: absolute;
+  top: calc(100% + 2px);
+  left: 0;
+  right: 0;
+  z-index: 50;
+  max-height: 200px;
+  overflow-y: auto;
+  background: var(--bg-1);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
+  padding: 2px;
+  display: flex;
+  flex-direction: column;
+}
+
+.combobox-item {
+  text-align: left;
+  background: transparent;
+  border: none;
+  color: var(--text);
+  padding: 5px 8px;
+  font-size: var(--fs-sm);
+  cursor: pointer;
+  border-radius: 3px;
+}
+
+.combobox-item:hover {
+  background: var(--bg-2);
+}
+
+.combobox-item-active {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.combobox-create {
+  color: var(--accent);
+  font-style: italic;
+}
+
 .sidebar-scroll {
   flex: 1;
   overflow-y: auto;

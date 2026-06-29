@@ -9,6 +9,7 @@ import type {
   AiStreamArgs,
   AiToolUseEvent,
   AuthPromptEvent,
+  GroupCount,
   Host,
   HostInput,
   ImportSshConfigResult,
@@ -81,6 +82,7 @@ const api = {
     setTags: (id: number, tags: string[]): Promise<Host> =>
       ipcRenderer.invoke('hosts:setTags', id, tags),
     listTags: (): Promise<TagCount[]> => ipcRenderer.invoke('hosts:listTags'),
+    listGroups: (): Promise<GroupCount[]> => ipcRenderer.invoke('hosts:listGroups'),
     bulkSetTag: (ids: number[], tag: string, add: boolean): Promise<void> =>
       ipcRenderer.invoke('hosts:bulkSetTag', ids, tag, add),
     pin: (id: number, pinned: boolean): Promise<void> => ipcRenderer.invoke('hosts:pin', id, pinned),

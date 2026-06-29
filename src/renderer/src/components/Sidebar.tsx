@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { Folder, GitBranch, Pin, Plus, Search, Settings2, Star, Tag, Terminal, X } from 'lucide-react'
 import { useApp } from '../store/app'
 import { useFilter } from '../store/filter'
-import type { Host, HostInput, TagCount } from '../../../shared/types'
+import type { GroupCount, Host, HostInput, TagCount } from '../../../shared/types'
 import HostForm from './HostForm'
 import Chip, { intentForTag } from './Chip'
 
@@ -27,6 +27,12 @@ function hostMatchesTags(h: Host, tags: string[], combine: 'and' | 'or'): boolea
   return tags.every((t) => h.tags.includes(t))
 }
 
+function hostMatchesGroups(h: Host, groups: string[]): boolean {
+  if (groups.length === 0) return true
+  if (groups.length === 1 && groups[0] === '__nogroup__') return !h.group
+  return groups.some((g) => h.group === g)
+}
+
 export default function Sidebar(): React.JSX.Element {
   const hosts = useApp((s) => s.hosts)
   const projects = useApp((s) => s.projects)
@@ -38,15 +44,20 @@ export default function Sidebar(): React.JSX.Element {
 
   const query = useFilter((s) => s.query)
   const activeTags = useFilter((s) => s.activeTags)
+  const activeGroups = useFilter((s) => s.activeGroups)
   const combine = useFilter((s) => s.combine)
   const setQuery = useFilter((s) => s.setQuery)
   const toggleTag = useFilter((s) => s.toggleTag)
   const clearTags = useFilter((s) => s.clearTags)
+  const toggleGroup = useFilter((s) => s.toggleGroup)
+  const clearGroups = useFilter((s) => s.clearGroups)
   const setCombine = useFilter((s) => s.setCombine)
 
   const [editing, setEditing] = useState<Host | null | undefined>(undefined)
   const [showAllTags, setShowAllTags] = useState(false)
   const [allTags, setAllTags] = useState<TagCount[]>([])
+  const [allGroups, setAllGroups] = useState<GroupCount[]>([])
+  const [showAllGroups, setShowAllGroups] = useState(false)
   const searchInputRef = useRef<HTMLInputElement>(null)
 
   // ⌘F focuses the search box.
@@ -68,11 +79,18 @@ export default function Sidebar(): React.JSX.Element {
 
   useEffect(() => {
     void window.api.hosts.listTags().then(setAllTags)
+    void window.api.hosts.listGroups().then(setAllGroups)
   }, [hosts])
 
   const matched = useMemo(
-    () => hosts.filter((h) => hostMatchesQuery(h, query) && hostMatchesTags(h, activeTags, combine)),
-    [hosts, query, activeTags, combine]
+    () =>
+      hosts.filter(
+        (h) =>
+          hostMatchesQuery(h, query) &&
+          hostMatchesTags(h, activeTags, combine) &&
+          hostMatchesGroups(h, activeGroups)
+      ),
+    [hosts, query, activeTags, combine, activeGroups]
   )
 
   const pinned = useMemo(
@@ -102,6 +120,17 @@ export default function Sidebar(): React.JSX.Element {
   }, [allTags, query, showAllTags])
 
   const untaggedCount = useMemo(() => hosts.filter((h) => h.tags.length === 0).length, [hosts])
+
+  const visibleGroups = useMemo(() => {
+    const gs = allGroups
+    if (query) {
+      const q = query.toLowerCase()
+      return gs.filter((g) => g.group.toLowerCase().includes(q))
+    }
+    return showAllGroups ? gs : gs.slice(0, 12)
+  }, [allGroups, query, showAllGroups])
+
+  const noGroupCount = useMemo(() => hosts.filter((h) => !h.group).length, [hosts])
 
   const onSaveHost = async (input: HostInput): Promise<void> => {
     if (editing) await window.api.hosts.update(editing.id, input)
@@ -213,6 +242,50 @@ export default function Sidebar(): React.JSX.Element {
             ))}
           </Section>
         )}
+
+        {/* Groups */}
+        <Section
+          title="Groups"
+          count={allGroups.length}
+          right={
+            activeGroups.length > 0 ? (
+              <button className="sidebar2-link" onClick={() => clearGroups()}>
+                clear
+              </button>
+            ) : null
+          }
+        >
+          <div className="tag-rail">
+            <Chip
+              kind="tag"
+              intent="neutral"
+              active={activeGroups.includes('__nogroup__')}
+              onClick={(e) => toggleGroup('__nogroup__', e.metaKey || e.ctrlKey)}
+              title={`${noGroupCount} hosts have no group`}
+            >
+              no group
+              <span className="chip-count">{noGroupCount}</span>
+            </Chip>
+            {visibleGroups.map((g) => (
+              <Chip
+                key={g.group}
+                kind="tag"
+                intent="info"
+                active={activeGroups.includes(g.group)}
+                onClick={(e) => toggleGroup(g.group, e.metaKey || e.ctrlKey)}
+                title={`${g.count} hosts in "${g.group}" · click to filter · ⌘-click to combine`}
+              >
+                {g.group}
+                <span className="chip-count">{g.count}</span>
+              </Chip>
+            ))}
+            {!query && allGroups.length > 12 && (
+              <button className="sidebar2-link" onClick={() => setShowAllGroups((v) => !v)}>
+                {showAllGroups ? 'less' : `+${allGroups.length - 12} more`}
+              </button>
+            )}
+          </div>
+        </Section>
 
         {/* Tags */}
         <Section

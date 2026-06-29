@@ -1,6 +1,6 @@
 import { getDb } from './db'
 import { categorize } from './categorize'
-import type { Host, HostInput, TagCount } from '../shared/types'
+import type { GroupCount, Host, HostInput, TagCount } from '../shared/types'
 
 interface HostRow {
   id: number
@@ -139,6 +139,19 @@ export function recategorizeAll(): number {
 export function setHostTags(id: number, tags: string[]): Host {
   replaceTags(id, tags)
   return getHost(id)!
+}
+
+export function listAllGroups(): GroupCount[] {
+  const rows = getDb()
+    .prepare<[], { group: string; count: number }>(
+      `SELECT "group" AS "group", COUNT(*) as count
+       FROM hosts
+       WHERE "group" IS NOT NULL AND TRIM("group") <> ''
+       GROUP BY "group"
+       ORDER BY count DESC, "group" COLLATE NOCASE`
+    )
+    .all()
+  return rows
 }
 
 export function listAllTags(): TagCount[] {

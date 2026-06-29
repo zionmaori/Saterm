@@ -5,11 +5,14 @@ type CombineMode = 'and' | 'or'
 interface FilterState {
   query: string
   activeTags: string[]
+  activeGroups: string[]
   combine: CombineMode
 
   setQuery: (q: string) => void
   toggleTag: (tag: string, additive: boolean) => void
   clearTags: () => void
+  toggleGroup: (group: string, additive: boolean) => void
+  clearGroups: () => void
   setCombine: (m: CombineMode) => void
 }
 
@@ -19,6 +22,7 @@ interface FilterState {
 export const useFilter = create<FilterState>((set) => ({
   query: '',
   activeTags: [],
+  activeGroups: [],
   combine: 'and',
 
   setQuery: (q) => set({ query: q }),
@@ -38,5 +42,22 @@ export const useFilter = create<FilterState>((set) => ({
     }),
 
   clearTags: () => set({ activeTags: [] }),
+
+  toggleGroup: (group, additive) =>
+    set((s) => {
+      const g = group
+      if (!additive) {
+        return {
+          activeGroups: s.activeGroups.includes(g) && s.activeGroups.length === 1 ? [] : [g]
+        }
+      }
+      return {
+        activeGroups: s.activeGroups.includes(g)
+          ? s.activeGroups.filter((x) => x !== g)
+          : [...s.activeGroups, g]
+      }
+    }),
+
+  clearGroups: () => set({ activeGroups: [] }),
   setCombine: (m) => set({ combine: m })
 }))

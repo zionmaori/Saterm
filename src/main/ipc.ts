@@ -11,6 +11,7 @@ import {
   deleteHost,
   setHostTags,
   listAllTags,
+  listAllGroups,
   bulkSetTag,
   pinHost,
   touchHost
@@ -102,6 +103,7 @@ export function registerIpcHandlers(): void {
   ipcMain.handle('hosts:importKnownHosts', () => importKnownHosts())
   ipcMain.handle('hosts:setTags', (_e, id: number, tags: string[]) => setHostTags(id, tags))
   ipcMain.handle('hosts:listTags', () => listAllTags())
+  ipcMain.handle('hosts:listGroups', () => listAllGroups())
   ipcMain.handle('hosts:bulkSetTag', (_e, ids: number[], tag: string, add: boolean) =>
     bulkSetTag(ids, tag, add)
   )

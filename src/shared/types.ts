@@ -30,6 +30,11 @@ export interface TagCount {
   count: number
 }
 
+export interface GroupCount {
+  group: string
+  count: number
+}
+
 export type HostInput = Omit<
   Host,
   'id' | 'createdAt' | 'role' | 'env' | 'tags' | 'pinnedAt' | 'lastUsedAt'

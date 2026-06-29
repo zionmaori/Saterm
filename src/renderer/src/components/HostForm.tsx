@@ -19,15 +19,20 @@ export default function HostForm({ initial, onSave, onCancel, onDelete }: Props)
   const [identityFile, setIdentityFile] = useState(initial?.identityFile ?? '')
   const [proxyJump, setProxyJump] = useState(initial?.proxyJump ?? '')
   const [group, setGroup] = useState(initial?.group ?? '')
+  const [groupInput, setGroupInput] = useState(initial?.group ?? '')
+  const [groupOpen, setGroupOpen] = useState(false)
+  const [knownGroups, setKnownGroups] = useState<string[]>([])
   const [role, setRole] = useState<HostRole>(initial?.role ?? 'misc')
   const [env, setEnv] = useState<HostEnv>(initial?.env ?? 'other')
   const [tags, setTags] = useState<string[]>(initial?.tags ?? [])
   const [tagInput, setTagInput] = useState('')
+  const [tagFocus, setTagFocus] = useState(false)
   const [knownTags, setKnownTags] = useState<string[]>([])
   const [busy, setBusy] = useState(false)
 
   useEffect(() => {
     void window.api.hosts.listTags().then((rows) => setKnownTags(rows.map((r) => r.tag)))
+    void window.api.hosts.listGroups().then((rows) => setKnownGroups(rows.map((r) => r.group)))
   }, [])
 
   useEffect(() => {
@@ -39,6 +44,7 @@ export default function HostForm({ initial, onSave, onCancel, onDelete }: Props)
       setIdentityFile(initial.identityFile ?? '')
       setProxyJump(initial.proxyJump ?? '')
       setGroup(initial.group ?? '')
+      setGroupInput(initial.group ?? '')
       setRole(initial.role)
       setEnv(initial.env)
       setTags(initial.tags ?? [])
@@ -52,11 +58,29 @@ export default function HostForm({ initial, onSave, onCancel, onDelete }: Props)
     setTagInput('')
   }
   const removeTag = (t: string): void => setTags((cur) => cur.filter((x) => x !== t))
-  const tagSuggestions = tagInput.trim()
-    ? knownTags
-        .filter((t) => t.includes(tagInput.toLowerCase()) && !tags.includes(t))
-        .slice(0, 6)
-    : []
+  const tagSuggestions = (() => {
+    const q = tagInput.trim().toLowerCase()
+    const pool = knownTags.filter((t) => !tags.includes(t))
+    if (q) return pool.filter((t) => t.includes(q)).slice(0, 8)
+    if (tagFocus) return pool.slice(0, 12)
+    return []
+  })()
+
+  const pickGroup = (g: string): void => {
+    setGroup(g)
+    setGroupInput(g)
+    setGroupOpen(false)
+  }
+  const clearGroup = (): void => {
+    setGroup('')
+    setGroupInput('')
+  }
+  const groupQuery = groupInput.trim().toLowerCase()
+  const groupMatches = groupQuery
+    ? knownGroups.filter((g) => g.toLowerCase().includes(groupQuery))
+    : knownGroups
+  const groupExactMatch = knownGroups.some((g) => g.toLowerCase() === groupQuery)
+  const canCreateGroup = groupQuery.length > 0 && !groupExactMatch
 
   const submit = async (e: React.FormEvent): Promise<void> => {
     e.preventDefault()
@@ -123,9 +147,67 @@ export default function HostForm({ initial, onSave, onCancel, onDelete }: Props)
               placeholder="user@bastion:22"
             />
           </div>
-          <div className="col" style={{ flex: 1 }}>
+          <div className="col combobox" style={{ flex: 1 }}>
             <label>Group</label>
-            <input value={group} onChange={(e) => setGroup(e.target.value)} />
+            <div className="combobox-input">
+              <input
+                value={groupInput}
+                onChange={(e) => {
+                  setGroupInput(e.target.value)
+                  setGroup(e.target.value)
+                  setGroupOpen(true)
+                }}
+                onFocus={() => setGroupOpen(true)}
+                onBlur={() => setTimeout(() => setGroupOpen(false), 120)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault()
+                    if (groupQuery) pickGroup(groupInput.trim())
+                  } else if (e.key === 'Escape') {
+                    setGroupOpen(false)
+                  }
+                }}
+                placeholder="e.g. eu-prod"
+              />
+              {groupInput && (
+                <button
+                  type="button"
+                  className="combobox-clear"
+                  onMouseDown={(e) => e.preventDefault()}
+                  onClick={clearGroup}
+                  title="Clear group"
+                >
+                  ×
+                </button>
+              )}
+            </div>
+            {groupOpen && (groupMatches.length > 0 || canCreateGroup) && (
+              <div className="combobox-list">
+                {canCreateGroup && (
+                  <button
+                    type="button"
+                    className="combobox-item combobox-create"
+                    onMouseDown={(e) => e.preventDefault()}
+                    onClick={() => pickGroup(groupInput.trim())}
+                  >
+                    + Create group "{groupInput.trim()}"
+                  </button>
+                )}
+                {groupMatches.slice(0, 12).map((g) => (
+                  <button
+                    type="button"
+                    key={g}
+                    className={
+                      g === group ? 'combobox-item combobox-item-active' : 'combobox-item'
+                    }
+                    onMouseDown={(e) => e.preventDefault()}
+                    onClick={() => pickGroup(g)}
+                  >
+                    {g}
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
         </div>
         <div className="row">
@@ -170,6 +252,8 @@ export default function HostForm({ initial, onSave, onCancel, onDelete }: Props)
               className="tag-input"
               value={tagInput}
               onChange={(e) => setTagInput(e.target.value)}
+              onFocus={() => setTagFocus(true)}
+              onBlur={() => setTimeout(() => setTagFocus(false), 120)}
               onKeyDown={(e) => {
                 if (e.key === 'Enter' || e.key === ',' || e.key === ' ') {
                   e.preventDefault()

@@ -6,6 +6,9 @@ interface Props {
 }
 
 const YEAR = new Date().getFullYear()
+const isMac =
+  typeof navigator !== 'undefined' && /Mac|iPhone|iPad/i.test(navigator.platform || navigator.userAgent)
+const modKey = isMac ? '⌘' : 'Ctrl'
 
 export default function HelpModal({ onClose }: Props): React.JSX.Element {
   useEffect(() => {
@@ -37,17 +40,97 @@ export default function HelpModal({ onClose }: Props): React.JSX.Element {
           </section>
 
           <section className="help-section">
-            <h2>Keyboard Shortcuts</h2>
+            <h2>Opening &amp; closing panels</h2>
+            <p>
+              Every panel in Termion has a shortcut <em>and</em> a button — if you accidentally close
+              one, you can always bring it back the same way:
+            </p>
             <table className="help-table">
               <tbody>
-                <tr><td><kbd>Ctrl K</kbd></td><td>Open command palette (search hosts &amp; projects)</td></tr>
-                <tr><td><kbd>Ctrl P</kbd></td><td>Quick-open file in current project</td></tr>
-                <tr><td><kbd>Ctrl B</kbd></td><td>Toggle sidebar</td></tr>
-                <tr><td><kbd>Ctrl J</kbd></td><td>Toggle AI terminal copilot</td></tr>
-                <tr><td><kbd>Ctrl S</kbd></td><td>Save current file (in editor)</td></tr>
-                <tr><td><kbd>Ctrl Shift F</kbd></td><td>Search in project (ripgrep)</td></tr>
-                <tr><td><kbd>Ctrl I</kbd></td><td>Toggle AI editor copilot (in project view)</td></tr>
-                <tr><td><kbd>Esc</kbd></td><td>Close palette / help / dialogs</td></tr>
+                <tr>
+                  <td><strong>Sidebar</strong><br/>(hosts, tags, groups, projects)</td>
+                  <td><kbd>{modKey} B</kbd> · or click the <strong>panel icon</strong> at the top-left of the titlebar.</td>
+                </tr>
+                <tr>
+                  <td><strong>Terminal Copilot</strong><br/>(AI chat about the active terminal)</td>
+                  <td><kbd>{modKey} J</kbd> toggles it. There is no button — only the shortcut.</td>
+                </tr>
+                <tr>
+                  <td><strong>Editor Copilot</strong><br/>(AI chat about the open file)</td>
+                  <td>Only inside a project tab. <kbd>{modKey} I</kbd> toggles it.</td>
+                </tr>
+                <tr>
+                  <td><strong>Project Search</strong><br/>(ripgrep across the project)</td>
+                  <td>Only inside a project tab. <kbd>{modKey} Shift F</kbd> opens it; <kbd>Esc</kbd> closes it.</td>
+                </tr>
+                <tr>
+                  <td><strong>Help</strong> (this dialog)</td>
+                  <td>Click the <strong>?</strong> button in the titlebar; <kbd>Esc</kbd> closes it.</td>
+                </tr>
+              </tbody>
+            </table>
+          </section>
+
+          <section className="help-section">
+            <h2>Finding &amp; opening things</h2>
+            <table className="help-table">
+              <tbody>
+                <tr>
+                  <td><kbd>{modKey} K</kbd></td>
+                  <td><strong>Command palette</strong> — search hosts, projects, and commands.</td>
+                </tr>
+                <tr>
+                  <td><kbd>{modKey} P</kbd></td>
+                  <td><strong>Quick-open file</strong> inside the current project.</td>
+                </tr>
+                <tr>
+                  <td><kbd>{modKey} F</kbd></td>
+                  <td><strong>Focus sidebar search</strong> to filter hosts &amp; tags.</td>
+                </tr>
+                <tr>
+                  <td><kbd>{modKey} S</kbd></td>
+                  <td><strong>Save</strong> the current file in the editor.</td>
+                </tr>
+                <tr>
+                  <td><kbd>Esc</kbd></td>
+                  <td>Close any open palette, quick-open, search, or dialog.</td>
+                </tr>
+              </tbody>
+            </table>
+          </section>
+
+          <section className="help-section">
+            <h2>Switching modes</h2>
+            <p>
+              Mode switches in Termion are <em>click, not keystroke</em> — they live in the relevant
+              panel's header. Here is where each switch is:
+            </p>
+            <table className="help-table">
+              <tbody>
+                <tr>
+                  <td><strong>AI provider</strong><br/>(Claude / OpenAI / Gemini)</td>
+                  <td>Top of the open Copilot panel — click the provider name to pick another.</td>
+                </tr>
+                <tr>
+                  <td><strong>AI model tier</strong><br/>(Opus / Sonnet / Haiku, or equivalents)</td>
+                  <td>Dropdown next to the provider selector in the Copilot header.</td>
+                </tr>
+                <tr>
+                  <td><strong>Theme</strong><br/>(Light / System / Dark)</td>
+                  <td>The <strong>☀ / ◻ / ☾</strong> buttons in the top-right of the titlebar.</td>
+                </tr>
+                <tr>
+                  <td><strong>Terminal position</strong><br/>(top / bottom of editor)</td>
+                  <td>The <strong>↕</strong> button in the terminal header inside a project tab.</td>
+                </tr>
+                <tr>
+                  <td><strong>Git panel view</strong><br/>(Changes / History / Tags)</td>
+                  <td>Tabs in the Git panel header on the right side of a project tab.</td>
+                </tr>
+                <tr>
+                  <td><strong>Tag filter mode</strong><br/>(AND / OR)</td>
+                  <td>When 2+ tags are active in the sidebar, the AND / OR toggle appears under the tag rail.</td>
+                </tr>
               </tbody>
             </table>
           </section>
@@ -57,7 +140,7 @@ export default function HelpModal({ onClose }: Props): React.JSX.Element {
             <p>
               The sidebar lists your SSH hosts and local projects in collapsible sections.
               Click any section header to expand or collapse it.
-              Use <kbd>Ctrl B</kbd> or the panel button in the top-left to hide/show the sidebar.
+              Use <kbd>{modKey} B</kbd> or the panel button in the top-left to hide/show the sidebar.
             </p>
             <ul>
               <li><strong>Pinned</strong> — hosts you've starred for quick access</li>
@@ -140,11 +223,11 @@ export default function HelpModal({ onClose }: Props): React.JSX.Element {
             <h3>Copilot modes</h3>
             <ul>
               <li>
-                <strong>Terminal Copilot</strong> (<kbd>Ctrl J</kbd>) — chat about what's in your
+                <strong>Terminal Copilot</strong> (<kbd>{modKey} J</kbd>) — chat about what's in your
                 terminal. The AI can see recent output and suggest commands to run.
               </li>
               <li>
-                <strong>Editor Copilot</strong> (<kbd>Ctrl I</kbd>) — chat about the file you're
+                <strong>Editor Copilot</strong> (<kbd>{modKey} I</kbd>) — chat about the file you're
                 editing. Select code first to give the AI context; it can rewrite the file for you.
               </li>
             </ul>
