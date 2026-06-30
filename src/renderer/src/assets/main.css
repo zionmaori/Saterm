@@ -1424,6 +1424,27 @@
   margin: 4px 2px;
 }
 
+.tree-row-input {
+  cursor: default;
+}
+
+.tree-row-input:hover {
+  background: transparent;
+}
+
+.tree-input {
+  flex: 1;
+  min-width: 0;
+  background: var(--bg-1);
+  border: 1px solid var(--accent);
+  border-radius: 3px;
+  color: var(--text);
+  font: inherit;
+  padding: 0 4px;
+  height: 18px;
+  outline: none;
+}
+
 .editor-tabs {
   display: flex;
   background: var(--bg-1);

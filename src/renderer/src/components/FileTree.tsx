@@ -25,10 +25,17 @@ async function loadDir(path: string): Promise<Node[]> {
   return entries.map((e) => ({ name: e.name, path: e.path, isDir: e.isDir }))
 }
 
+interface CreatingState {
+  parentDir: string
+  kind: 'file' | 'dir'
+}
+
 export default function FileTree({ root, onOpenFile, selectedPath }: Props): React.JSX.Element {
   const [rootNode, setRootNode] = useState<Node | null>(null)
   const [expanded, setExpanded] = useState<Set<string>>(() => new Set([root]))
   const [menu, setMenu] = useState<MenuState | null>(null)
+  const [creating, setCreating] = useState<CreatingState | null>(null)
+  const [renaming, setRenaming] = useState<string | null>(null)
   const refreshTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   /** Walk the tree; for every expanded dir, load (or reload) its children.
@@ -103,38 +110,40 @@ export default function FileTree({ root, onOpenFile, selectedPath }: Props): Rea
     setMenu({ x: e.clientX, y: e.clientY, target: node })
   }
 
-  const newFile = async (parentDir: string): Promise<void> => {
-    const name = window.prompt('New file name (relative to ' + parentDir.split('/').pop() + '):')
-    if (!name?.trim()) return
+  const beginCreate = (parentDir: string, kind: 'file' | 'dir'): void => {
+    setExpanded((prev) => new Set(prev).add(parentDir))
+    setCreating({ parentDir, kind })
+  }
+
+  const commitCreate = async (name: string): Promise<void> => {
+    if (!creating) return
+    const trimmed = name.trim()
+    const { parentDir, kind } = creating
+    setCreating(null)
+    if (!trimmed) return
+    const target = `${parentDir}/${trimmed}`
     try {
-      const target = `${parentDir}/${name.trim()}`
-      await window.api.fs.newFile(target)
-      setExpanded((prev) => new Set(prev).add(parentDir))
-      refresh()
-      onOpenFile(target)
+      if (kind === 'file') {
+        await window.api.fs.newFile(target)
+        refresh()
+        onOpenFile(target)
+      } else {
+        await window.api.fs.newDir(target)
+        setExpanded((prev) => new Set(prev).add(target))
+        refresh()
+      }
     } catch (e) {
       alert(`Create failed: ${(e as Error).message}`)
     }
   }
 
-  const newFolder = async (parentDir: string): Promise<void> => {
-    const name = window.prompt('New folder name:')
-    if (!name?.trim()) return
-    try {
-      await window.api.fs.newDir(`${parentDir}/${name.trim()}`)
-      setExpanded((prev) => new Set(prev).add(parentDir))
-      refresh()
-    } catch (e) {
-      alert(`Create failed: ${(e as Error).message}`)
-    }
-  }
-
-  const rename = async (node: Node): Promise<void> => {
-    const next = window.prompt('Rename:', node.name)
-    if (!next?.trim() || next === node.name) return
+  const commitRename = async (node: Node, next: string): Promise<void> => {
+    setRenaming(null)
+    const trimmed = next.trim()
+    if (!trimmed || trimmed === node.name) return
     const parent = node.path.slice(0, node.path.length - node.name.length)
     try {
-      await window.api.fs.rename(node.path, `${parent}${next.trim()}`)
+      await window.api.fs.rename(node.path, `${parent}${trimmed}`)
       refresh()
     } catch (e) {
       alert(`Rename failed: ${(e as Error).message}`)
@@ -151,43 +160,105 @@ export default function FileTree({ root, onOpenFile, selectedPath }: Props): Rea
     }
   }
 
+  const renderInlineInput = (
+    depth: number,
+    kind: 'file' | 'dir',
+    initial: string,
+    onCommit: (v: string) => void,
+    onCancel: () => void
+  ): React.JSX.Element => {
+    const indent = depth * 12
+    return (
+      <div className="tree-row tree-row-input" style={{ paddingLeft: 6 + indent }}>
+        <span className="tree-chevron" />
+        <span className="tree-icon">
+          {kind === 'dir' ? (
+            <Folder size={13} strokeWidth={1.8} />
+          ) : (
+            <File size={13} strokeWidth={1.8} />
+          )}
+        </span>
+        <input
+          className="tree-input"
+          autoFocus
+          defaultValue={initial}
+          onMouseDown={(e) => e.stopPropagation()}
+          onClick={(e) => e.stopPropagation()}
+          onBlur={(e) => onCommit(e.currentTarget.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') {
+              e.preventDefault()
+              onCommit((e.target as HTMLInputElement).value)
+            } else if (e.key === 'Escape') {
+              e.preventDefault()
+              onCancel()
+            }
+          }}
+        />
+      </div>
+    )
+  }
+
   const renderNode = (n: Node, depth: number): React.JSX.Element => {
     const indent = depth * 12
     const isSelected = n.path === selectedPath
     const isOpen = expanded.has(n.path)
+    const isRenaming = renaming === n.path
     return (
       <div key={n.path}>
-        <div
-          className={`tree-row ${isSelected ? 'selected' : ''}`}
-          style={{ paddingLeft: 6 + indent }}
-          onClick={() => (n.isDir ? toggle(n) : onOpenFile(n.path))}
-          onDoubleClick={() => !n.isDir && onOpenFile(n.path)}
-          onContextMenu={(e) => openMenu(e, n)}
-          title={n.path}
-        >
-          <span className="tree-chevron">
-            {n.isDir ? (
-              isOpen ? (
-                <ChevronDown size={12} strokeWidth={2} />
+        {isRenaming ? (
+          renderInlineInput(
+            depth,
+            n.isDir ? 'dir' : 'file',
+            n.name,
+            (v) => void commitRename(n, v),
+            () => setRenaming(null)
+          )
+        ) : (
+          <div
+            className={`tree-row ${isSelected ? 'selected' : ''}`}
+            style={{ paddingLeft: 6 + indent }}
+            onClick={() => (n.isDir ? toggle(n) : onOpenFile(n.path))}
+            onDoubleClick={() => !n.isDir && onOpenFile(n.path)}
+            onContextMenu={(e) => openMenu(e, n)}
+            title={n.path}
+          >
+            <span className="tree-chevron">
+              {n.isDir ? (
+                isOpen ? (
+                  <ChevronDown size={12} strokeWidth={2} />
+                ) : (
+                  <ChevronRight size={12} strokeWidth={2} />
+                )
+              ) : null}
+            </span>
+            <span className="tree-icon">
+              {n.isDir ? (
+                isOpen ? (
+                  <FolderOpen size={13} strokeWidth={1.8} />
+                ) : (
+                  <Folder size={13} strokeWidth={1.8} />
+                )
               ) : (
-                <ChevronRight size={12} strokeWidth={2} />
-              )
-            ) : null}
-          </span>
-          <span className="tree-icon">
-            {n.isDir ? (
-              isOpen ? (
-                <FolderOpen size={13} strokeWidth={1.8} />
-              ) : (
-                <Folder size={13} strokeWidth={1.8} />
-              )
-            ) : (
-              <File size={13} strokeWidth={1.8} />
-            )}
-          </span>
-          <span className="tree-name">{n.name}</span>
-        </div>
-        {n.isDir && isOpen && n.children?.map((c) => renderNode(c, depth + 1))}
+                <File size={13} strokeWidth={1.8} />
+              )}
+            </span>
+            <span className="tree-name">{n.name}</span>
+          </div>
+        )}
+        {n.isDir && isOpen && (
+          <>
+            {creating?.parentDir === n.path &&
+              renderInlineInput(
+                depth + 1,
+                creating.kind,
+                '',
+                (v) => void commitCreate(v),
+                () => setCreating(null)
+              )}
+            {n.children?.map((c) => renderNode(c, depth + 1))}
+          </>
+        )}
       </div>
     )
   }
@@ -208,12 +279,12 @@ export default function FileTree({ root, onOpenFile, selectedPath }: Props): Rea
             const close = (): void => setMenu(null)
             return (
               <>
-                <button onClick={() => { close(); void newFile(dirForCreate) }}>New file</button>
-                <button onClick={() => { close(); void newFolder(dirForCreate) }}>New folder</button>
+                <button onClick={() => { close(); beginCreate(dirForCreate, 'file') }}>New file</button>
+                <button onClick={() => { close(); beginCreate(dirForCreate, 'dir') }}>New folder</button>
                 {t && t.path !== root && (
                   <>
                     <div className="tree-menu-sep" />
-                    <button onClick={() => { close(); void rename(t) }}>Rename…</button>
+                    <button onClick={() => { close(); setRenaming(t.path) }}>Rename…</button>
                     <button className="danger" onClick={() => { close(); void trash(t) }}>Delete</button>
                   </>
                 )}

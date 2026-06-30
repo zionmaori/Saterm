@@ -4,7 +4,7 @@ import { homedir } from 'os'
 import { join } from 'path'
 import { app } from 'electron'
 import { v4 as uuid } from 'uuid'
-import { readEnv } from './shellEnv'
+import { getPath } from './shellEnv'
 import type {
   AwsProfile,
   EksCluster,
@@ -104,8 +104,7 @@ export function listAwsProfiles(): AwsProfile[] {
 // ──────────────────────────────────────────────────────────────────────────
 
 function buildEnv(extra: Record<string, string> = {}): NodeJS.ProcessEnv {
-  const path = readEnv('PATH') ?? process.env.PATH ?? ''
-  return { ...process.env, PATH: path, ...extra }
+  return { ...process.env, PATH: getPath(), ...extra }
 }
 
 function mapAwsError(stderr: string, profile: string, isSso: boolean): string {

@@ -1,7 +1,7 @@
 import { spawn, spawnSync } from 'child_process'
 import { promises as fsp } from 'fs'
 import { join, relative } from 'path'
-import { readEnv } from './shellEnv'
+import { getPath } from './shellEnv'
 import type { TfBundle, TfDiagnostic, TfFile, TfValidateResult } from '../shared/types'
 
 const IGNORE_DIRS = new Set([
@@ -22,8 +22,7 @@ const BUNDLE_MAX_BYTES = 150 * 1024
 const SCAN_MAX_DEPTH = 8
 
 function buildEnv(): NodeJS.ProcessEnv {
-  const path = readEnv('PATH') ?? process.env.PATH ?? ''
-  return { ...process.env, PATH: path }
+  return { ...process.env, PATH: getPath() }
 }
 
 let cachedCli: 'terraform' | 'tofu' | null | undefined
