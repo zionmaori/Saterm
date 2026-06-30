@@ -961,101 +961,74 @@ function AwsProfileRow({
     if (next && effectiveRegion) onExpand(effectiveRegion)
   }
 
+  const regionOptions = effectiveRegion && !COMMON_AWS_REGIONS.includes(effectiveRegion)
+    ? [effectiveRegion, ...COMMON_AWS_REGIONS]
+    : COMMON_AWS_REGIONS
+
   return (
-    <div className="sidebar2-host" style={{ flexDirection: 'column', alignItems: 'stretch' }}>
+    <div className={`aws-profile-card${open ? ' open' : ''}`}>
       <button
-        className="sidebar2-row"
-        style={{
-          gridColumn: '1 / span 2',
-          flex: 1,
-          background: 'none',
-          border: 'none',
-          padding: 0,
-          textAlign: 'left',
-          width: '100%'
-        }}
+        className="aws-profile-header"
         onClick={toggle}
         title={profile.isSso ? `SSO profile · ${profile.source}` : `${profile.source}`}
       >
         {open ? (
-          <ChevronDown size={13} strokeWidth={2} />
+          <ChevronDown size={12} strokeWidth={2} />
         ) : (
-          <ChevronRight size={13} strokeWidth={2} />
+          <ChevronRight size={12} strokeWidth={2} />
         )}
         <Server size={13} strokeWidth={2} />
-        <span className="sidebar2-row-title">{profile.name}</span>
-        {effectiveRegion && <span className="sidebar2-row-meta">{effectiveRegion}</span>}
-        {profile.isSso && <span className="sidebar2-row-meta">sso</span>}
+        <span className="aws-profile-name">{profile.name}</span>
+        {profile.isSso && <span className="aws-profile-badge">sso</span>}
       </button>
       {open && (
-        <div
-          style={{ marginLeft: 18, marginTop: 2, display: 'flex', flexDirection: 'column', gap: 2 }}
-        >
-          {!effectiveRegion && (
-            <div className="row" style={{ gap: 6, padding: '2px 4px', alignItems: 'center' }}>
-              <span style={{ fontSize: 11, color: 'var(--text-dim)' }}>region:</span>
-              <select
-                value=""
-                onChange={(e) => {
-                  if (e.target.value) onSetRegion(e.target.value)
-                }}
-                style={{ fontSize: 11, padding: '1px 4px' }}
+        <div className="aws-profile-body">
+          <div className="aws-profile-controls">
+            <span className="aws-profile-controls-label">region</span>
+            <select
+              className="aws-profile-region"
+              value={effectiveRegion ?? ''}
+              onChange={(e) => {
+                if (e.target.value && e.target.value !== effectiveRegion) onSetRegion(e.target.value)
+              }}
+            >
+              {!effectiveRegion && <option value="">pick…</option>}
+              {regionOptions.map((r) => (
+                <option key={r} value={r}>
+                  {r}
+                </option>
+              ))}
+            </select>
+            {effectiveRegion && (
+              <button
+                className="sidebar2-icon"
+                style={{ marginLeft: 'auto' }}
+                onClick={() => onRefresh(effectiveRegion)}
+                title="Reload clusters from AWS"
               >
-                <option value="">pick…</option>
-                {COMMON_AWS_REGIONS.map((r) => (
-                  <option key={r} value={r}>
-                    {r}
-                  </option>
-                ))}
-              </select>
-            </div>
-          )}
+                <RefreshCw size={11} strokeWidth={2} />
+              </button>
+            )}
+          </div>
           {effectiveRegion && (
-            <>
-              {loading && (
-                <div className="sidebar2-empty" style={{ padding: '2px 4px' }}>
-                  Loading clusters…
-                </div>
-              )}
+            <div className="aws-cluster-list">
+              {loading && <div className="aws-cluster-empty">Loading clusters…</div>}
               {!loading && clusters && clusters.length === 0 && (
-                <div className="sidebar2-empty" style={{ padding: '2px 4px' }}>
-                  No clusters in {effectiveRegion}.
-                </div>
+                <div className="aws-cluster-empty">No clusters in {effectiveRegion}.</div>
               )}
               {!loading &&
                 clusters?.map((c) => (
-                  <div
-                    key={c.name}
-                    className="sidebar2-row"
-                    style={{
-                      padding: '2px 4px',
-                      gap: 4,
-                      alignItems: 'center'
-                    }}
-                  >
+                  <div key={c.name} className="aws-cluster-row">
                     <button
-                      style={{
-                        background: 'none',
-                        border: 'none',
-                        padding: 0,
-                        textAlign: 'left',
-                        cursor: 'pointer',
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: 4,
-                        flex: 1,
-                        minWidth: 0,
-                        color: 'inherit'
-                      }}
+                      className="aws-cluster-open"
                       onClick={() => onOpenCluster(c)}
-                      title={`Open dashboard for ${c.name} in ${c.region}`}
+                      title={`Open dashboard for ${c.name}`}
                     >
                       <Box size={12} strokeWidth={2} />
-                      <span className="sidebar2-row-title">{c.name}</span>
+                      <span className="aws-cluster-name">{c.name}</span>
                     </button>
                     <button
-                      className="sidebar2-icon"
-                      style={{ padding: '0 2px', opacity: 0.7 }}
+                      className="sidebar2-icon aws-cluster-terminal"
                       onClick={(e) => {
                         e.stopPropagation()
                         onOpenClusterTerminal(c)
@@ -1066,32 +1039,7 @@ function AwsProfileRow({
                     </button>
                   </div>
                 ))}
-              <div className="row" style={{ gap: 6, padding: '2px 4px', alignItems: 'center' }}>
-                <button
-                  className="sidebar2-link"
-                  onClick={() => onRefresh(effectiveRegion)}
-                  title="Reload clusters from AWS"
-                >
-                  refresh
-                </button>
-                <select
-                  value={effectiveRegion}
-                  onChange={(e) => {
-                    if (e.target.value !== effectiveRegion) onSetRegion(e.target.value)
-                  }}
-                  style={{ fontSize: 11, padding: '1px 4px', marginLeft: 'auto' }}
-                >
-                  {COMMON_AWS_REGIONS.includes(effectiveRegion) ? null : (
-                    <option value={effectiveRegion}>{effectiveRegion}</option>
-                  )}
-                  {COMMON_AWS_REGIONS.map((r) => (
-                    <option key={r} value={r}>
-                      {r}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            </>
+            </div>
           )}
         </div>
       )}

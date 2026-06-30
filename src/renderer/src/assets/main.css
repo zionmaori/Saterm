@@ -442,6 +442,153 @@
   gap: 4px 8px;
 }
 
+/* ===== AWS sidebar ===== */
+
+.aws-profile-card {
+  display: flex;
+  flex-direction: column;
+  border-top: 1px solid var(--border);
+}
+
+.sidebar2-section-body > .aws-profile-card:first-child {
+  border-top: none;
+}
+
+.aws-profile-card.open {
+  background: var(--bg-2);
+}
+
+.aws-profile-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  min-width: 0;
+  padding: 5px 12px;
+  background: transparent;
+  border: none;
+  color: var(--text);
+  font-size: var(--fs-sm);
+  text-align: left;
+  cursor: pointer;
+}
+
+.aws-profile-header:hover {
+  background: var(--bg-3);
+}
+
+.aws-profile-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.aws-profile-badge {
+  flex-shrink: 0;
+  font-family: var(--font-mono);
+  font-size: 9px;
+  color: var(--text-dimer);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  padding: 1px 5px;
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  background: var(--bg-3);
+}
+
+.aws-profile-body {
+  display: flex;
+  flex-direction: column;
+  padding: 2px 8px 6px 26px;
+  gap: 2px;
+}
+
+.aws-profile-controls {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 0 4px;
+}
+
+.aws-profile-controls-label {
+  font-size: 10px;
+  color: var(--text-dimer);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.aws-profile-region {
+  font-size: 11px;
+  padding: 1px 4px;
+  background: var(--bg-3);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  min-width: 0;
+  flex-shrink: 1;
+}
+
+.aws-cluster-list {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.aws-cluster-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 4px;
+  border-radius: 3px;
+  min-width: 0;
+}
+
+.aws-cluster-row:hover {
+  background: var(--bg-3);
+}
+
+.aws-cluster-open {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: none;
+  border: none;
+  padding: 0;
+  color: inherit;
+  cursor: pointer;
+  text-align: left;
+}
+
+.aws-cluster-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.aws-cluster-terminal {
+  flex-shrink: 0;
+  padding: 0 2px;
+  opacity: 0;
+  transition: opacity 100ms ease;
+}
+
+.aws-cluster-row:hover .aws-cluster-terminal {
+  opacity: 0.85;
+}
+
+.aws-cluster-empty {
+  padding: 4px 4px;
+  font-size: 11px;
+  color: var(--text-dimer);
+  font-style: italic;
+}
+
 .sidebar2-footer kbd {
   font-size: 9px;
 }
