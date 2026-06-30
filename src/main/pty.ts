@@ -115,7 +115,8 @@ export function spawnPty(args: PtySpawnArgs): void {
     ...process.env,
     TERM: 'xterm-256color',
     COLORTERM: 'truecolor',
-    LANG: process.env.LANG ?? 'en_US.UTF-8'
+    LANG: process.env.LANG ?? 'en_US.UTF-8',
+    ...(args.env ?? {})
   }
   const pty = spawn(shell, shellArgs(shell), {
     name: 'xterm-256color',

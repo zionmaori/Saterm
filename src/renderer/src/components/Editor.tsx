@@ -55,7 +55,7 @@ export function CodeEditor({
           fontFamily: 'ui-monospace, SFMono-Regular, "JetBrains Mono", Menlo, monospace',
           fontSize: 13,
           minimap: { enabled: false },
-          scrollBeyondLastLine: false,
+          scrollBeyondLastLine: true,
           automaticLayout: true,
           renderWhitespace: 'selection',
           tabSize: 2

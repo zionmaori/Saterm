@@ -129,7 +129,14 @@ export default function TerminalPane({ tab, visible, resizeKey }: Props): React.
           await window.api.ssh.connect({ sessionId, hostId: tab.hostId, cols, rows })
           setStatus(null)
         } else if (tab.kind === 'local') {
-          await window.api.pty.spawn({ sessionId, cwd: tab.cwd, cols, rows, shell: tab.shell })
+          await window.api.pty.spawn({
+            sessionId,
+            cwd: tab.cwd,
+            cols,
+            rows,
+            shell: tab.shell,
+            env: tab.env
+          })
         }
       } catch (err) {
         const msg = (err as Error).message

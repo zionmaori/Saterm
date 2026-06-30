@@ -997,6 +997,266 @@
   flex-direction: column;
 }
 
+.project .vcs-pane {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.project .vcs-pane-top {
+  flex: 1 1 auto;
+}
+
+.project .vcs-pane-notes {
+  /* No border — the splitter between Git and Notes is a 1px hairline that
+     serves as the divider. Avoids a 6px empty gap between the two panes. */
+}
+
+.project .vcs-panel > .splitter-vertical {
+  flex: 0 0 1px;
+  height: 1px;
+  background: var(--border);
+}
+
+.project .vcs-panel > .splitter-vertical:hover,
+.project .vcs-panel > .splitter-vertical:active {
+  background: var(--accent);
+}
+
+/* Tabstrip at the top of the right panel — swaps between Git/SVN and Terraform. */
+.vcs-toptabs {
+  display: flex;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+  background: var(--bg-2);
+}
+.vcs-toptabs .vtt {
+  flex: 1;
+  text-align: center;
+  padding: 5px 6px;
+  cursor: pointer;
+  color: var(--text-dim);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  border: none;
+  background: transparent;
+  border-right: 1px solid var(--border);
+}
+.vcs-toptabs .vtt:last-child { border-right: none; }
+.vcs-toptabs .vtt.active {
+  color: var(--text);
+  background: var(--bg);
+}
+.vcs-toptabs .vtt:hover:not(.active) {
+  color: var(--text);
+}
+
+/* Terraform panel */
+.tf-panel {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+}
+.tf-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 8px;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg-2);
+  flex-shrink: 0;
+}
+.tf-meta {
+  font-size: 11px;
+  color: var(--text-dim);
+}
+.tf-status {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  padding: 1px 6px;
+  border-radius: 8px;
+  background: var(--bg);
+  color: var(--text-dim);
+  border: 1px solid var(--border);
+}
+.tf-status-run { color: #d97706; border-color: #d97706; }
+.tf-status-ok  { color: var(--accent); border-color: var(--accent); }
+.tf-status-err { color: #ef4444; border-color: #ef4444; }
+
+.tf-note,
+.tf-error,
+.tf-empty {
+  padding: 6px 10px;
+  font-size: 12px;
+  color: var(--text-dim);
+}
+.tf-error { color: #ef4444; }
+
+.tf-section {
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+.tf-section:last-child { border-bottom: none; }
+.tf-section-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 8px;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-dim);
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  width: 100%;
+  text-align: left;
+}
+.tf-section-header.tf-static { cursor: default; }
+.tf-section-header:hover:not(.tf-static) { color: var(--text); }
+.tf-section-body {
+  padding: 4px 8px 8px;
+  overflow: auto;
+  min-height: 0;
+}
+
+.tf-pill {
+  margin-left: auto;
+  font-size: 10px;
+  padding: 1px 6px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+}
+.tf-pill-ok    { color: var(--accent); border-color: var(--accent); }
+.tf-pill-warn  { color: #d97706; border-color: #d97706; }
+.tf-pill-err   { color: #ef4444; border-color: #ef4444; }
+.tf-pill-stream { color: #d97706; border-color: #d97706; margin-left: 6px; }
+
+.tf-diag {
+  display: flex;
+  gap: 6px;
+  align-items: flex-start;
+  padding: 4px 0;
+  font-size: 12px;
+}
+.tf-diag + .tf-diag {
+  border-top: 1px dashed var(--border);
+}
+.tf-diag-body { flex: 1; min-width: 0; }
+.tf-diag-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: baseline;
+}
+.tf-diag-loc {
+  color: var(--accent);
+  font-family: var(--font-mono, monospace);
+  font-size: 11px;
+}
+.tf-diag-detail {
+  margin: 4px 0 0;
+  padding: 4px 6px;
+  background: var(--bg-1, #111);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  font-family: var(--font-mono, monospace);
+  font-size: 11px;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+.tf-diag-err > svg { color: #ef4444; flex-shrink: 0; margin-top: 2px; }
+.tf-diag-warn > svg { color: #d97706; flex-shrink: 0; margin-top: 2px; }
+.tf-diag-ok > svg { color: var(--accent); flex-shrink: 0; margin-top: 2px; }
+
+.tf-markdown {
+  font-size: 12px;
+  line-height: 1.5;
+}
+.tf-markdown p { margin: 4px 0; }
+.tf-markdown h1, .tf-markdown h2, .tf-markdown h3 {
+  margin: 8px 0 4px;
+  font-size: 13px;
+}
+.tf-markdown code {
+  font-family: var(--font-mono, monospace);
+  font-size: 11px;
+  background: var(--bg-1, #111);
+  padding: 1px 4px;
+  border-radius: 3px;
+}
+.tf-markdown pre {
+  background: var(--bg-1, #111);
+  padding: 6px 8px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  overflow: auto;
+  font-size: 11px;
+}
+.tf-markdown ul, .tf-markdown ol {
+  padding-left: 18px;
+  margin: 4px 0;
+}
+
+.project .vcs-notes-header {
+  padding: 4px 6px 4px 10px;
+  font-size: 11px;
+  color: var(--text-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-shrink: 0;
+  background: var(--bg-2);
+  border-bottom: 1px solid var(--border);
+}
+
+.notes-scope {
+  display: flex;
+  gap: 0;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+  background: var(--bg-2);
+}
+
+.notes-scope-btn {
+  flex: 1;
+  padding: 5px 8px;
+  background: transparent;
+  border: none;
+  border-right: 1px solid var(--border);
+  color: var(--text-dim);
+  font-size: 11px;
+  cursor: pointer;
+  font-family: inherit;
+}
+
+.notes-scope-btn:last-child {
+  border-right: none;
+}
+
+.notes-scope-btn:hover:not(:disabled) {
+  color: var(--text);
+}
+
+.notes-scope-btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
+.notes-scope-btn.active {
+  color: var(--text);
+  background: var(--bg);
+}
+
 .project .bottom-term {
   border-bottom: 1px solid var(--border);
   display: flex;
@@ -1115,6 +1375,48 @@
 .tree-name {
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+.tree-menu {
+  position: fixed;
+  z-index: 200;
+  background: var(--bg-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 4px;
+  display: flex;
+  flex-direction: column;
+  min-width: 160px;
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.4);
+}
+
+.tree-menu button {
+  background: transparent;
+  border: none;
+  border-radius: 4px;
+  color: var(--text);
+  text-align: left;
+  padding: 6px 10px;
+  font-size: var(--fs-sm);
+  cursor: pointer;
+}
+
+.tree-menu button:hover:not(:disabled) {
+  background: var(--bg-elevated);
+}
+
+.tree-menu button.danger {
+  color: var(--danger);
+}
+
+.tree-menu button.danger:hover {
+  background: var(--danger-soft);
+}
+
+.tree-menu-sep {
+  height: 1px;
+  background: var(--border);
+  margin: 4px 2px;
 }
 
 .editor-tabs {
@@ -1514,7 +1816,13 @@
   display: flex;
   flex-direction: column;
   gap: 6px;
-  margin-top: 10px;
+  position: sticky;
+  bottom: -8px;
+  margin: 10px -8px -8px;
+  padding: 10px 8px;
+  background: var(--bg-2);
+  border-top: 1px solid var(--border);
+  z-index: 1;
 }
 
 .vcs-commit textarea {

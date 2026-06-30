@@ -1,11 +1,13 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { PanelBottom, PanelTop } from 'lucide-react'
+import { ChevronDown, ChevronUp, PanelBottom, PanelTop } from 'lucide-react'
 import type { ShellOption } from '../../../shared/types'
 import { useApp, type Tab } from '../store/app'
 import FileTree from './FileTree'
 import { CodeEditor, languageFor, type Selection } from './Editor'
 import GitPanel from './GitPanel'
 import SvnPanel from './SvnPanel'
+import ProjectNotesPanel from './ProjectNotesPanel'
+import TerraformPanel from './TerraformPanel'
 import TerminalPane from './TerminalPane'
 import EditorCopilot from './EditorCopilot'
 import Splitter from './Splitter'
@@ -34,6 +36,11 @@ export default function ProjectView({ tab, visible }: Props): React.JSX.Element 
   const project = useApp((s) => s.projects.find((p) => p.id === tab.projectId)) ?? null
   const repoPath = project?.path ?? tab.cwd ?? ''
   const vcs: VcsKind = project?.vcs ?? 'none'
+  const terraformDetected = useApp((s) =>
+    project ? s.terraformDetected[project.id] === true : false
+  )
+  const detectTerraform = useApp((s) => s.detectTerraform)
+  const [rightView, setRightView] = useState<'vcs' | 'tf'>('vcs')
 
   const [open, setOpen] = useState<OpenFile[]>([])
   const [activePath, setActivePath] = useState<string | null>(null)
@@ -57,6 +64,8 @@ export default function ProjectView({ tab, visible }: Props): React.JSX.Element 
   const [vcsWidth, setVcsWidth] = useState(320)
   const [termHeight, setTermHeight] = useState(220)
   const [termAtBottom, setTermAtBottom] = useState(false)
+  const [notesHeight, setNotesHeight] = useState(200)
+  const [notesCollapsed, setNotesCollapsed] = useState(false)
   const [shells, setShells] = useState<ShellOption[]>([])
   const [shell, setShell] = useState<string>('')
   const [shellKey, setShellKey] = useState(0)
@@ -69,26 +78,42 @@ export default function ProjectView({ tab, visible }: Props): React.JSX.Element 
       vcsWidth?: number
       termHeight?: number
       termAtBottom?: boolean
+      notesHeight?: number
+      notesCollapsed?: boolean
     }>(layoutKey).then((saved) => {
       if (cancelled || !saved) return
       if (typeof saved.treeWidth === 'number') setTreeWidth(saved.treeWidth)
       if (typeof saved.vcsWidth === 'number') setVcsWidth(saved.vcsWidth)
       if (typeof saved.termHeight === 'number') setTermHeight(saved.termHeight)
       if (typeof saved.termAtBottom === 'boolean') setTermAtBottom(saved.termAtBottom)
+      if (typeof saved.notesHeight === 'number') setNotesHeight(saved.notesHeight)
+      if (typeof saved.notesCollapsed === 'boolean') setNotesCollapsed(saved.notesCollapsed)
     })
     return () => { cancelled = true }
   }, [layoutKey])
 
   useEffect(() => {
     const t = setTimeout(() => {
-      void window.api.kv.setJSON(layoutKey, { treeWidth, vcsWidth, termHeight, termAtBottom })
+      void window.api.kv.setJSON(layoutKey, {
+        treeWidth,
+        vcsWidth,
+        termHeight,
+        termAtBottom,
+        notesHeight,
+        notesCollapsed
+      })
     }, 300)
     return () => clearTimeout(t)
-  }, [layoutKey, treeWidth, vcsWidth, termHeight, termAtBottom])
+  }, [layoutKey, treeWidth, vcsWidth, termHeight, termAtBottom, notesHeight, notesCollapsed])
 
   useEffect(() => {
     void window.api.pty.shells().then(setShells)
   }, [])
+
+  useEffect(() => {
+    if (!visible || !project || !repoPath) return
+    void detectTerraform(project.id, repoPath)
+  }, [visible, project?.id, repoPath, detectTerraform, project])
 
   if (!bottomTabRef.current) {
     bottomTabRef.current = {
@@ -339,17 +364,73 @@ export default function ProjectView({ tab, visible }: Props): React.JSX.Element 
         ariaLabel="Resize VCS panel"
       />
       <div className="vcs-panel">
-        {vcs === 'git' ? (
-          <GitPanel repoPath={repoPath} onOpenLog={setLogTail} />
-        ) : vcs === 'svn' ? (
-          <SvnPanel repoPath={repoPath} onOpenLog={setLogTail} />
-        ) : (
-          <div className="empty">
-            No VCS detected.
-            <br />
-            <small>(no .git or .svn)</small>
-          </div>
+        <div className="vcs-pane vcs-pane-top">
+          {terraformDetected && (
+            <div className="vcs-toptabs">
+              <button
+                type="button"
+                className={`vtt ${rightView === 'vcs' ? 'active' : ''}`}
+                onClick={() => setRightView('vcs')}
+              >
+                {vcs === 'svn' ? 'SVN' : vcs === 'git' ? 'Git' : 'Files'}
+              </button>
+              <button
+                type="button"
+                className={`vtt ${rightView === 'tf' ? 'active' : ''}`}
+                onClick={() => setRightView('tf')}
+              >
+                Terraform
+              </button>
+            </div>
+          )}
+          {rightView === 'tf' && terraformDetected && project ? (
+            <TerraformPanel
+              projectId={project.id}
+              repoPath={repoPath}
+              visible={visible && rightView === 'tf'}
+            />
+          ) : vcs === 'git' ? (
+            <GitPanel repoPath={repoPath} onOpenLog={setLogTail} />
+          ) : vcs === 'svn' ? (
+            <SvnPanel repoPath={repoPath} onOpenLog={setLogTail} />
+          ) : (
+            <div className="empty">
+              No VCS detected.
+              <br />
+              <small>(no .git or .svn)</small>
+            </div>
+          )}
+        </div>
+        {!notesCollapsed && (
+          <Splitter
+            axis="vertical"
+            size={notesHeight}
+            onSize={setNotesHeight}
+            min={80}
+            max={1200}
+            inverse
+            ariaLabel="Resize notes"
+          />
         )}
+        <div
+          className="vcs-pane vcs-pane-notes"
+          style={{
+            flex: notesCollapsed ? '0 0 auto' : `0 0 ${notesHeight}px`,
+            minHeight: notesCollapsed ? 0 : 80
+          }}
+        >
+          <div className="vcs-notes-header">
+            <span>Notes</span>
+            <button
+              className="bottom-term-flip"
+              onClick={() => setNotesCollapsed((v) => !v)}
+              title={notesCollapsed ? 'Show notes' : 'Hide notes (expand panel above)'}
+            >
+              {notesCollapsed ? <ChevronUp size={12} strokeWidth={2} /> : <ChevronDown size={12} strokeWidth={2} />}
+            </button>
+          </div>
+          {!notesCollapsed && <ProjectNotesPanel projectId={project?.id} />}
+        </div>
       </div>
 
       <div className="bottom-term" style={{ gridColumn: 3, gridRow: termAtBottom ? 3 : 1 }}>

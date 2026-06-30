@@ -106,6 +106,11 @@ function migrate(db: Database.Database): void {
         if (r.group) tags.add(r.group.toLowerCase().replace(/\s+/g, '-'))
         for (const t of tags) insert.run(r.id, t)
       }
+    },
+    (d) => {
+      d.exec(`
+        ALTER TABLE snippets ADD COLUMN confirm_before_run INTEGER NOT NULL DEFAULT 0;
+      `)
     }
   ]
   const target = migrations.length
@@ -138,22 +143,44 @@ export interface SnippetRow {
   title: string
   body: string
   host_filter: string | null
+  confirm_before_run: number
 }
 
 export function listSnippets(): SnippetRow[] {
-  return getDb().prepare('SELECT id, title, body, host_filter FROM snippets ORDER BY title').all() as SnippetRow[]
+  return getDb()
+    .prepare('SELECT id, title, body, host_filter, confirm_before_run FROM snippets ORDER BY title')
+    .all() as SnippetRow[]
 }
 
-export function createSnippet(title: string, body: string, hostFilter: string | null): SnippetRow {
+export function createSnippet(
+  title: string,
+  body: string,
+  hostFilter: string | null,
+  confirmBeforeRun: boolean
+): SnippetRow {
   const db = getDb()
-  const info = db.prepare('INSERT INTO snippets(title, body, host_filter) VALUES (?, ?, ?)').run(title, body, hostFilter)
-  return db.prepare('SELECT id, title, body, host_filter FROM snippets WHERE id = ?').get(info.lastInsertRowid) as SnippetRow
+  const info = db
+    .prepare('INSERT INTO snippets(title, body, host_filter, confirm_before_run) VALUES (?, ?, ?, ?)')
+    .run(title, body, hostFilter, confirmBeforeRun ? 1 : 0)
+  return db
+    .prepare('SELECT id, title, body, host_filter, confirm_before_run FROM snippets WHERE id = ?')
+    .get(info.lastInsertRowid) as SnippetRow
 }
 
-export function updateSnippet(id: number, title: string, body: string, hostFilter: string | null): SnippetRow {
+export function updateSnippet(
+  id: number,
+  title: string,
+  body: string,
+  hostFilter: string | null,
+  confirmBeforeRun: boolean
+): SnippetRow {
   const db = getDb()
-  db.prepare('UPDATE snippets SET title = ?, body = ?, host_filter = ? WHERE id = ?').run(title, body, hostFilter, id)
-  return db.prepare('SELECT id, title, body, host_filter FROM snippets WHERE id = ?').get(id) as SnippetRow
+  db.prepare(
+    'UPDATE snippets SET title = ?, body = ?, host_filter = ?, confirm_before_run = ? WHERE id = ?'
+  ).run(title, body, hostFilter, confirmBeforeRun ? 1 : 0, id)
+  return db
+    .prepare('SELECT id, title, body, host_filter, confirm_before_run FROM snippets WHERE id = ?')
+    .get(id) as SnippetRow
 }
 
 export function deleteSnippet(id: number): void {

@@ -35,7 +35,9 @@ import {
   renameEntry,
   trashEntry,
   quickOpenList,
-  ripgrepSearch
+  ripgrepSearch,
+  watchDir,
+  unwatchDir
 } from './projects'
 import {
   gitStatus,
@@ -70,9 +72,26 @@ import {
   svnLog
 } from './svn'
 import { aiStatus, startStream, cancelStream, signInWithApiKey, signInWithClaudeCode, signInWithProvider, setProvider, signOut, reinitAi } from './ai'
+import { reportBug, listBugs } from './bugs'
+import {
+  listAwsProfiles,
+  listEksClusters,
+  invalidateEksCache,
+  openEksTerminal,
+  cleanupKubeconfig
+} from './aws'
+import {
+  detectTerraform,
+  listTfFiles,
+  readTfBundle,
+  tfValidate,
+  resetTerraformCliCache
+} from './terraform'
 import type {
   AiProvider,
   AiStreamArgs,
+  BugReportInput,
+  EksOpenArgs,
   HostInput,
   PtySpawnArgs,
   SessionId,
@@ -174,6 +193,8 @@ export function registerIpcHandlers(): void {
   ipcMain.handle('fs:newDir', (_e, path: string) => createDirectory(path))
   ipcMain.handle('fs:rename', (_e, from: string, to: string) => renameEntry(from, to))
   ipcMain.handle('fs:trash', (_e, path: string) => trashEntry(path))
+  ipcMain.handle('fs:watch', (_e, root: string) => watchDir(root))
+  ipcMain.handle('fs:unwatch', (_e, root: string) => unwatchDir(root))
   ipcMain.handle('fs:quickOpen', (_e, root: string) => quickOpenList(root))
   ipcMain.handle('fs:search', (_e, root: string, query: string) => ripgrepSearch(root, query))
 
@@ -223,17 +244,52 @@ export function registerIpcHandlers(): void {
 
   // Snippets
   ipcMain.handle('snippets:list', () =>
-    listSnippets().map((r) => ({ id: r.id, title: r.title, body: r.body, hostFilter: r.host_filter }))
+    listSnippets().map((r) => ({
+      id: r.id,
+      title: r.title,
+      body: r.body,
+      hostFilter: r.host_filter,
+      confirmBeforeRun: r.confirm_before_run === 1
+    }))
   )
-  ipcMain.handle('snippets:create', (_e, title: string, body: string, hostFilter: string | null) => {
-    const r = createSnippet(title, body, hostFilter)
-    return { id: r.id, title: r.title, body: r.body, hostFilter: r.host_filter }
-  })
-  ipcMain.handle('snippets:update', (_e, id: number, title: string, body: string, hostFilter: string | null) => {
-    const r = updateSnippet(id, title, body, hostFilter)
-    return { id: r.id, title: r.title, body: r.body, hostFilter: r.host_filter }
-  })
+  ipcMain.handle(
+    'snippets:create',
+    (_e, title: string, body: string, hostFilter: string | null, confirmBeforeRun: boolean) => {
+      const r = createSnippet(title, body, hostFilter, confirmBeforeRun)
+      return {
+        id: r.id,
+        title: r.title,
+        body: r.body,
+        hostFilter: r.host_filter,
+        confirmBeforeRun: r.confirm_before_run === 1
+      }
+    }
+  )
+  ipcMain.handle(
+    'snippets:update',
+    (
+      _e,
+      id: number,
+      title: string,
+      body: string,
+      hostFilter: string | null,
+      confirmBeforeRun: boolean
+    ) => {
+      const r = updateSnippet(id, title, body, hostFilter, confirmBeforeRun)
+      return {
+        id: r.id,
+        title: r.title,
+        body: r.body,
+        hostFilter: r.host_filter,
+        confirmBeforeRun: r.confirm_before_run === 1
+      }
+    }
+  )
   ipcMain.handle('snippets:delete', (_e, id: number) => deleteSnippet(id))
+
+  // Bugs
+  ipcMain.handle('bugs:report', (_e, input: BugReportInput) => reportBug(input))
+  ipcMain.handle('bugs:list', () => listBugs())
 
   // AI
   ipcMain.handle('ai:status', () => aiStatus())
@@ -248,4 +304,31 @@ export function registerIpcHandlers(): void {
     void startStream(args)
   })
   ipcMain.handle('ai:cancel', (_e, streamId: string) => cancelStream(streamId))
+
+  // AWS / EKS
+  ipcMain.handle('aws:listProfiles', () => listAwsProfiles())
+  ipcMain.handle('aws:listClusters', (_e, profile: string, region: string, force?: boolean) =>
+    listEksClusters(profile, region, { force: !!force })
+  )
+  ipcMain.handle('aws:invalidateCache', (_e, profile?: string, region?: string) =>
+    invalidateEksCache(profile, region)
+  )
+  ipcMain.handle('aws:openCluster', (_e, args: EksOpenArgs) => openEksTerminal(args))
+  ipcMain.handle('aws:cleanupKubeconfig', (_e, path: string) => cleanupKubeconfig(path))
+  ipcMain.handle('aws:getProfileRegion', async (_e, profile: string) => {
+    const v = (await kvGet(`aws.region.${profile}`)) ?? null
+    if (v) return v
+    const p = listAwsProfiles().find((x) => x.name === profile)
+    return p?.region ?? null
+  })
+  ipcMain.handle('aws:setProfileRegion', (_e, profile: string, region: string) =>
+    kvSet(`aws.region.${profile}`, region)
+  )
+
+  // Terraform
+  ipcMain.handle('terraform:detect', (_e, root: string) => detectTerraform(root))
+  ipcMain.handle('terraform:list', (_e, root: string) => listTfFiles(root))
+  ipcMain.handle('terraform:readBundle', (_e, root: string) => readTfBundle(root))
+  ipcMain.handle('terraform:validate', (_e, root: string) => tfValidate(root))
+  ipcMain.handle('terraform:resetCli', () => resetTerraformCliCache())
 }

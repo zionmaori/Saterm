@@ -1,6 +1,17 @@
 import { create } from 'zustand'
 import { v4 as uuid } from 'uuid'
-import type { Host, PersistedLayout, PersistedTab, Project, SessionId, TabKind } from '../../../shared/types'
+import type {
+  AwsProfile,
+  EksCluster,
+  Host,
+  PersistedLayout,
+  PersistedTab,
+  Project,
+  SessionId,
+  TabKind,
+  TfValidateResult
+} from '../../../shared/types'
+import { useAi } from './ai'
 
 export interface Tab {
   id: SessionId
@@ -10,6 +21,8 @@ export interface Tab {
   projectId?: number
   cwd?: string
   shell?: string
+  env?: Record<string, string>
+  kubeconfigPath?: string
 }
 
 interface AppState {
@@ -18,6 +31,24 @@ interface AppState {
   tabs: Tab[]
   activeTabId: SessionId | null
   ready: boolean
+
+  awsProfiles: AwsProfile[]
+  awsClustersByProfile: Record<string, EksCluster[]>
+  awsLoading: Record<string, boolean>
+  awsRegions: Record<string, string | null>
+
+  terraformDetected: Record<number, boolean>
+  terraformRuns: Record<
+    number,
+    {
+      status: 'idle' | 'running' | 'done' | 'error'
+      validate: TfValidateResult | null
+      error: string | null
+      ranAt: number | null
+      truncated: boolean
+      filesIncluded: number
+    }
+  >
 
   refreshHosts: () => Promise<void>
   refreshProjects: () => Promise<void>
@@ -30,6 +61,15 @@ interface AppState {
   reorderTab: (from: number, to: number) => void
   persistLayout: () => Promise<void>
   restoreLayout: () => Promise<void>
+
+  refreshAwsProfiles: () => Promise<void>
+  refreshAwsClusters: (profile: string, region: string, force?: boolean) => Promise<void>
+  setAwsRegion: (profile: string, region: string) => Promise<void>
+  openEksTab: (cluster: EksCluster) => Promise<Tab | null>
+
+  detectTerraform: (projectId: number, root: string) => Promise<boolean>
+  analyzeTerraform: (projectId: number, root: string) => Promise<void>
+  resetTerraformRun: (projectId: number) => void
 }
 
 export const useApp = create<AppState>((set, get) => ({
@@ -38,6 +78,12 @@ export const useApp = create<AppState>((set, get) => ({
   tabs: [],
   activeTabId: null,
   ready: false,
+  awsProfiles: [],
+  awsClustersByProfile: {},
+  awsLoading: {},
+  awsRegions: {},
+  terraformDetected: {},
+  terraformRuns: {},
 
   refreshHosts: async () => {
     const hosts = await window.api.hosts.list()
@@ -87,6 +133,10 @@ export const useApp = create<AppState>((set, get) => ({
   },
 
   closeTab: (id) => {
+    const closing = get().tabs.find((t) => t.id === id)
+    if (closing?.kubeconfigPath) {
+      void window.api.aws.cleanupKubeconfig(closing.kubeconfigPath)
+    }
     void window.api.term.close(id)
     set((s) => {
       const idx = s.tabs.findIndex((t) => t.id === id)
@@ -137,25 +187,235 @@ export const useApp = create<AppState>((set, get) => ({
   },
 
   restoreLayout: async () => {
-    const [hosts, projects, layout] = await Promise.all([
+    const [hosts, projects, layout, awsProfiles] = await Promise.all([
       window.api.hosts.list(),
       window.api.projects.list(),
-      window.api.layout.load()
+      window.api.layout.load(),
+      window.api.aws.listProfiles().catch(() => [] as AwsProfile[])
     ])
-    const tabs: Tab[] = (layout?.tabs ?? []).map((t) => ({
-      id: t.id,
-      kind: t.kind,
-      title: t.title,
-      hostId: t.hostId,
-      projectId: t.projectId,
-      cwd: t.cwd
-    }))
+    // EKS tabs from prior sessions can't be restored (their kubeconfig is gone),
+    // so drop them. Everything else round-trips.
+    const tabs: Tab[] = (layout?.tabs ?? [])
+      .filter((t) => !t.title?.startsWith('eks:'))
+      .map((t) => ({
+        id: t.id,
+        kind: t.kind,
+        title: t.title,
+        hostId: t.hostId,
+        projectId: t.projectId,
+        cwd: t.cwd
+      }))
+    const awsRegions: Record<string, string | null> = {}
+    for (const p of awsProfiles) awsRegions[p.name] = p.region
     set({
       hosts,
       projects,
       tabs,
       activeTabId: layout?.activeTabId ?? tabs[0]?.id ?? null,
+      awsProfiles,
+      awsRegions,
       ready: true
     })
+  },
+
+  refreshAwsProfiles: async () => {
+    try {
+      const awsProfiles = await window.api.aws.listProfiles()
+      const awsRegions = { ...get().awsRegions }
+      for (const p of awsProfiles) {
+        if (!(p.name in awsRegions)) awsRegions[p.name] = p.region
+      }
+      set({ awsProfiles, awsRegions })
+    } catch (e) {
+      console.error('[aws] listProfiles failed', e)
+    }
+  },
+
+  refreshAwsClusters: async (profile, region, force = false) => {
+    const key = `${profile}|${region}`
+    set((s) => ({ awsLoading: { ...s.awsLoading, [key]: true } }))
+    try {
+      const clusters = await window.api.aws.listClusters(profile, region, force)
+      set((s) => ({
+        awsClustersByProfile: { ...s.awsClustersByProfile, [key]: clusters }
+      }))
+    } catch (e) {
+      alert(`Could not list EKS clusters: ${(e as Error).message}`)
+    } finally {
+      set((s) => {
+        const next = { ...s.awsLoading }
+        delete next[key]
+        return { awsLoading: next }
+      })
+    }
+  },
+
+  setAwsRegion: async (profile, region) => {
+    await window.api.aws.setProfileRegion(profile, region)
+    set((s) => ({ awsRegions: { ...s.awsRegions, [profile]: region } }))
+  },
+
+  openEksTab: async (cluster) => {
+    try {
+      const { kubeconfigPath } = await window.api.aws.openCluster({
+        profile: cluster.profile,
+        region: cluster.region,
+        cluster: cluster.name
+      })
+      const tab: Tab = {
+        id: uuid(),
+        kind: 'local',
+        title: `eks: ${cluster.name}`,
+        env: {
+          AWS_PROFILE: cluster.profile,
+          AWS_REGION: cluster.region,
+          AWS_DEFAULT_REGION: cluster.region,
+          KUBECONFIG: kubeconfigPath
+        },
+        kubeconfigPath
+      }
+      set((s) => ({ tabs: [...s.tabs, tab], activeTabId: tab.id }))
+      void get().persistLayout()
+      return tab
+    } catch (e) {
+      alert(`Could not open cluster: ${(e as Error).message}`)
+      return null
+    }
+  },
+
+  detectTerraform: async (projectId, root) => {
+    try {
+      const has = await window.api.terraform.detect(root)
+      set((s) => ({ terraformDetected: { ...s.terraformDetected, [projectId]: has } }))
+      return has
+    } catch (e) {
+      console.error('[terraform] detect failed', e)
+      return false
+    }
+  },
+
+  analyzeTerraform: async (projectId, root) => {
+    const existing = get().terraformRuns[projectId]
+    if (existing?.status === 'running') return
+    set((s) => ({
+      terraformRuns: {
+        ...s.terraformRuns,
+        [projectId]: {
+          status: 'running',
+          validate: null,
+          error: null,
+          ranAt: null,
+          truncated: false,
+          filesIncluded: 0
+        }
+      }
+    }))
+    try {
+      const [validate, bundle] = await Promise.all([
+        window.api.terraform.validate(root),
+        window.api.terraform.readBundle(root)
+      ])
+      set((s) => ({
+        terraformRuns: {
+          ...s.terraformRuns,
+          [projectId]: {
+            status: 'running',
+            validate,
+            error: null,
+            ranAt: Date.now(),
+            truncated: bundle.truncated,
+            filesIncluded: bundle.files.length
+          }
+        }
+      }))
+
+      // Reset prior chat history for a clean turn each time.
+      const key = `tf:${projectId}`
+      useAi.getState().reset(key)
+
+      const validateSummary = validate.cliMissing
+        ? '# (terraform CLI not found — analysis is from HCL only)'
+        : validate.diagnostics.length === 0
+          ? '# valid (no diagnostics)'
+          : validate.diagnostics
+              .map(
+                (d) =>
+                  `# [${d.severity}] ${d.file ?? ''}${d.line ? ':' + d.line : ''} — ${d.summary}${
+                    d.detail ? ' — ' + d.detail.replace(/\s+/g, ' ').slice(0, 200) : ''
+                  }`
+              )
+              .join('\n')
+
+      const header = [
+        `# Terraform configuration for: ${root}`,
+        '# `terraform validate` result:',
+        validateSummary,
+        bundle.truncated
+          ? `# (showing ${bundle.files.length} files — some content was truncated)`
+          : `# (showing ${bundle.files.length} files)`,
+        '# Files concatenated below.'
+      ].join('\n')
+
+      const fileContent = header + '\n' + bundle.concatenated
+
+      const userText =
+        'Read the Terraform configuration above and explain: ' +
+        '(1) what infrastructure it provisions, ' +
+        '(2) what `terraform plan` would likely change against an existing state — flag anything destructive (replacements, force-new-resource changes, deletions), ' +
+        '(3) any bugs or risks you can spot from the HCL alone (wrong refs, hardcoded creds, missing variables, drift between modules). ' +
+        'Be concrete; cite filenames and line numbers when possible. ' +
+        'Do not ask follow-up questions — give your best read.'
+
+      await useAi.getState().send(
+        key,
+        'editor',
+        {
+          kind: 'editor',
+          projectRoot: root,
+          filePath: `${root}/__TERRAFORM__.hcl`,
+          language: 'hcl',
+          fileContent,
+          selection: null
+        },
+        userText
+      )
+
+      set((s) => {
+        const cur = s.terraformRuns[projectId]
+        if (!cur) return s
+        return {
+          terraformRuns: {
+            ...s.terraformRuns,
+            [projectId]: { ...cur, status: 'done' }
+          }
+        }
+      })
+    } catch (e) {
+      set((s) => {
+        const cur = s.terraformRuns[projectId] ?? {
+          status: 'error' as const,
+          validate: null,
+          error: null,
+          ranAt: Date.now(),
+          truncated: false,
+          filesIncluded: 0
+        }
+        return {
+          terraformRuns: {
+            ...s.terraformRuns,
+            [projectId]: { ...cur, status: 'error', error: (e as Error).message }
+          }
+        }
+      })
+    }
+  },
+
+  resetTerraformRun: (projectId) => {
+    set((s) => {
+      const next = { ...s.terraformRuns }
+      delete next[projectId]
+      return { terraformRuns: next }
+    })
+    useAi.getState().reset(`tf:${projectId}`)
   }
 }))

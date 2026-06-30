@@ -1,11 +1,44 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { BotMessageSquare, Folder, GitBranch, Pin, Plus, Search, Settings2, Star, Tag, Terminal, X } from 'lucide-react'
+import {
+  BotMessageSquare,
+  Box,
+  Bug,
+  ChevronDown,
+  ChevronRight,
+  Folder,
+  GitBranch,
+  Pin,
+  Plus,
+  RefreshCw,
+  Search,
+  Server,
+  Settings2,
+  Star,
+  Tag,
+  Terminal,
+  X
+} from 'lucide-react'
 import { useApp } from '../store/app'
 import { useFilter } from '../store/filter'
-import type { GroupCount, Host, HostInput, Snippet, TagCount } from '../../../shared/types'
+import type { AwsProfile, EksCluster, GroupCount, Host, HostInput, Snippet, TagCount } from '../../../shared/types'
 import HostForm from './HostForm'
 import SnippetForm from './SnippetForm'
+import BugReportDialog from './BugReportDialog'
 import Chip, { intentForTag } from './Chip'
+
+const COMMON_AWS_REGIONS = [
+  'us-east-1',
+  'us-east-2',
+  'us-west-1',
+  'us-west-2',
+  'eu-west-1',
+  'eu-west-2',
+  'eu-central-1',
+  'ap-southeast-1',
+  'ap-southeast-2',
+  'ap-northeast-1',
+  'ap-south-1'
+]
 
 const PINNED_LIMIT = 12
 const RECENT_LIMIT = 6
@@ -42,6 +75,14 @@ export default function Sidebar(): React.JSX.Element {
   const openProjectTab = useApp((s) => s.openProjectTab)
   const refreshHosts = useApp((s) => s.refreshHosts)
   const refreshProjects = useApp((s) => s.refreshProjects)
+  const awsProfiles = useApp((s) => s.awsProfiles)
+  const awsClustersByProfile = useApp((s) => s.awsClustersByProfile)
+  const awsLoading = useApp((s) => s.awsLoading)
+  const awsRegions = useApp((s) => s.awsRegions)
+  const refreshAwsProfiles = useApp((s) => s.refreshAwsProfiles)
+  const refreshAwsClusters = useApp((s) => s.refreshAwsClusters)
+  const setAwsRegion = useApp((s) => s.setAwsRegion)
+  const openEksTab = useApp((s) => s.openEksTab)
 
   const query = useFilter((s) => s.query)
   const activeTags = useFilter((s) => s.activeTags)
@@ -62,6 +103,8 @@ export default function Sidebar(): React.JSX.Element {
   const [groupSort, setGroupSort] = useState<'count' | 'name'>('count')
   const [snippets, setSnippets] = useState<Snippet[]>([])
   const [editingSnippet, setEditingSnippet] = useState<Snippet | null | undefined>(undefined)
+  const [confirmingSnippet, setConfirmingSnippet] = useState<Snippet | null>(null)
+  const [bugDialogOpen, setBugDialogOpen] = useState(false)
   const [hostSort, setHostSort] = useState<'default' | 'name' | 'recent'>('default')
   const [projectSort, setProjectSort] = useState<'recent' | 'name'>('recent')
   const searchInputRef = useRef<HTMLInputElement>(null)
@@ -96,6 +139,10 @@ export default function Sidebar(): React.JSX.Element {
     void window.api.snippets.list().then(setSnippets)
   }
   useEffect(refreshSnippets, [])
+
+  useEffect(() => {
+    void refreshAwsProfiles()
+  }, [refreshAwsProfiles])
 
   const matched = useMemo(() => {
     const filtered = hosts.filter(
@@ -206,11 +253,16 @@ export default function Sidebar(): React.JSX.Element {
     }
   }
 
-  const onSaveSnippet = async (title: string, body: string, hostFilter: string | null): Promise<void> => {
+  const onSaveSnippet = async (
+    title: string,
+    body: string,
+    hostFilter: string | null,
+    confirmBeforeRun: boolean
+  ): Promise<void> => {
     if (editingSnippet) {
-      await window.api.snippets.update(editingSnippet.id, title, body, hostFilter)
+      await window.api.snippets.update(editingSnippet.id, title, body, hostFilter, confirmBeforeRun)
     } else {
-      await window.api.snippets.create(title, body, hostFilter)
+      await window.api.snippets.create(title, body, hostFilter, confirmBeforeRun)
     }
     setEditingSnippet(undefined)
     refreshSnippets()
@@ -223,7 +275,7 @@ export default function Sidebar(): React.JSX.Element {
     refreshSnippets()
   }
 
-  const insertSnippet = (body: string): void => {
+  const insertSnippetBody = (body: string): void => {
     if (!activeTab) return
     const targetId =
       activeTab.kind === 'project'
@@ -231,6 +283,14 @@ export default function Sidebar(): React.JSX.Element {
             .__termionProjectTerm?.get(activeTab.id)?.id ?? null
         : activeTab.id
     if (targetId) window.__termionInsertText?.(targetId, body)
+  }
+
+  const insertSnippet = (s: Snippet): void => {
+    if (s.confirmBeforeRun) {
+      setConfirmingSnippet(s)
+      return
+    }
+    insertSnippetBody(s.body)
   }
 
   const pickProject = async (): Promise<void> => {
@@ -510,6 +570,44 @@ export default function Sidebar(): React.JSX.Element {
           </button>
         </Section>
 
+        {/* AWS / EKS */}
+        <Section
+          title="AWS"
+          count={awsProfiles.length}
+          right={
+            <button
+              className="sidebar2-icon"
+              title="Reload profiles and clear cluster cache"
+              onClick={(e) => {
+                e.stopPropagation()
+                void window.api.aws.invalidateCache().then(refreshAwsProfiles)
+              }}
+            >
+              <RefreshCw size={13} />
+            </button>
+          }
+        >
+          {awsProfiles.length === 0 && (
+            <div className="sidebar2-empty">No AWS profiles found in ~/.aws/config.</div>
+          )}
+          {awsProfiles.map((p) => (
+            <AwsProfileRow
+              key={p.name}
+              profile={p}
+              effectiveRegion={awsRegions[p.name] ?? p.region}
+              clusters={awsClustersByProfile[`${p.name}|${awsRegions[p.name] ?? p.region}`] ?? null}
+              loading={!!awsLoading[`${p.name}|${awsRegions[p.name] ?? p.region}`]}
+              onRefresh={(region) => void refreshAwsClusters(p.name, region, true)}
+              onExpand={(region) => {
+                const key = `${p.name}|${region}`
+                if (!awsClustersByProfile[key]) void refreshAwsClusters(p.name, region)
+              }}
+              onSetRegion={(region) => void setAwsRegion(p.name, region)}
+              onOpenCluster={(c) => void openEksTab(c)}
+            />
+          ))}
+        </Section>
+
         {/* Projects */}
         <Section
           title="Projects"
@@ -598,11 +696,20 @@ export default function Sidebar(): React.JSX.Element {
               <button
                 className="sidebar2-row"
                 style={{ gridColumn: '1 / span 2', flex: 1, background: 'none', border: 'none', padding: 0, textAlign: 'left' }}
-                onClick={() => insertSnippet(s.body)}
-                title={s.body}
+                onClick={() => insertSnippet(s)}
+                title={s.confirmBeforeRun ? `${s.body}\n\n(confirmation required)` : s.body}
               >
                 <Terminal size={13} strokeWidth={2} />
                 <span className="sidebar2-row-title">{s.title}</span>
+                {s.confirmBeforeRun && (
+                  <span
+                    className="sidebar2-row-meta"
+                    title="Confirmation required before inserting"
+                    style={{ color: 'var(--warning, #d97706)' }}
+                  >
+                    ⚠
+                  </span>
+                )}
                 {s.hostFilter && (
                   <span className="sidebar2-row-meta">{s.hostFilter}</span>
                 )}
@@ -622,8 +729,17 @@ export default function Sidebar(): React.JSX.Element {
         </Section>
       </div>
 
-      <div className="sidebar2-footer">
-        <kbd>⌘K</kbd> palette · <kbd>⌘F</kbd> search · <kbd>⌘P</kbd> open · <kbd>⌘⇧F</kbd> grep
+      <div className="sidebar2-footer" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+        <span style={{ flex: 1 }}>
+          <kbd>⌘K</kbd> palette · <kbd>⌘F</kbd> search · <kbd>⌘P</kbd> open · <kbd>⌘⇧F</kbd> grep
+        </span>
+        <button
+          className="sidebar2-icon"
+          title="Report a bug"
+          onClick={() => setBugDialogOpen(true)}
+        >
+          <Bug size={13} />
+        </button>
       </div>
 
       {editing !== undefined && (
@@ -642,7 +758,87 @@ export default function Sidebar(): React.JSX.Element {
           onDelete={editingSnippet ? onDeleteSnippet : undefined}
         />
       )}
+      {confirmingSnippet && (
+        <SnippetConfirm
+          snippet={confirmingSnippet}
+          onCancel={() => setConfirmingSnippet(null)}
+          onConfirm={() => {
+            const body = confirmingSnippet.body
+            setConfirmingSnippet(null)
+            insertSnippetBody(body)
+          }}
+        />
+      )}
+      {bugDialogOpen && <BugReportDialog onClose={() => setBugDialogOpen(false)} />}
     </aside>
+  )
+}
+
+function SnippetConfirm({
+  snippet,
+  onCancel,
+  onConfirm
+}: {
+  snippet: Snippet
+  onCancel: () => void
+  onConfirm: () => void
+}): React.JSX.Element {
+  useEffect(() => {
+    const handler = (e: KeyboardEvent): void => {
+      if (e.key === 'Escape') onCancel()
+    }
+    document.addEventListener('keydown', handler)
+    return () => document.removeEventListener('keydown', handler)
+  }, [onCancel])
+  return (
+    <div
+      className="dialog-backdrop"
+      onMouseDown={(e) => {
+        if (e.target === e.currentTarget) onCancel()
+      }}
+    >
+      <div className="dialog" style={{ minWidth: 420, maxWidth: 640 }}>
+        <h2 style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <span style={{ color: 'var(--warning, #d97706)' }}>⚠</span>
+          Confirm snippet
+        </h2>
+        <div className="col">
+          <label>Title</label>
+          <div style={{ fontWeight: 500 }}>{snippet.title}</div>
+        </div>
+        <div className="col">
+          <label>Command to insert</label>
+          <pre
+            style={{
+              margin: 0,
+              padding: 10,
+              background: 'var(--bg-1, #111)',
+              border: '1px solid var(--border)',
+              borderRadius: 'var(--radius, 6px)',
+              fontFamily: 'monospace',
+              fontSize: 12,
+              whiteSpace: 'pre-wrap',
+              wordBreak: 'break-all',
+              maxHeight: 240,
+              overflow: 'auto'
+            }}
+          >
+            {snippet.body}
+          </pre>
+        </div>
+        <div style={{ fontSize: 12, color: 'var(--text-dim)', marginBottom: 10 }}>
+          The command will be placed at the prompt but not executed — you still press Enter to run it.
+        </div>
+        <div className="row" style={{ justifyContent: 'flex-end', gap: 8 }}>
+          <button type="button" onClick={onCancel}>
+            Cancel
+          </button>
+          <button type="button" className="primary" onClick={onConfirm} autoFocus>
+            Insert
+          </button>
+        </div>
+      </div>
+    </div>
   )
 }
 
@@ -685,6 +881,155 @@ function Section({
         </span>
       </div>
       {open && <div className="sidebar2-section-body">{children}</div>}
+    </div>
+  )
+}
+
+// --- AWS profile row ---
+
+function AwsProfileRow({
+  profile,
+  effectiveRegion,
+  clusters,
+  loading,
+  onRefresh,
+  onExpand,
+  onSetRegion,
+  onOpenCluster
+}: {
+  profile: AwsProfile
+  effectiveRegion: string | null
+  clusters: EksCluster[] | null
+  loading: boolean
+  onRefresh: (region: string) => void
+  onExpand: (region: string) => void
+  onSetRegion: (region: string) => void
+  onOpenCluster: (c: EksCluster) => void
+}): React.JSX.Element {
+  const storageKey = `sidebar.aws.${profile.name}`
+  const [open, setOpen] = useState(() => {
+    try {
+      return localStorage.getItem(storageKey) === 'true'
+    } catch {
+      return false
+    }
+  })
+  const toggle = (): void => {
+    const next = !open
+    setOpen(next)
+    try {
+      localStorage.setItem(storageKey, String(next))
+    } catch {
+      /* noop */
+    }
+    if (next && effectiveRegion) onExpand(effectiveRegion)
+  }
+
+  return (
+    <div className="sidebar2-host" style={{ flexDirection: 'column', alignItems: 'stretch' }}>
+      <button
+        className="sidebar2-row"
+        style={{
+          gridColumn: '1 / span 2',
+          flex: 1,
+          background: 'none',
+          border: 'none',
+          padding: 0,
+          textAlign: 'left',
+          width: '100%'
+        }}
+        onClick={toggle}
+        title={profile.isSso ? `SSO profile · ${profile.source}` : `${profile.source}`}
+      >
+        {open ? <ChevronDown size={13} strokeWidth={2} /> : <ChevronRight size={13} strokeWidth={2} />}
+        <Server size={13} strokeWidth={2} />
+        <span className="sidebar2-row-title">{profile.name}</span>
+        {effectiveRegion && <span className="sidebar2-row-meta">{effectiveRegion}</span>}
+        {profile.isSso && <span className="sidebar2-row-meta">sso</span>}
+      </button>
+      {open && (
+        <div style={{ marginLeft: 18, marginTop: 2, display: 'flex', flexDirection: 'column', gap: 2 }}>
+          {!effectiveRegion && (
+            <div className="row" style={{ gap: 6, padding: '2px 4px', alignItems: 'center' }}>
+              <span style={{ fontSize: 11, color: 'var(--text-dim)' }}>region:</span>
+              <select
+                value=""
+                onChange={(e) => {
+                  if (e.target.value) onSetRegion(e.target.value)
+                }}
+                style={{ fontSize: 11, padding: '1px 4px' }}
+              >
+                <option value="">pick…</option>
+                {COMMON_AWS_REGIONS.map((r) => (
+                  <option key={r} value={r}>
+                    {r}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+          {effectiveRegion && (
+            <>
+              {loading && (
+                <div className="sidebar2-empty" style={{ padding: '2px 4px' }}>
+                  Loading clusters…
+                </div>
+              )}
+              {!loading && clusters && clusters.length === 0 && (
+                <div className="sidebar2-empty" style={{ padding: '2px 4px' }}>
+                  No clusters in {effectiveRegion}.
+                </div>
+              )}
+              {!loading &&
+                clusters?.map((c) => (
+                  <button
+                    key={c.name}
+                    className="sidebar2-row"
+                    style={{
+                      background: 'none',
+                      border: 'none',
+                      padding: '2px 4px',
+                      textAlign: 'left',
+                      cursor: 'pointer'
+                    }}
+                    onClick={() => onOpenCluster(c)}
+                    title={`Open kubectl terminal for ${c.name} in ${c.region}`}
+                  >
+                    <Box size={12} strokeWidth={2} />
+                    <span className="sidebar2-row-title">{c.name}</span>
+                  </button>
+                ))}
+              <div className="row" style={{ gap: 6, padding: '2px 4px', alignItems: 'center' }}>
+                <button
+                  className="sidebar2-link"
+                  onClick={() => onRefresh(effectiveRegion)}
+                  title="Reload clusters from AWS"
+                >
+                  refresh
+                </button>
+                <select
+                  value={effectiveRegion}
+                  onChange={(e) => {
+                    if (e.target.value !== effectiveRegion) onSetRegion(e.target.value)
+                  }}
+                  style={{ fontSize: 11, padding: '1px 4px', marginLeft: 'auto' }}
+                >
+                  {COMMON_AWS_REGIONS.includes(effectiveRegion)
+                    ? null
+                    : (
+                      <option value={effectiveRegion}>{effectiveRegion}</option>
+                    )}
+                  {COMMON_AWS_REGIONS.map((r) => (
+                    <option key={r} value={r}>
+                      {r}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </>
+          )}
+        </div>
+      )}
     </div>
   )
 }

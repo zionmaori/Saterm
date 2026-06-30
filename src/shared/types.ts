@@ -49,9 +49,32 @@ export interface Snippet {
   title: string
   body: string
   hostFilter: string | null
+  confirmBeforeRun: boolean
 }
 
 export type SnippetInput = Omit<Snippet, 'id'>
+
+export interface BugTabContext {
+  kind: TabKind | null
+  title: string | null
+  hostName: string | null
+  projectPath: string | null
+  appVersion: string
+  platform: NodeJS.Platform
+}
+
+export interface BugReportInput {
+  title: string
+  description: string
+  context: BugTabContext | null
+}
+
+export interface BugReport {
+  reportedAt: string
+  title: string
+  description: string
+  context: BugTabContext | null
+}
 
 export type VcsKind = 'git' | 'svn' | 'none'
 
@@ -92,6 +115,60 @@ export interface PtySpawnArgs {
   cols: number
   rows: number
   shell?: string
+  env?: Record<string, string>
+  title?: string
+}
+
+export interface AwsProfile {
+  name: string
+  region: string | null
+  isSso: boolean
+  source: 'config' | 'credentials' | 'both'
+}
+
+export interface EksCluster {
+  name: string
+  profile: string
+  region: string
+}
+
+export interface EksOpenArgs {
+  profile: string
+  region: string
+  cluster: string
+}
+
+export interface EksOpenResult {
+  kubeconfigPath: string
+}
+
+export interface TfFile {
+  path: string
+  relPath: string
+}
+
+export type TfSeverity = 'error' | 'warning'
+
+export interface TfDiagnostic {
+  severity: TfSeverity
+  summary: string
+  detail: string
+  file?: string
+  line?: number
+}
+
+export interface TfValidateResult {
+  ok: boolean
+  diagnostics: TfDiagnostic[]
+  stderr: string
+  /** Set when the CLI itself was missing or unusable. */
+  cliMissing?: boolean
+}
+
+export interface TfBundle {
+  files: TfFile[]
+  concatenated: string
+  truncated: boolean
 }
 
 export interface ShellOption {

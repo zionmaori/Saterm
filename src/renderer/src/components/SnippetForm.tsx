@@ -3,7 +3,12 @@ import type { Snippet } from '../../../shared/types'
 
 interface Props {
   initial: Snippet | null
-  onSave: (title: string, body: string, hostFilter: string | null) => Promise<void>
+  onSave: (
+    title: string,
+    body: string,
+    hostFilter: string | null,
+    confirmBeforeRun: boolean
+  ) => Promise<void>
   onCancel: () => void
   onDelete?: () => Promise<void>
 }
@@ -12,6 +17,7 @@ export default function SnippetForm({ initial, onSave, onCancel, onDelete }: Pro
   const [title, setTitle] = useState(initial?.title ?? '')
   const [body, setBody] = useState(initial?.body ?? '')
   const [hostFilter, setHostFilter] = useState(initial?.hostFilter ?? '')
+  const [confirmBeforeRun, setConfirmBeforeRun] = useState(initial?.confirmBeforeRun ?? false)
   const [saving, setSaving] = useState(false)
 
   const submit = async (e: React.FormEvent): Promise<void> => {
@@ -19,7 +25,7 @@ export default function SnippetForm({ initial, onSave, onCancel, onDelete }: Pro
     if (!title.trim() || !body.trim()) return
     setSaving(true)
     try {
-      await onSave(title.trim(), body.trim(), hostFilter.trim() || null)
+      await onSave(title.trim(), body.trim(), hostFilter.trim() || null, confirmBeforeRun)
     } finally {
       setSaving(false)
     }
@@ -67,6 +73,24 @@ export default function SnippetForm({ initial, onSave, onCancel, onDelete }: Pro
             onChange={(e) => setHostFilter(e.target.value)}
             placeholder="e.g. production"
           />
+        </label>
+
+        <label
+          className="host-form-label"
+          style={{ flexDirection: 'row', alignItems: 'center', gap: 8, cursor: 'pointer' }}
+        >
+          <input
+            type="checkbox"
+            checked={confirmBeforeRun}
+            onChange={(e) => setConfirmBeforeRun(e.target.checked)}
+            style={{ margin: 0 }}
+          />
+          <span>
+            Require confirmation before inserting{' '}
+            <span style={{ opacity: 0.5, fontWeight: 400 }}>
+              (for destructive or critical commands)
+            </span>
+          </span>
         </label>
 
         <div className="host-form-actions">

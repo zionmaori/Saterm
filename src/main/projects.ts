@@ -1,8 +1,8 @@
-import { existsSync, statSync } from 'fs'
+import { existsSync, statSync, watch as fsWatch, type FSWatcher } from 'fs'
 import { readdir, readFile, writeFile, mkdir, rename } from 'fs/promises'
 import { join, basename, relative, sep, dirname } from 'path'
 import { spawn } from 'child_process'
-import { shell } from 'electron'
+import { BrowserWindow, shell } from 'electron'
 import { getDb } from './db'
 import type { Project, VcsKind } from '../shared/types'
 
@@ -146,6 +146,51 @@ export async function renameEntry(from: string, to: string): Promise<void> {
 
 export async function trashEntry(path: string): Promise<void> {
   await shell.trashItem(path)
+}
+
+/** Recursive directory watch. macOS + Windows support `recursive: true` natively;
+ *  on Linux we fall back to a non-recursive watch on the root (renderer still gets
+ *  events for direct children, which is enough for the common case). */
+interface WatchEntry {
+  watcher: FSWatcher
+  refs: number
+}
+const watchers = new Map<string, WatchEntry>()
+
+const emit = (path: string, kind: 'change' | 'rename'): void => {
+  for (const win of BrowserWindow.getAllWindows()) {
+    win.webContents.send('fs:changed', { root: path, kind })
+  }
+}
+
+export function watchDir(root: string): void {
+  const existing = watchers.get(root)
+  if (existing) {
+    existing.refs += 1
+    return
+  }
+  try {
+    const isLinux = process.platform === 'linux'
+    const watcher = fsWatch(root, { recursive: !isLinux }, (eventType) => {
+      emit(root, eventType === 'rename' ? 'rename' : 'change')
+    })
+    watcher.on('error', () => {
+      /* silently drop — watchers can die on network volumes */
+    })
+    watchers.set(root, { watcher, refs: 1 })
+  } catch {
+    /* unwatchable path — fine, just no live updates */
+  }
+}
+
+export function unwatchDir(root: string): void {
+  const entry = watchers.get(root)
+  if (!entry) return
+  entry.refs -= 1
+  if (entry.refs <= 0) {
+    try { entry.watcher.close() } catch { /* ignore */ }
+    watchers.delete(root)
+  }
 }
 
 export interface QuickOpenEntry {

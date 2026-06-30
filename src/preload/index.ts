@@ -9,6 +9,14 @@ import type {
   AiStreamArgs,
   AiToolUseEvent,
   AuthPromptEvent,
+  AwsProfile,
+  BugReportInput,
+  EksCluster,
+  EksOpenArgs,
+  EksOpenResult,
+  TfBundle,
+  TfFile,
+  TfValidateResult,
   GroupCount,
   Host,
   HostInput,
@@ -124,6 +132,10 @@ const api = {
     newDir: (path: string): Promise<void> => ipcRenderer.invoke('fs:newDir', path),
     rename: (from: string, to: string): Promise<void> => ipcRenderer.invoke('fs:rename', from, to),
     trash: (path: string): Promise<void> => ipcRenderer.invoke('fs:trash', path),
+    watch: (root: string): Promise<void> => ipcRenderer.invoke('fs:watch', root),
+    unwatch: (root: string): Promise<void> => ipcRenderer.invoke('fs:unwatch', root),
+    onChanged: (fn: Listener<{ root: string; kind: 'change' | 'rename' }>) =>
+      on('fs:changed', fn),
     quickOpen: (root: string): Promise<{ name: string; relPath: string; absPath: string }[]> =>
       ipcRenderer.invoke('fs:quickOpen', root),
     search: (
@@ -174,13 +186,51 @@ const api = {
     onDone: (fn: Listener<AiDoneEvent>) => on('ai:done', fn),
     onError: (fn: Listener<AiErrorEvent>) => on('ai:error', fn)
   },
+  bugs: {
+    report: (input: BugReportInput): Promise<{ reportedAt: string; path: string }> =>
+      ipcRenderer.invoke('bugs:report', input),
+    list: (): Promise<string> => ipcRenderer.invoke('bugs:list')
+  },
   snippets: {
     list: (): Promise<Snippet[]> => ipcRenderer.invoke('snippets:list'),
-    create: (title: string, body: string, hostFilter: string | null): Promise<Snippet> =>
-      ipcRenderer.invoke('snippets:create', title, body, hostFilter),
-    update: (id: number, title: string, body: string, hostFilter: string | null): Promise<Snippet> =>
-      ipcRenderer.invoke('snippets:update', id, title, body, hostFilter),
+    create: (
+      title: string,
+      body: string,
+      hostFilter: string | null,
+      confirmBeforeRun: boolean
+    ): Promise<Snippet> =>
+      ipcRenderer.invoke('snippets:create', title, body, hostFilter, confirmBeforeRun),
+    update: (
+      id: number,
+      title: string,
+      body: string,
+      hostFilter: string | null,
+      confirmBeforeRun: boolean
+    ): Promise<Snippet> =>
+      ipcRenderer.invoke('snippets:update', id, title, body, hostFilter, confirmBeforeRun),
     delete: (id: number): Promise<void> => ipcRenderer.invoke('snippets:delete', id)
+  },
+  terraform: {
+    detect: (root: string): Promise<boolean> => ipcRenderer.invoke('terraform:detect', root),
+    list: (root: string): Promise<TfFile[]> => ipcRenderer.invoke('terraform:list', root),
+    readBundle: (root: string): Promise<TfBundle> => ipcRenderer.invoke('terraform:readBundle', root),
+    validate: (root: string): Promise<TfValidateResult> => ipcRenderer.invoke('terraform:validate', root),
+    resetCli: (): Promise<void> => ipcRenderer.invoke('terraform:resetCli')
+  },
+  aws: {
+    listProfiles: (): Promise<AwsProfile[]> => ipcRenderer.invoke('aws:listProfiles'),
+    listClusters: (profile: string, region: string, force = false): Promise<EksCluster[]> =>
+      ipcRenderer.invoke('aws:listClusters', profile, region, force),
+    invalidateCache: (profile?: string, region?: string): Promise<void> =>
+      ipcRenderer.invoke('aws:invalidateCache', profile, region),
+    openCluster: (args: EksOpenArgs): Promise<EksOpenResult> =>
+      ipcRenderer.invoke('aws:openCluster', args),
+    cleanupKubeconfig: (path: string): Promise<void> =>
+      ipcRenderer.invoke('aws:cleanupKubeconfig', path),
+    getProfileRegion: (profile: string): Promise<string | null> =>
+      ipcRenderer.invoke('aws:getProfileRegion', profile),
+    setProfileRegion: (profile: string, region: string): Promise<void> =>
+      ipcRenderer.invoke('aws:setProfileRegion', profile, region)
   },
   svn: {
     status: (path: string) => ipcRenderer.invoke('svn:status', path),
