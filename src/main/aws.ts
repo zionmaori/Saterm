@@ -5,12 +5,7 @@ import { join } from 'path'
 import { app } from 'electron'
 import { v4 as uuid } from 'uuid'
 import { getPath } from './shellEnv'
-import type {
-  AwsProfile,
-  EksCluster,
-  EksOpenArgs,
-  EksOpenResult
-} from '../shared/types'
+import type { AwsProfile, EksCluster, EksOpenArgs, EksOpenResult } from '../shared/types'
 
 const CLUSTER_TTL_MS = 60_000
 
@@ -110,7 +105,10 @@ function buildEnv(extra: Record<string, string> = {}): NodeJS.ProcessEnv {
 function mapAwsError(stderr: string, profile: string, isSso: boolean): string {
   const s = stderr.trim()
   if (!s) return `AWS CLI failed (no output).`
-  if (/sso (session has expired|token .* expired)/i.test(s) || (isSso && /Unable to locate credentials/i.test(s))) {
+  if (
+    /sso (session has expired|token .* expired)/i.test(s) ||
+    (isSso && /Unable to locate credentials/i.test(s))
+  ) {
     return `SSO session expired for "${profile}". Run \`aws sso login --profile ${profile}\` in a terminal, then refresh.`
   }
   if (/Unable to locate credentials/i.test(s)) {
@@ -143,7 +141,11 @@ function runAwsCli(args: string[]): Promise<RunResult> {
     proc.stderr?.on('data', (d: Buffer) => (stderr += d.toString('utf8')))
     proc.on('error', (e: NodeJS.ErrnoException) => {
       if (e.code === 'ENOENT') {
-        reject(new Error('AWS CLI not found on PATH. Install with `brew install awscli` and reopen Termion.'))
+        reject(
+          new Error(
+            'AWS CLI not found on PATH. Install with `brew install awscli` and reopen Termion.'
+          )
+        )
       } else {
         reject(e)
       }
@@ -178,7 +180,9 @@ export async function listEksClusters(
     if (hit && Date.now() - hit.at < CLUSTER_TTL_MS) return hit.clusters
   }
   if (!awsCliExists()) {
-    throw new Error('AWS CLI not found on PATH. Install with `brew install awscli` and reopen Termion.')
+    throw new Error(
+      'AWS CLI not found on PATH. Install with `brew install awscli` and reopen Termion.'
+    )
   }
   const isSso = listAwsProfiles().find((p) => p.name === profile)?.isSso ?? false
   const r = await runAwsCli([
@@ -234,14 +238,15 @@ function safeFileName(s: string): string {
 
 /**
  * Generate a per-cluster kubeconfig via `aws eks update-kubeconfig`.
- * Does NOT spawn a pty — the renderer's TerminalPane handles that when the tab
- * mounts. We return the kubeconfig path so the Tab can carry it (and the env
- * it implies) into `pty.spawn`.
+ * Returns the kubeconfig path so the caller (terminal tab or EKS dashboard)
+ * can use it as KUBECONFIG.
  */
-export async function openEksTerminal(args: EksOpenArgs): Promise<EksOpenResult> {
+export async function prepareKubeconfig(args: EksOpenArgs): Promise<EksOpenResult> {
   const { profile, region, cluster } = args
   if (!awsCliExists()) {
-    throw new Error('AWS CLI not found on PATH. Install with `brew install awscli` and reopen Termion.')
+    throw new Error(
+      'AWS CLI not found on PATH. Install with `brew install awscli` and reopen Termion.'
+    )
   }
   const fname = `${safeFileName(profile)}-${safeFileName(region)}-${safeFileName(cluster)}-${uuid()}.yaml`
   const kubeconfigPath = join(kubeconfigDir(), fname)
@@ -269,6 +274,42 @@ export async function openEksTerminal(args: EksOpenArgs): Promise<EksOpenResult>
   }
 
   return { kubeconfigPath }
+}
+
+/** Backwards-compatible alias used by the terminal tab path. */
+export const openEksTerminal = prepareKubeconfig
+
+/** Describe an EKS cluster — returns the raw `aws eks describe-cluster` payload. */
+export async function describeEksCluster(
+  profile: string,
+  region: string,
+  name: string
+): Promise<unknown> {
+  if (!awsCliExists()) {
+    throw new Error(
+      'AWS CLI not found on PATH. Install with `brew install awscli` and reopen Termion.'
+    )
+  }
+  const isSso = listAwsProfiles().find((p) => p.name === profile)?.isSso ?? false
+  const r = await runAwsCli([
+    'eks',
+    'describe-cluster',
+    '--profile',
+    profile,
+    '--region',
+    region,
+    '--name',
+    name,
+    '--output',
+    'json'
+  ])
+  if (r.code !== 0) throw new Error(mapAwsError(r.stderr, profile, isSso))
+  try {
+    const parsed = JSON.parse(r.stdout) as { cluster?: unknown }
+    return parsed.cluster ?? null
+  } catch {
+    throw new Error(`Could not parse 'aws eks describe-cluster' output.`)
+  }
 }
 
 export function cleanupKubeconfig(path: string): void {

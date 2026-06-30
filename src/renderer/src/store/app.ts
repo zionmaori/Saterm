@@ -23,6 +23,12 @@ export interface Tab {
   shell?: string
   env?: Record<string, string>
   kubeconfigPath?: string
+  /** EKS dashboard tab metadata. Only present when kind === 'eks'. */
+  eks?: {
+    profile: string
+    region: string
+    cluster: string
+  }
 }
 
 interface AppState {
@@ -66,6 +72,7 @@ interface AppState {
   refreshAwsClusters: (profile: string, region: string, force?: boolean) => Promise<void>
   setAwsRegion: (profile: string, region: string) => Promise<void>
   openEksTab: (cluster: EksCluster) => Promise<Tab | null>
+  openEksDashboardTab: (cluster: EksCluster) => Promise<Tab | null>
 
   detectTerraform: (projectId: number, root: string) => Promise<boolean>
   analyzeTerraform: (projectId: number, root: string) => Promise<void>
@@ -143,7 +150,7 @@ export const useApp = create<AppState>((set, get) => ({
       const tabs = s.tabs.filter((t) => t.id !== id)
       const wasActive = s.activeTabId === id
       const activeTabId = wasActive
-        ? tabs[Math.max(0, idx - 1)]?.id ?? tabs[0]?.id ?? null
+        ? (tabs[Math.max(0, idx - 1)]?.id ?? tabs[0]?.id ?? null)
         : s.activeTabId
       return { tabs, activeTabId }
     })
@@ -196,7 +203,7 @@ export const useApp = create<AppState>((set, get) => ({
     // EKS tabs from prior sessions can't be restored (their kubeconfig is gone),
     // so drop them. Everything else round-trips.
     const tabs: Tab[] = (layout?.tabs ?? [])
-      .filter((t) => !t.title?.startsWith('eks:'))
+      .filter((t) => t.kind !== 'eks' && !t.title?.startsWith('eks:'))
       .map((t) => ({
         id: t.id,
         kind: t.kind,
@@ -273,6 +280,33 @@ export const useApp = create<AppState>((set, get) => ({
           KUBECONFIG: kubeconfigPath
         },
         kubeconfigPath
+      }
+      set((s) => ({ tabs: [...s.tabs, tab], activeTabId: tab.id }))
+      void get().persistLayout()
+      return tab
+    } catch (e) {
+      alert(`Could not open cluster: ${(e as Error).message}`)
+      return null
+    }
+  },
+
+  openEksDashboardTab: async (cluster) => {
+    try {
+      const { kubeconfigPath } = await window.api.aws.prepareKubeconfig({
+        profile: cluster.profile,
+        region: cluster.region,
+        cluster: cluster.name
+      })
+      const tab: Tab = {
+        id: uuid(),
+        kind: 'eks',
+        title: cluster.name,
+        kubeconfigPath,
+        eks: {
+          profile: cluster.profile,
+          region: cluster.region,
+          cluster: cluster.name
+        }
       }
       set((s) => ({ tabs: [...s.tabs, tab], activeTabId: tab.id }))
       void get().persistLayout()

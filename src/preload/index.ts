@@ -94,7 +94,8 @@ const api = {
     listGroups: (): Promise<GroupCount[]> => ipcRenderer.invoke('hosts:listGroups'),
     bulkSetTag: (ids: number[], tag: string, add: boolean): Promise<void> =>
       ipcRenderer.invoke('hosts:bulkSetTag', ids, tag, add),
-    pin: (id: number, pinned: boolean): Promise<void> => ipcRenderer.invoke('hosts:pin', id, pinned),
+    pin: (id: number, pinned: boolean): Promise<void> =>
+      ipcRenderer.invoke('hosts:pin', id, pinned),
     touch: (id: number): Promise<void> => ipcRenderer.invoke('hosts:touch', id)
   },
   ssh: {
@@ -134,8 +135,7 @@ const api = {
     trash: (path: string): Promise<void> => ipcRenderer.invoke('fs:trash', path),
     watch: (root: string): Promise<void> => ipcRenderer.invoke('fs:watch', root),
     unwatch: (root: string): Promise<void> => ipcRenderer.invoke('fs:unwatch', root),
-    onChanged: (fn: Listener<{ root: string; kind: 'change' | 'rename' }>) =>
-      on('fs:changed', fn),
+    onChanged: (fn: Listener<{ root: string; kind: 'change' | 'rename' }>) => on('fs:changed', fn),
     quickOpen: (root: string): Promise<{ name: string; relPath: string; absPath: string }[]> =>
       ipcRenderer.invoke('fs:quickOpen', root),
     search: (
@@ -166,17 +166,21 @@ const api = {
     log: (path: string) => ipcRenderer.invoke('git:log', path),
     show: (path: string, hash: string) => ipcRenderer.invoke('git:show', path, hash),
     listTags: (path: string): Promise<string[]> => ipcRenderer.invoke('git:listTags', path),
-    createTag: (path: string, tag: string, message?: string): Promise<void> => ipcRenderer.invoke('git:createTag', path, tag, message),
+    createTag: (path: string, tag: string, message?: string): Promise<void> =>
+      ipcRenderer.invoke('git:createTag', path, tag, message),
     pushTags: (path: string): Promise<void> => ipcRenderer.invoke('git:pushTags', path),
-    deleteTag: (path: string, tag: string): Promise<void> => ipcRenderer.invoke('git:deleteTag', path, tag)
+    deleteTag: (path: string, tag: string): Promise<void> =>
+      ipcRenderer.invoke('git:deleteTag', path, tag)
   },
   ai: {
     status: (): Promise<AiStatus> => ipcRenderer.invoke('ai:status'),
     reinit: (): Promise<AiStatus> => ipcRenderer.invoke('ai:reinit'),
     signIn: (apiKey: string): Promise<AiStatus> => ipcRenderer.invoke('ai:signIn', apiKey),
     signInWithClaudeCode: (): Promise<AiStatus> => ipcRenderer.invoke('ai:signInClaudeCode'),
-    signInWithProvider: (provider: AiProvider, apiKey: string): Promise<AiStatus> => ipcRenderer.invoke('ai:signInProvider', provider, apiKey),
-    setProvider: (provider: AiProvider): Promise<AiStatus> => ipcRenderer.invoke('ai:setProvider', provider),
+    signInWithProvider: (provider: AiProvider, apiKey: string): Promise<AiStatus> =>
+      ipcRenderer.invoke('ai:signInProvider', provider, apiKey),
+    setProvider: (provider: AiProvider): Promise<AiStatus> =>
+      ipcRenderer.invoke('ai:setProvider', provider),
     signOut: (): Promise<AiStatus> => ipcRenderer.invoke('ai:signOut'),
     stream: (args: AiStreamArgs): Promise<void> => ipcRenderer.invoke('ai:stream', args),
     cancel: (streamId: string): Promise<void> => ipcRenderer.invoke('ai:cancel', streamId),
@@ -213,8 +217,10 @@ const api = {
   terraform: {
     detect: (root: string): Promise<boolean> => ipcRenderer.invoke('terraform:detect', root),
     list: (root: string): Promise<TfFile[]> => ipcRenderer.invoke('terraform:list', root),
-    readBundle: (root: string): Promise<TfBundle> => ipcRenderer.invoke('terraform:readBundle', root),
-    validate: (root: string): Promise<TfValidateResult> => ipcRenderer.invoke('terraform:validate', root),
+    readBundle: (root: string): Promise<TfBundle> =>
+      ipcRenderer.invoke('terraform:readBundle', root),
+    validate: (root: string): Promise<TfValidateResult> =>
+      ipcRenderer.invoke('terraform:validate', root),
     resetCli: (): Promise<void> => ipcRenderer.invoke('terraform:resetCli')
   },
   aws: {
@@ -225,12 +231,23 @@ const api = {
       ipcRenderer.invoke('aws:invalidateCache', profile, region),
     openCluster: (args: EksOpenArgs): Promise<EksOpenResult> =>
       ipcRenderer.invoke('aws:openCluster', args),
+    prepareKubeconfig: (args: EksOpenArgs): Promise<EksOpenResult> =>
+      ipcRenderer.invoke('aws:prepareKubeconfig', args),
+    describeCluster: (profile: string, region: string, name: string): Promise<unknown> =>
+      ipcRenderer.invoke('aws:describeCluster', profile, region, name),
     cleanupKubeconfig: (path: string): Promise<void> =>
       ipcRenderer.invoke('aws:cleanupKubeconfig', path),
     getProfileRegion: (profile: string): Promise<string | null> =>
       ipcRenderer.invoke('aws:getProfileRegion', profile),
     setProfileRegion: (profile: string, region: string): Promise<void> =>
       ipcRenderer.invoke('aws:setProfileRegion', profile, region)
+  },
+  kube: {
+    get: (
+      env: { kubeconfigPath: string; profile: string; region: string },
+      resource: string,
+      opts: { namespace?: string; cluster?: boolean } = {}
+    ): Promise<unknown> => ipcRenderer.invoke('kube:get', env, resource, opts)
   },
   svn: {
     status: (path: string) => ipcRenderer.invoke('svn:status', path),

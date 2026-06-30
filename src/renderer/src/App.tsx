@@ -6,6 +6,7 @@ import TabBar from './components/TabBar'
 import TerminalPane from './components/TerminalPane'
 import LocalTerminalView from './components/LocalTerminalView'
 import ProjectView from './components/ProjectView'
+import EksDashboard from './components/EksDashboard'
 import AuthPrompt from './components/AuthPrompt'
 import CommandPalette from './components/CommandPalette'
 import TerminalCopilot from './components/TerminalCopilot'
@@ -14,7 +15,11 @@ import HelpModal from './components/HelpModal'
 import type { AuthPromptEvent } from '../../shared/types'
 
 function readLS<T extends string>(key: string, fallback: T): T {
-  try { return (localStorage.getItem(key) as T) ?? fallback } catch { return fallback }
+  try {
+    return (localStorage.getItem(key) as T) ?? fallback
+  } catch {
+    return fallback
+  }
 }
 
 export default function App(): React.JSX.Element {
@@ -48,7 +53,9 @@ export default function App(): React.JSX.Element {
     localStorage.setItem('sidebarOpen', String(sidebarOpen))
   }, [sidebarOpen])
 
-  useEffect(() => { void restoreLayout() }, [restoreLayout])
+  useEffect(() => {
+    void restoreLayout()
+  }, [restoreLayout])
 
   useEffect(() => {
     installAiListeners()
@@ -87,7 +94,7 @@ export default function App(): React.JSX.Element {
   const activeTab = tabs.find((t) => t.id === activeTabId) ?? null
   const activeProjectTab = activeTab?.kind === 'project' ? activeTab : null
   const activeProject = activeProjectTab
-    ? projects.find((p) => p.id === activeProjectTab.projectId) ?? null
+    ? (projects.find((p) => p.id === activeProjectTab.projectId) ?? null)
     : null
 
   const onAuthReply = (secret: string | null, remember: boolean): void => {
@@ -122,7 +129,9 @@ export default function App(): React.JSX.Element {
             {tabs.map((t) => {
               const visible = t.id === activeTabId
               if (t.kind === 'project') return <ProjectView key={t.id} tab={t} visible={visible} />
-              if (t.kind === 'local') return <LocalTerminalView key={t.id} tab={t} visible={visible} />
+              if (t.kind === 'eks') return <EksDashboard key={t.id} tab={t} visible={visible} />
+              if (t.kind === 'local')
+                return <LocalTerminalView key={t.id} tab={t} visible={visible} />
               return <TerminalPane key={t.id} tab={t} visible={visible} />
             })}
           </div>
@@ -134,8 +143,11 @@ export default function App(): React.JSX.Element {
         (() => {
           const target =
             activeTab.kind === 'project'
-              ? (window as Window & { __termionProjectTerm?: Map<string, import('./store/app').Tab> })
-                  .__termionProjectTerm?.get(activeTab.id) ?? null
+              ? ((
+                  window as Window & {
+                    __termionProjectTerm?: Map<string, import('./store/app').Tab>
+                  }
+                ).__termionProjectTerm?.get(activeTab.id) ?? null)
               : activeTab
           if (!target) return null
           return (
@@ -148,11 +160,7 @@ export default function App(): React.JSX.Element {
       {helpOpen && <HelpModal onClose={() => setHelpOpen(false)} />}
       {authQueue[0] && <AuthPrompt event={authQueue[0]} onReply={onAuthReply} />}
 
-      <CommandPalette
-        open={paletteOpen}
-        mode="palette"
-        onClose={() => setPaletteOpen(false)}
-      />
+      <CommandPalette open={paletteOpen} mode="palette" onClose={() => setPaletteOpen(false)} />
       <CommandPalette
         open={quickOpenOpen}
         mode="quickopen"

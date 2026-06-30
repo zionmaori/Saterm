@@ -86,7 +86,7 @@ export interface Project {
   lastOpenedAt: number
 }
 
-export type TabKind = 'ssh' | 'local' | 'project'
+export type TabKind = 'ssh' | 'local' | 'project' | 'eks'
 
 export interface PersistedTab {
   id: SessionId

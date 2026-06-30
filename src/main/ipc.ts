@@ -71,15 +71,28 @@ import {
   svnDelete,
   svnLog
 } from './svn'
-import { aiStatus, startStream, cancelStream, signInWithApiKey, signInWithClaudeCode, signInWithProvider, setProvider, signOut, reinitAi } from './ai'
+import {
+  aiStatus,
+  startStream,
+  cancelStream,
+  signInWithApiKey,
+  signInWithClaudeCode,
+  signInWithProvider,
+  setProvider,
+  signOut,
+  reinitAi
+} from './ai'
 import { reportBug, listBugs } from './bugs'
 import {
   listAwsProfiles,
   listEksClusters,
   invalidateEksCache,
   openEksTerminal,
+  prepareKubeconfig,
+  describeEksCluster,
   cleanupKubeconfig
 } from './aws'
+import { kubectlGet, type KubeEnv } from './kube'
 import {
   detectTerraform,
   listTfFiles,
@@ -188,7 +201,9 @@ export function registerIpcHandlers(): void {
   // FS
   ipcMain.handle('fs:readDir', (_e, path: string) => readDir(path))
   ipcMain.handle('fs:readText', (_e, path: string) => readTextFile(path))
-  ipcMain.handle('fs:writeText', (_e, path: string, content: string) => writeTextFile(path, content))
+  ipcMain.handle('fs:writeText', (_e, path: string, content: string) =>
+    writeTextFile(path, content)
+  )
   ipcMain.handle('fs:newFile', (_e, path: string) => createFile(path))
   ipcMain.handle('fs:newDir', (_e, path: string) => createDirectory(path))
   ipcMain.handle('fs:rename', (_e, from: string, to: string) => renameEntry(from, to))
@@ -225,7 +240,9 @@ export function registerIpcHandlers(): void {
   ipcMain.handle('git:log', (_e, path: string) => gitLog(path))
   ipcMain.handle('git:show', (_e, path: string, hash: string) => gitShowCommit(path, hash))
   ipcMain.handle('git:listTags', (_e, path: string) => gitListTags(path))
-  ipcMain.handle('git:createTag', (_e, path: string, tag: string, message?: string) => gitCreateTag(path, tag, message))
+  ipcMain.handle('git:createTag', (_e, path: string, tag: string, message?: string) =>
+    gitCreateTag(path, tag, message)
+  )
   ipcMain.handle('git:pushTags', (_e, path: string) => gitPushTags(path))
   ipcMain.handle('git:deleteTag', (_e, path: string, tag: string) => gitDeleteTag(path, tag))
 
@@ -296,7 +313,9 @@ export function registerIpcHandlers(): void {
   ipcMain.handle('ai:reinit', () => reinitAi())
   ipcMain.handle('ai:signIn', (_e, apiKey: string) => signInWithApiKey(apiKey))
   ipcMain.handle('ai:signInClaudeCode', () => signInWithClaudeCode())
-  ipcMain.handle('ai:signInProvider', (_e, provider: AiProvider, apiKey: string) => signInWithProvider(provider, apiKey))
+  ipcMain.handle('ai:signInProvider', (_e, provider: AiProvider, apiKey: string) =>
+    signInWithProvider(provider, apiKey)
+  )
   ipcMain.handle('ai:setProvider', (_e, provider: AiProvider) => setProvider(provider))
   ipcMain.handle('ai:signOut', () => signOut())
   ipcMain.handle('ai:stream', (_e, args: AiStreamArgs) => {
@@ -314,7 +333,16 @@ export function registerIpcHandlers(): void {
     invalidateEksCache(profile, region)
   )
   ipcMain.handle('aws:openCluster', (_e, args: EksOpenArgs) => openEksTerminal(args))
+  ipcMain.handle('aws:prepareKubeconfig', (_e, args: EksOpenArgs) => prepareKubeconfig(args))
+  ipcMain.handle('aws:describeCluster', (_e, profile: string, region: string, name: string) =>
+    describeEksCluster(profile, region, name)
+  )
   ipcMain.handle('aws:cleanupKubeconfig', (_e, path: string) => cleanupKubeconfig(path))
+  ipcMain.handle(
+    'kube:get',
+    (_e, env: KubeEnv, resource: string, opts: { namespace?: string; cluster?: boolean }) =>
+      kubectlGet(env, resource, opts ?? {})
+  )
   ipcMain.handle('aws:getProfileRegion', async (_e, profile: string) => {
     const v = (await kvGet(`aws.region.${profile}`)) ?? null
     if (v) return v
