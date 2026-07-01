@@ -76,13 +76,17 @@ export default function EksDashboard({ tab, visible }: Props): React.JSX.Element
     const nsOpts = { namespace: 'all' as const }
     try {
       const results = await Promise.all([
-        window.api.aws.describeCluster(tab.eks.profile, tab.eks.region, tab.eks.cluster).catch(
-          () => null
-        ),
+        window.api.aws
+          .describeCluster(tab.eks.profile, tab.eks.region, tab.eks.cluster)
+          .catch(() => null),
         ...RESOURCES.map((r) =>
-          (window.api.kube
-            .get(env, r.resource, r.cluster ? { cluster: true } : nsOpts) as Promise<ListPayload>)
-            .catch(() => ({ items: [] as KubeItem[] }))
+          (
+            window.api.kube.get(
+              env,
+              r.resource,
+              r.cluster ? { cluster: true } : nsOpts
+            ) as Promise<ListPayload>
+          ).catch(() => ({ items: [] as KubeItem[] }))
         )
       ])
       const [clusterInfo, ...lists] = results
@@ -174,10 +178,7 @@ export default function EksDashboard({ tab, visible }: Props): React.JSX.Element
           >
             Namespace
           </button>
-          <button
-            className={view === 'node' ? 'active' : ''}
-            onClick={() => setView('node')}
-          >
+          <button className={view === 'node' ? 'active' : ''} onClick={() => setView('node')}>
             Node
           </button>
         </div>
@@ -203,9 +204,7 @@ export default function EksDashboard({ tab, visible }: Props): React.JSX.Element
 
       <div className="eks-main">
         <div className="eks-header">
-          <span className="eks-header-title">
-            {selection ? selection.name : cluster.cluster}
-          </span>
+          <span className="eks-header-title">{selection ? selection.name : cluster.cluster}</span>
           <select
             className="eks-ns-select"
             value={namespace}

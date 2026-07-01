@@ -14,7 +14,9 @@ import { initAi, reinitAi } from './ai'
 
 function createWindow(): void {
   const boundsRaw = kvGet('window.bounds')
-  const bounds = boundsRaw ? (JSON.parse(boundsRaw) as { x?: number; y?: number; width: number; height: number }) : null
+  const bounds = boundsRaw
+    ? (JSON.parse(boundsRaw) as { x?: number; y?: number; width: number; height: number })
+    : null
   const mainWindow = new BrowserWindow({
     width: bounds?.width ?? 1400,
     height: bounds?.height ?? 900,

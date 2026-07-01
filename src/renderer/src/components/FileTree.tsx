@@ -275,17 +275,50 @@ export default function FileTree({ root, onOpenFile, selectedPath }: Props): Rea
         >
           {(() => {
             const t = menu.target
-            const dirForCreate = t ? (t.isDir ? t.path : t.path.slice(0, t.path.length - t.name.length - 1)) : root
+            const dirForCreate = t
+              ? t.isDir
+                ? t.path
+                : t.path.slice(0, t.path.length - t.name.length - 1)
+              : root
             const close = (): void => setMenu(null)
             return (
               <>
-                <button onClick={() => { close(); beginCreate(dirForCreate, 'file') }}>New file</button>
-                <button onClick={() => { close(); beginCreate(dirForCreate, 'dir') }}>New folder</button>
+                <button
+                  onClick={() => {
+                    close()
+                    beginCreate(dirForCreate, 'file')
+                  }}
+                >
+                  New file
+                </button>
+                <button
+                  onClick={() => {
+                    close()
+                    beginCreate(dirForCreate, 'dir')
+                  }}
+                >
+                  New folder
+                </button>
                 {t && t.path !== root && (
                   <>
                     <div className="tree-menu-sep" />
-                    <button onClick={() => { close(); setRenaming(t.path) }}>Rename…</button>
-                    <button className="danger" onClick={() => { close(); void trash(t) }}>Delete</button>
+                    <button
+                      onClick={() => {
+                        close()
+                        setRenaming(t.path)
+                      }}
+                    >
+                      Rename…
+                    </button>
+                    <button
+                      className="danger"
+                      onClick={() => {
+                        close()
+                        void trash(t)
+                      }}
+                    >
+                      Delete
+                    </button>
                   </>
                 )}
               </>

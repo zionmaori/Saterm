@@ -17,7 +17,7 @@ export default function TerminalCopilot({ tab, onClose }: Props): React.JSX.Elem
     return {
       kind: 'terminal',
       hostName: host ? `${host.user}@${host.name}` : null,
-      cwd: tab.kind === 'local' ? tab.cwd ?? null : null,
+      cwd: tab.kind === 'local' ? (tab.cwd ?? null) : null,
       scrollback
     }
   }
@@ -28,9 +28,9 @@ export default function TerminalCopilot({ tab, onClose }: Props): React.JSX.Elem
 
   const subtitle =
     tab.kind === 'ssh'
-      ? hosts.find((h) => h.id === tab.hostId)?.name ?? 'ssh'
+      ? (hosts.find((h) => h.id === tab.hostId)?.name ?? 'ssh')
       : tab.kind === 'local'
-        ? tab.cwd ?? 'local'
+        ? (tab.cwd ?? 'local')
         : tab.title
 
   return (

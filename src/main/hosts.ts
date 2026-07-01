@@ -67,16 +67,12 @@ function replaceTags(hostId: number, tags: string[]): void {
 }
 
 export function listHosts(): Host[] {
-  const rows = getDb()
-    .prepare(`${SELECT_HOSTS} ORDER BY name COLLATE NOCASE`)
-    .all() as HostRow[]
+  const rows = getDb().prepare(`${SELECT_HOSTS} ORDER BY name COLLATE NOCASE`).all() as HostRow[]
   return rows.map(fromRow)
 }
 
 export function getHost(id: number): Host | null {
-  const row = getDb()
-    .prepare(`${SELECT_HOSTS} WHERE h.id = ?`)
-    .get(id) as HostRow | undefined
+  const row = getDb().prepare(`${SELECT_HOSTS} WHERE h.id = ?`).get(id) as HostRow | undefined
   return row ? fromRow(row) : null
 }
 
@@ -112,9 +108,7 @@ export function deleteHost(id: number): void {
 }
 
 export function findHostByName(name: string): Host | null {
-  const row = getDb()
-    .prepare(`${SELECT_HOSTS} WHERE h.name = ?`)
-    .get(name) as HostRow | undefined
+  const row = getDb().prepare(`${SELECT_HOSTS} WHERE h.name = ?`).get(name) as HostRow | undefined
   return row ? fromRow(row) : null
 }
 
@@ -229,7 +223,10 @@ export function dedupHostsByEndpoint(): number {
  *  app start when the schema_version bumps. */
 export function recategorizeAll(): number {
   const db = getDb()
-  const rows = db.prepare('SELECT id, hostname FROM hosts').all() as { id: number; hostname: string }[]
+  const rows = db.prepare('SELECT id, hostname FROM hosts').all() as {
+    id: number
+    hostname: string
+  }[]
   const upd = db.prepare('UPDATE hosts SET role = ?, env = ? WHERE id = ?')
   const tx = db.transaction((items: typeof rows) => {
     for (const r of items) {
@@ -263,9 +260,10 @@ export function listAllGroups(): GroupCount[] {
 
 export function listAllTags(): TagCount[] {
   const rows = getDb()
-    .prepare<[], { tag: string; count: number }>(
-      'SELECT tag, COUNT(*) as count FROM host_tags GROUP BY tag ORDER BY count DESC, tag COLLATE NOCASE'
-    )
+    .prepare<
+      [],
+      { tag: string; count: number }
+    >('SELECT tag, COUNT(*) as count FROM host_tags GROUP BY tag ORDER BY count DESC, tag COLLATE NOCASE')
     .all()
   return rows
 }

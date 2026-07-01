@@ -43,7 +43,7 @@ export default function EditorCopilot({
     kind: 'editor',
     projectRoot,
     filePath: filePath ?? '(no file)',
-    language: filePath ? languageFor(filePath) ?? null : null,
+    language: filePath ? (languageFor(filePath) ?? null) : null,
     fileContent,
     selection
   })
@@ -101,8 +101,7 @@ export default function EditorCopilot({
             />
           ) : (
             <div className="empty">
-              The diff didn't apply cleanly. Raw patch shown — copy and apply
-              manually if needed:
+              The diff didn't apply cleanly. Raw patch shown — copy and apply manually if needed:
               <pre
                 style={{
                   textAlign: 'left',
@@ -122,11 +121,7 @@ export default function EditorCopilot({
         <div className="chat-input-actions">
           <span className="chat-usage">{filePath.split('/').pop()}</span>
           <button onClick={() => setPending(null)}>Reject</button>
-          <button
-            className="primary"
-            onClick={accept}
-            disabled={pending.appliedText === null}
-          >
+          <button className="primary" onClick={accept} disabled={pending.appliedText === null}>
             Apply
           </button>
         </div>

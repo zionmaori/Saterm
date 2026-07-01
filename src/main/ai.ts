@@ -1,16 +1,23 @@
 import Anthropic, { APIError } from '@anthropic-ai/sdk'
 import OpenAI from 'openai'
-import { GoogleGenAI } from '@google/genai'
+import { GoogleGenAI, type Tool as GeminiTool } from '@google/genai'
 import { BrowserWindow } from 'electron'
 import { readFileSync } from 'fs'
 import { homedir } from 'os'
 import { join } from 'path'
 import { readEnv } from './shellEnv'
 import {
-  getAiApiKey, setAiApiKey, clearAiApiKey,
-  getAiAuthToken, setAiAuthToken, clearAiAuthToken,
-  getProviderKey, setProviderKey, clearProviderKey,
-  getActiveProvider, saveActiveProvider
+  getAiApiKey,
+  setAiApiKey,
+  clearAiApiKey,
+  getAiAuthToken,
+  setAiAuthToken,
+  clearAiAuthToken,
+  getProviderKey,
+  setProviderKey,
+  clearProviderKey,
+  getActiveProvider,
+  saveActiveProvider
 } from './keychain'
 import type {
   AiContext,
@@ -49,7 +56,7 @@ let geminiModel = 'gemini-2.0-flash'
 const DEFAULT_MODELS: Record<AiProvider, string> = {
   anthropic: 'claude-opus-4-8',
   openai: 'gpt-4o',
-  gemini: 'gemini-2.0-flash',
+  gemini: 'gemini-2.0-flash'
 }
 
 // ---- helpers ----------------------------------------------------------------
@@ -60,17 +67,23 @@ const send = (channel: string, payload: unknown): void => {
 
 function activeModel(): string {
   switch (activeProvider) {
-    case 'anthropic': return anthropicModel
-    case 'openai': return openAIModel
-    case 'gemini': return geminiModel
+    case 'anthropic':
+      return anthropicModel
+    case 'openai':
+      return openAIModel
+    case 'gemini':
+      return geminiModel
   }
 }
 
 function isAvailable(): boolean {
   switch (activeProvider) {
-    case 'anthropic': return anthropicClient !== null
-    case 'openai': return openAIClient !== null
-    case 'gemini': return geminiClient !== null
+    case 'anthropic':
+      return anthropicClient !== null
+    case 'openai':
+      return openAIClient !== null
+    case 'gemini':
+      return geminiClient !== null
   }
 }
 
@@ -86,7 +99,7 @@ function buildStatus(): AiStatus {
     provider: activeProvider,
     model: activeModel(),
     models: activeProvider === 'anthropic' ? anthropicTierModels : {},
-    configured,
+    configured
   }
 }
 
@@ -108,11 +121,15 @@ function parseCustomHeaders(raw: string | null): Record<string, string> {
 // ---- Anthropic init ---------------------------------------------------------
 
 function readAnthropicEnv(): {
-  apiKey: string | null; authToken: string | null
-  baseURL: string | null; customHeaders: Record<string, string>
+  apiKey: string | null
+  authToken: string | null
+  baseURL: string | null
+  customHeaders: Record<string, string>
 } {
   anthropicModel =
-    readEnv('ANTHROPIC_MODEL') ?? readEnv('ANTHROPIC_DEFAULT_OPUS_MODEL') ?? DEFAULT_MODELS.anthropic
+    readEnv('ANTHROPIC_MODEL') ??
+    readEnv('ANTHROPIC_DEFAULT_OPUS_MODEL') ??
+    DEFAULT_MODELS.anthropic
   anthropicTierModels = {}
   const opus = readEnv('ANTHROPIC_DEFAULT_OPUS_MODEL')
   const sonnet = readEnv('ANTHROPIC_DEFAULT_SONNET_MODEL')
@@ -124,13 +141,15 @@ function readAnthropicEnv(): {
     apiKey: readEnv('ANTHROPIC_API_KEY'),
     authToken: readEnv('ANTHROPIC_AUTH_TOKEN'),
     baseURL: readEnv('ANTHROPIC_BASE_URL'),
-    customHeaders: parseCustomHeaders(readEnv('ANTHROPIC_CUSTOM_HEADERS')),
+    customHeaders: parseCustomHeaders(readEnv('ANTHROPIC_CUSTOM_HEADERS'))
   }
 }
 
 function initAnthropicClient(opts: {
-  apiKey: string | null; authToken: string | null
-  baseURL: string | null; customHeaders: Record<string, string>
+  apiKey: string | null
+  authToken: string | null
+  baseURL: string | null
+  customHeaders: Record<string, string>
 }): boolean {
   if (!opts.apiKey && !opts.authToken) return false
   try {
@@ -210,11 +229,12 @@ export async function reinitAi(): Promise<AiStatus> {
   if (env.apiKey || env.authToken) initAnthropicClient(env)
 
   // OpenAI
-  const oaiEnv = readEnv('OPENAI_API_KEY') ?? await getProviderKey('openai')
+  const oaiEnv = readEnv('OPENAI_API_KEY') ?? (await getProviderKey('openai'))
   if (oaiEnv) initOpenAIClient(oaiEnv)
 
   // Gemini
-  const gemEnv = readEnv('GEMINI_API_KEY') ?? readEnv('GOOGLE_API_KEY') ?? await getProviderKey('gemini')
+  const gemEnv =
+    readEnv('GEMINI_API_KEY') ?? readEnv('GOOGLE_API_KEY') ?? (await getProviderKey('gemini'))
   if (gemEnv) initGeminiClient(gemEnv)
 
   if (!isAvailable()) {
@@ -231,7 +251,9 @@ export async function reinitAi(): Promise<AiStatus> {
 export async function signInWithApiKey(apiKey: string): Promise<AiStatus> {
   const trimmed = apiKey.trim()
   if (!trimmed.startsWith('sk-ant-')) {
-    throw new Error('Key should start with "sk-ant-". Generate one at console.anthropic.com/settings/keys.')
+    throw new Error(
+      'Key should start with "sk-ant-". Generate one at console.anthropic.com/settings/keys.'
+    )
   }
   const probe = new Anthropic({ apiKey: trimmed })
   try {
@@ -269,7 +291,10 @@ export async function signInWithClaudeCode(): Promise<AiStatus> {
   }
   const token = creds.claudeAiOauth?.accessToken
   const expiresAt = creds.claudeAiOauth?.expiresAt
-  if (!token) throw new Error('No access token in Claude Code credentials. Re-authenticate via the Claude CLI.')
+  if (!token)
+    throw new Error(
+      'No access token in Claude Code credentials. Re-authenticate via the Claude CLI.'
+    )
   if (expiresAt && Date.now() > expiresAt) {
     throw new Error('Claude Code session expired. Run `claude` in a terminal to refresh it.')
   }
@@ -318,9 +343,15 @@ export async function signOut(): Promise<AiStatus> {
   await clearAiAuthToken()
   await clearProviderKey(activeProvider)
   switch (activeProvider) {
-    case 'anthropic': anthropicClient = null; break
-    case 'openai': openAIClient = null; break
-    case 'gemini': geminiClient = null; break
+    case 'anthropic':
+      anthropicClient = null
+      break
+    case 'openai':
+      openAIClient = null
+      break
+    case 'gemini':
+      geminiClient = null
+      break
   }
   unavailableReason = `No credentials for ${activeProvider}. Sign in below.`
   return buildStatus()
@@ -367,11 +398,15 @@ Rules:
 const TOOLS_TERMINAL_ANTHROPIC: Anthropic.Messages.ToolUnion[] = [
   {
     name: 'propose_command',
-    description: 'Propose a shell command the user can review and run. The user sees the command in a card with an "Insert" button; nothing runs automatically.',
+    description:
+      'Propose a shell command the user can review and run. The user sees the command in a card with an "Insert" button; nothing runs automatically.',
     input_schema: {
       type: 'object',
       properties: {
-        command: { type: 'string', description: 'The full command, single line, ready to paste at the prompt.' },
+        command: {
+          type: 'string',
+          description: 'The full command, single line, ready to paste at the prompt.'
+        },
         why: { type: 'string', description: 'One sentence on what it does and why now.' }
       },
       required: ['command', 'why']
@@ -381,11 +416,16 @@ const TOOLS_TERMINAL_ANTHROPIC: Anthropic.Messages.ToolUnion[] = [
 const TOOLS_EDITOR_ANTHROPIC: Anthropic.Messages.ToolUnion[] = [
   {
     name: 'propose_edit',
-    description: 'Propose a code change to the current file as a unified diff. The user reviews it in a side-by-side diff editor before any write occurs.',
+    description:
+      'Propose a code change to the current file as a unified diff. The user reviews it in a side-by-side diff editor before any write occurs.',
     input_schema: {
       type: 'object',
       properties: {
-        unified_diff: { type: 'string', description: 'Standard unified diff with --- / +++ / @@ hunk headers. Use the absolute file path on both sides.' },
+        unified_diff: {
+          type: 'string',
+          description:
+            'Standard unified diff with --- / +++ / @@ hunk headers. Use the absolute file path on both sides.'
+        },
         summary: { type: 'string', description: 'One sentence describing what changed.' }
       },
       required: ['unified_diff', 'summary']
@@ -399,11 +439,15 @@ const TOOLS_TERMINAL_OPENAI: OpenAI.ChatCompletionTool[] = [
     type: 'function',
     function: {
       name: 'propose_command',
-      description: 'Propose a shell command the user can review and run. The user sees the command in a card with an "Insert" button; nothing runs automatically.',
+      description:
+        'Propose a shell command the user can review and run. The user sees the command in a card with an "Insert" button; nothing runs automatically.',
       parameters: {
         type: 'object',
         properties: {
-          command: { type: 'string', description: 'The full command, single line, ready to paste at the prompt.' },
+          command: {
+            type: 'string',
+            description: 'The full command, single line, ready to paste at the prompt.'
+          },
           why: { type: 'string', description: 'One sentence on what it does and why now.' }
         },
         required: ['command', 'why']
@@ -416,11 +460,15 @@ const TOOLS_EDITOR_OPENAI: OpenAI.ChatCompletionTool[] = [
     type: 'function',
     function: {
       name: 'propose_edit',
-      description: 'Propose a code change as a unified diff. The user reviews it in a side-by-side diff editor before any write occurs.',
+      description:
+        'Propose a code change as a unified diff. The user reviews it in a side-by-side diff editor before any write occurs.',
       parameters: {
         type: 'object',
         properties: {
-          unified_diff: { type: 'string', description: 'Standard unified diff with --- / +++ / @@ hunk headers.' },
+          unified_diff: {
+            type: 'string',
+            description: 'Standard unified diff with --- / +++ / @@ hunk headers.'
+          },
           summary: { type: 'string', description: 'One sentence describing what changed.' }
         },
         required: ['unified_diff', 'summary']
@@ -454,7 +502,10 @@ const TOOLS_EDITOR_GEMINI = {
       parameters: {
         type: 'OBJECT',
         properties: {
-          unified_diff: { type: 'STRING', description: 'Standard unified diff with --- / +++ / @@ hunk headers.' },
+          unified_diff: {
+            type: 'STRING',
+            description: 'Standard unified diff with --- / +++ / @@ hunk headers.'
+          },
           summary: { type: 'STRING', description: 'One sentence describing what changed.' }
         },
         required: ['unified_diff', 'summary']
@@ -478,7 +529,9 @@ function renderContext(ctx: AiContext): string {
   if (ctx.kind === 'terminal') {
     const where = ctx.hostName
       ? `SSH host: ${ctx.hostName}`
-      : ctx.cwd ? `Local shell, cwd: ${ctx.cwd}` : 'Local shell'
+      : ctx.cwd
+        ? `Local shell, cwd: ${ctx.cwd}`
+        : 'Local shell'
     return `<terminal_context>\n${where}\n\nRecent terminal output (most recent at the bottom):\n<scrollback>\n${ctx.scrollback || '(empty)'}\n</scrollback>\n</terminal_context>`
   }
   const sel = ctx.selection
@@ -490,7 +543,9 @@ function renderContext(ctx: AiContext): string {
 // ---- message format adapters ------------------------------------------------
 
 function toAnthropicMessages(
-  history: AiMessage[], ctx: AiContext, userText: string
+  history: AiMessage[],
+  ctx: AiContext,
+  userText: string
 ): Anthropic.Messages.MessageParam[] {
   const out: Anthropic.Messages.MessageParam[] = []
   let pendingToolUseIds: string[] = []
@@ -519,7 +574,12 @@ function toAnthropicMessages(
       const blocks: Anthropic.Messages.ContentBlockParam[] = m.blocks.map((b) =>
         b.type === 'text'
           ? { type: 'text' as const, text: b.text }
-          : { type: 'tool_use' as const, id: b.id, name: b.name, input: b.input as Record<string, unknown> }
+          : {
+              type: 'tool_use' as const,
+              id: b.id,
+              name: b.name,
+              input: b.input as Record<string, unknown>
+            }
       )
       if (blocks.length === 0) continue
       out.push({ role: 'assistant', content: blocks })
@@ -537,7 +597,9 @@ function toAnthropicMessages(
 }
 
 function toOpenAIMessages(
-  history: AiMessage[], ctx: AiContext, userText: string
+  history: AiMessage[],
+  ctx: AiContext,
+  userText: string
 ): OpenAI.ChatCompletionMessageParam[] {
   const out: OpenAI.ChatCompletionMessageParam[] = []
 
@@ -545,8 +607,11 @@ function toOpenAIMessages(
     if (m.role === 'user') {
       out.push({ role: 'user', content: m.text })
     } else {
-      const textContent = m.blocks.filter(b => b.type === 'text').map(b => b.text).join('')
-      const toolBlocks = m.blocks.filter(b => b.type === 'tool_use')
+      const textContent = m.blocks
+        .filter((b) => b.type === 'text')
+        .map((b) => b.text)
+        .join('')
+      const toolBlocks = m.blocks.filter((b) => b.type === 'tool_use')
 
       if (toolBlocks.length > 0) {
         out.push({
@@ -572,7 +637,9 @@ function toOpenAIMessages(
 }
 
 function toGeminiContents(
-  history: AiMessage[], ctx: AiContext, userText: string
+  history: AiMessage[],
+  ctx: AiContext,
+  userText: string
 ): { role: string; parts: unknown[] }[] {
   const out: { role: string; parts: unknown[] }[] = []
 
@@ -592,8 +659,10 @@ function toGeminiContents(
       out.push({ role: 'model', parts: [...parts, ...fnCallParts] })
 
       const fnResponses = m.blocks
-        .filter(b => b.type === 'tool_use')
-        .map(b => ({ functionResponse: { name: b.name, response: { result: syntheticToolResultText(b.name) } } }))
+        .filter((b) => b.type === 'tool_use')
+        .map((b) => ({
+          functionResponse: { name: b.name, response: { result: syntheticToolResultText(b.name) } }
+        }))
       if (fnResponses.length > 0) {
         out.push({ role: 'user', parts: fnResponses })
       }
@@ -621,7 +690,8 @@ function classifyError(err: unknown): AiErrorKind {
   if (err instanceof OpenAI.APIConnectionError) return 'network'
   // Gemini errors are plain Error objects
   const msg = err instanceof Error ? err.message.toLowerCase() : ''
-  if (msg.includes('api_key') || msg.includes('unauthorized') || msg.includes('permission')) return 'auth'
+  if (msg.includes('api_key') || msg.includes('unauthorized') || msg.includes('permission'))
+    return 'auth'
   if (msg.includes('quota') || msg.includes('rate')) return 'rate_limit'
   return 'other'
 }
@@ -632,7 +702,11 @@ const inflight = new Map<string, AbortController>()
 
 async function startStreamAnthropic(args: AiStreamArgs): Promise<void> {
   if (!anthropicClient) {
-    send('ai:error', { streamId: args.streamId, kind: 'config', message: unavailableReason ?? 'Anthropic not configured' } as AiErrorEvent)
+    send('ai:error', {
+      streamId: args.streamId,
+      kind: 'config',
+      message: unavailableReason ?? 'Anthropic not configured'
+    } as AiErrorEvent)
     return
   }
 
@@ -643,10 +717,16 @@ async function startStreamAnthropic(args: AiStreamArgs): Promise<void> {
   const tools = args.kind === 'terminal' ? TOOLS_TERMINAL_ANTHROPIC : TOOLS_EDITOR_ANTHROPIC
   const messages = toAnthropicMessages(args.history, args.context, args.userText)
 
-  const resolvedModel = (args.tier && anthropicTierModels[args.tier]) ? anthropicTierModels[args.tier]! : anthropicModel
+  const resolvedModel =
+    args.tier && anthropicTierModels[args.tier] ? anthropicTierModels[args.tier]! : anthropicModel
   send('ai:start', { streamId: args.streamId, model: resolvedModel } as AiStartEvent)
 
-  let usage: AiUsage = { inputTokens: 0, outputTokens: 0, cacheReadInputTokens: 0, cacheCreationInputTokens: 0 }
+  let usage: AiUsage = {
+    inputTokens: 0,
+    outputTokens: 0,
+    cacheReadInputTokens: 0,
+    cacheCreationInputTokens: 0
+  }
 
   try {
     const stream = anthropicClient.messages.stream(
@@ -670,12 +750,21 @@ async function startStreamAnthropic(args: AiStreamArgs): Promise<void> {
 
     stream.on('text', (delta) => {
       textBuf += delta
-      if (!flushTimer) flushTimer = setTimeout(() => { flushTimer = null; flush() }, 16)
+      if (!flushTimer)
+        flushTimer = setTimeout(() => {
+          flushTimer = null
+          flush()
+        }, 16)
     })
 
     stream.on('contentBlock', (block) => {
       if (block.type === 'tool_use') {
-        send('ai:tool_use', { streamId: args.streamId, id: block.id, name: block.name, input: block.input } as AiToolUseEvent)
+        send('ai:tool_use', {
+          streamId: args.streamId,
+          id: block.id,
+          name: block.name,
+          input: block.input
+        } as AiToolUseEvent)
       }
     })
 
@@ -687,14 +776,22 @@ async function startStreamAnthropic(args: AiStreamArgs): Promise<void> {
       inputTokens: final.usage.input_tokens ?? 0,
       outputTokens: final.usage.output_tokens ?? 0,
       cacheReadInputTokens: final.usage.cache_read_input_tokens ?? 0,
-      cacheCreationInputTokens: final.usage.cache_creation_input_tokens ?? 0,
+      cacheCreationInputTokens: final.usage.cache_creation_input_tokens ?? 0
     }
-    send('ai:done', { streamId: args.streamId, stopReason: final.stop_reason ?? null, usage } as AiDoneEvent)
+    send('ai:done', {
+      streamId: args.streamId,
+      stopReason: final.stop_reason ?? null,
+      usage
+    } as AiDoneEvent)
   } catch (err) {
     if (controller.signal.aborted) {
       send('ai:done', { streamId: args.streamId, stopReason: 'cancelled', usage } as AiDoneEvent)
     } else {
-      send('ai:error', { streamId: args.streamId, kind: classifyError(err), message: err instanceof Error ? err.message : String(err) } as AiErrorEvent)
+      send('ai:error', {
+        streamId: args.streamId,
+        kind: classifyError(err),
+        message: err instanceof Error ? err.message : String(err)
+      } as AiErrorEvent)
     }
   } finally {
     inflight.delete(args.streamId)
@@ -703,7 +800,11 @@ async function startStreamAnthropic(args: AiStreamArgs): Promise<void> {
 
 async function startStreamOpenAI(args: AiStreamArgs): Promise<void> {
   if (!openAIClient) {
-    send('ai:error', { streamId: args.streamId, kind: 'config', message: 'OpenAI not configured. Add an API key.' } as AiErrorEvent)
+    send('ai:error', {
+      streamId: args.streamId,
+      kind: 'config',
+      message: 'OpenAI not configured. Add an API key.'
+    } as AiErrorEvent)
     return
   }
 
@@ -716,7 +817,12 @@ async function startStreamOpenAI(args: AiStreamArgs): Promise<void> {
 
   send('ai:start', { streamId: args.streamId, model: openAIModel } as AiStartEvent)
 
-  let usage: AiUsage = { inputTokens: 0, outputTokens: 0, cacheReadInputTokens: 0, cacheCreationInputTokens: 0 }
+  let usage: AiUsage = {
+    inputTokens: 0,
+    outputTokens: 0,
+    cacheReadInputTokens: 0,
+    cacheCreationInputTokens: 0
+  }
   // accumulate tool call argument chunks: index → {id, name, args}
   const toolAccum = new Map<number, { id: string; name: string; args: string }>()
 
@@ -728,7 +834,7 @@ async function startStreamOpenAI(args: AiStreamArgs): Promise<void> {
         messages: [{ role: 'system', content: systemText }, ...messages],
         tools,
         stream: true,
-        stream_options: { include_usage: true },
+        stream_options: { include_usage: true }
       },
       { signal: controller.signal }
     )
@@ -747,7 +853,11 @@ async function startStreamOpenAI(args: AiStreamArgs): Promise<void> {
 
       if (delta?.content) {
         textBuf += delta.content
-        if (!flushTimer) flushTimer = setTimeout(() => { flushTimer = null; flush() }, 16)
+        if (!flushTimer)
+          flushTimer = setTimeout(() => {
+            flushTimer = null
+            flush()
+          }, 16)
       }
 
       if (delta?.tool_calls) {
@@ -765,7 +875,7 @@ async function startStreamOpenAI(args: AiStreamArgs): Promise<void> {
           inputTokens: chunk.usage.prompt_tokens ?? 0,
           outputTokens: chunk.usage.completion_tokens ?? 0,
           cacheReadInputTokens: 0,
-          cacheCreationInputTokens: 0,
+          cacheCreationInputTokens: 0
         }
       }
     }
@@ -775,8 +885,17 @@ async function startStreamOpenAI(args: AiStreamArgs): Promise<void> {
 
     for (const [, tc] of toolAccum) {
       let input: unknown = {}
-      try { input = JSON.parse(tc.args) } catch { /* leave as empty */ }
-      send('ai:tool_use', { streamId: args.streamId, id: tc.id, name: tc.name, input } as AiToolUseEvent)
+      try {
+        input = JSON.parse(tc.args)
+      } catch {
+        /* leave as empty */
+      }
+      send('ai:tool_use', {
+        streamId: args.streamId,
+        id: tc.id,
+        name: tc.name,
+        input
+      } as AiToolUseEvent)
     }
 
     const stopReason = toolAccum.size > 0 ? 'tool_use' : 'end_turn'
@@ -785,7 +904,11 @@ async function startStreamOpenAI(args: AiStreamArgs): Promise<void> {
     if (controller.signal.aborted) {
       send('ai:done', { streamId: args.streamId, stopReason: 'cancelled', usage } as AiDoneEvent)
     } else {
-      send('ai:error', { streamId: args.streamId, kind: classifyError(err), message: err instanceof Error ? err.message : String(err) } as AiErrorEvent)
+      send('ai:error', {
+        streamId: args.streamId,
+        kind: classifyError(err),
+        message: err instanceof Error ? err.message : String(err)
+      } as AiErrorEvent)
     }
   } finally {
     inflight.delete(args.streamId)
@@ -794,7 +917,11 @@ async function startStreamOpenAI(args: AiStreamArgs): Promise<void> {
 
 async function startStreamGemini(args: AiStreamArgs): Promise<void> {
   if (!geminiClient) {
-    send('ai:error', { streamId: args.streamId, kind: 'config', message: 'Gemini not configured. Add an API key.' } as AiErrorEvent)
+    send('ai:error', {
+      streamId: args.streamId,
+      kind: 'config',
+      message: 'Gemini not configured. Add an API key.'
+    } as AiErrorEvent)
     return
   }
 
@@ -807,16 +934,23 @@ async function startStreamGemini(args: AiStreamArgs): Promise<void> {
 
   send('ai:start', { streamId: args.streamId, model: geminiModel } as AiStartEvent)
 
-  let usage: AiUsage = { inputTokens: 0, outputTokens: 0, cacheReadInputTokens: 0, cacheCreationInputTokens: 0 }
+  let usage: AiUsage = {
+    inputTokens: 0,
+    outputTokens: 0,
+    cacheReadInputTokens: 0,
+    cacheCreationInputTokens: 0
+  }
 
   try {
     const stream = await geminiClient.models.generateContentStream({
       model: geminiModel,
-      contents: contents as Parameters<typeof geminiClient.models.generateContentStream>[0]['contents'],
+      contents: contents as Parameters<
+        typeof geminiClient.models.generateContentStream
+      >[0]['contents'],
       config: {
         systemInstruction: systemText,
-        tools: [tools as Parameters<typeof geminiClient.models.generateContentStream>[0]['config'] extends { tools?: infer T } ? T[0] : never],
-        maxOutputTokens: 16000,
+        tools: [tools as GeminiTool],
+        maxOutputTokens: 16000
       }
     })
 
@@ -838,7 +972,11 @@ async function startStreamGemini(args: AiStreamArgs): Promise<void> {
       const text = chunk.text
       if (text) {
         textBuf += text
-        if (!flushTimer) flushTimer = setTimeout(() => { flushTimer = null; flush() }, 16)
+        if (!flushTimer)
+          flushTimer = setTimeout(() => {
+            flushTimer = null
+            flush()
+          }, 16)
       }
 
       const fnCalls = chunk.functionCalls
@@ -860,7 +998,7 @@ async function startStreamGemini(args: AiStreamArgs): Promise<void> {
           inputTokens: meta.promptTokenCount ?? 0,
           outputTokens: meta.candidatesTokenCount ?? 0,
           cacheReadInputTokens: 0,
-          cacheCreationInputTokens: 0,
+          cacheCreationInputTokens: 0
         }
       }
     }
@@ -873,7 +1011,11 @@ async function startStreamGemini(args: AiStreamArgs): Promise<void> {
     if (controller.signal.aborted) {
       send('ai:done', { streamId: args.streamId, stopReason: 'cancelled', usage } as AiDoneEvent)
     } else {
-      send('ai:error', { streamId: args.streamId, kind: classifyError(err), message: err instanceof Error ? err.message : String(err) } as AiErrorEvent)
+      send('ai:error', {
+        streamId: args.streamId,
+        kind: classifyError(err),
+        message: err instanceof Error ? err.message : String(err)
+      } as AiErrorEvent)
     }
   } finally {
     inflight.delete(args.streamId)
@@ -882,9 +1024,12 @@ async function startStreamGemini(args: AiStreamArgs): Promise<void> {
 
 export async function startStream(args: AiStreamArgs): Promise<void> {
   switch (activeProvider) {
-    case 'anthropic': return startStreamAnthropic(args)
-    case 'openai': return startStreamOpenAI(args)
-    case 'gemini': return startStreamGemini(args)
+    case 'anthropic':
+      return startStreamAnthropic(args)
+    case 'openai':
+      return startStreamOpenAI(args)
+    case 'gemini':
+      return startStreamGemini(args)
   }
 }
 

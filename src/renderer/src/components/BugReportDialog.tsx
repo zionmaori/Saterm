@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useApp } from '../store/app'
 import type { BugTabContext } from '../../../shared/types'
 
@@ -22,9 +22,9 @@ export default function BugReportDialog({ onClose }: Props): React.JSX.Element {
 
   const baseCtx = useMemo<Omit<BugTabContext, 'appVersion' | 'platform'> | null>(() => {
     if (!activeTab) return null
-    const host = activeTab.hostId ? hosts.find((h) => h.id === activeTab.hostId) ?? null : null
+    const host = activeTab.hostId ? (hosts.find((h) => h.id === activeTab.hostId) ?? null) : null
     const project = activeTab.projectId
-      ? projects.find((p) => p.id === activeTab.projectId) ?? null
+      ? (projects.find((p) => p.id === activeTab.projectId) ?? null)
       : null
     return {
       kind: activeTab.kind,
@@ -34,19 +34,21 @@ export default function BugReportDialog({ onClose }: Props): React.JSX.Element {
     }
   }, [activeTab, hosts, projects])
 
+  const submitRef = useRef<() => Promise<void>>(async () => {})
+
   useEffect(() => {
     const onKey = (e: KeyboardEvent): void => {
       if (e.key === 'Escape') {
         onClose()
       } else if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
-        void submit()
+        void submitRef.current()
       }
     }
     document.addEventListener('keydown', onKey)
     return () => document.removeEventListener('keydown', onKey)
-  })
+  }, [onClose])
 
-  const submit = async (): Promise<void> => {
+  const submit = useCallback(async (): Promise<void> => {
     if (submitting) return
     const t = title.trim()
     const d = description.trim()
@@ -85,7 +87,11 @@ export default function BugReportDialog({ onClose }: Props): React.JSX.Element {
     } finally {
       setSubmitting(false)
     }
-  }
+  }, [submitting, title, description, includeContext, baseCtx, onClose])
+
+  useEffect(() => {
+    submitRef.current = submit
+  }, [submit])
 
   return (
     <div

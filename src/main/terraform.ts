@@ -199,7 +199,8 @@ export async function tfValidate(root: string): Promise<TfValidateResult> {
     return {
       ok: false,
       diagnostics: [],
-      stderr: 'Terraform CLI not found on PATH. Install with `brew install terraform` and reopen Termion.',
+      stderr:
+        'Terraform CLI not found on PATH. Install with `brew install terraform` and reopen Termion.',
       cliMissing: true
     }
   }

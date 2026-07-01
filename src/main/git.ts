@@ -33,7 +33,11 @@ export async function gitStatus(repoPath: string): Promise<GitStatus> {
   }
 }
 
-export async function gitDiffFile(repoPath: string, file: string, staged: boolean): Promise<string> {
+export async function gitDiffFile(
+  repoPath: string,
+  file: string,
+  staged: boolean
+): Promise<string> {
   const git = g(repoPath)
   const args = staged ? ['--cached', '--', file] : ['--', file]
   return git.diff(args)
@@ -99,7 +103,11 @@ export async function gitCheckout(repoPath: string, branch: string, create = fal
   await (create ? g(repoPath).checkoutLocalBranch(branch) : g(repoPath).checkout(branch))
 }
 
-export async function gitDeleteBranch(repoPath: string, branch: string, force = false): Promise<void> {
+export async function gitDeleteBranch(
+  repoPath: string,
+  branch: string,
+  force = false
+): Promise<void> {
   await g(repoPath).deleteLocalBranch(branch, force)
 }
 

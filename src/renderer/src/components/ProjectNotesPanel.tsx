@@ -17,9 +17,7 @@ export default function ProjectNotesPanel({ projectId }: Props): React.JSX.Eleme
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const savedFlashTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
-  const key = scope === 'project' && projectId != null
-    ? `project.notes:${projectId}`
-    : GLOBAL_KEY
+  const key = scope === 'project' && projectId != null ? `project.notes:${projectId}` : GLOBAL_KEY
 
   useEffect(() => {
     let cancelled = false
@@ -27,7 +25,9 @@ export default function ProjectNotesPanel({ projectId }: Props): React.JSX.Eleme
       if (cancelled) return
       setScope(s === 'project' && projectId != null ? 'project' : 'global')
     })
-    return () => { cancelled = true }
+    return () => {
+      cancelled = true
+    }
   }, [projectId])
 
   useEffect(() => {
@@ -66,7 +66,10 @@ export default function ProjectNotesPanel({ projectId }: Props): React.JSX.Eleme
   }
 
   return (
-    <div className="vcs-body" style={{ display: 'flex', flexDirection: 'column', minHeight: 0, flex: 1, padding: 0 }}>
+    <div
+      className="vcs-body"
+      style={{ display: 'flex', flexDirection: 'column', minHeight: 0, flex: 1, padding: 0 }}
+    >
       <div className="notes-scope">
         <button
           type="button"

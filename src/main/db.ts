@@ -92,13 +92,12 @@ function migrate(db: Database.Database): void {
 
       // Backfill tags from existing role/env/group.
       const rows = d
-        .prepare<[], { id: number; role: string; env: string; group: string | null }>(
-          'SELECT id, role, env, "group" as "group" FROM hosts'
-        )
+        .prepare<
+          [],
+          { id: number; role: string; env: string; group: string | null }
+        >('SELECT id, role, env, "group" as "group" FROM hosts')
         .all()
-      const insert = d.prepare(
-        'INSERT OR IGNORE INTO host_tags(host_id, tag) VALUES (?, ?)'
-      )
+      const insert = d.prepare('INSERT OR IGNORE INTO host_tags(host_id, tag) VALUES (?, ?)')
       for (const r of rows) {
         const tags = new Set<string>()
         if (r.role && r.role !== 'misc') tags.add(r.role)
@@ -132,7 +131,9 @@ export function kvGet(key: string): string | null {
 
 export function kvSet(key: string, value: string): void {
   getDb()
-    .prepare('INSERT INTO kv(key,value) VALUES(?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value')
+    .prepare(
+      'INSERT INTO kv(key,value) VALUES(?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value'
+    )
     .run(key, value)
 }
 
@@ -160,7 +161,9 @@ export function createSnippet(
 ): SnippetRow {
   const db = getDb()
   const info = db
-    .prepare('INSERT INTO snippets(title, body, host_filter, confirm_before_run) VALUES (?, ?, ?, ?)')
+    .prepare(
+      'INSERT INTO snippets(title, body, host_filter, confirm_before_run) VALUES (?, ?, ?, ?)'
+    )
     .run(title, body, hostFilter, confirmBeforeRun ? 1 : 0)
   return db
     .prepare('SELECT id, title, body, host_filter, confirm_before_run FROM snippets WHERE id = ?')

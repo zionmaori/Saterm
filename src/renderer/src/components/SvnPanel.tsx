@@ -138,10 +138,7 @@ export default function SvnPanel({ repoPath, onOpenLog }: Props): React.JSX.Elem
         >
           Changes
         </div>
-        <div
-          className={`vt ${view === 'history' ? 'active' : ''}`}
-          onClick={() => void openLog()}
-        >
+        <div className={`vt ${view === 'history' ? 'active' : ''}`} onClick={() => void openLog()}>
           History
         </div>
       </div>
@@ -164,11 +161,7 @@ export default function SvnPanel({ repoPath, onOpenLog }: Props): React.JSX.Elem
             {files.map((f) => {
               const badge = STATUS_BADGE[f.status] ?? f.status[0]?.toUpperCase() ?? '?'
               return (
-                <div
-                  key={f.path}
-                  className="vcs-file"
-                  onClick={() => setSelectedFile(f.path)}
-                >
+                <div key={f.path} className="vcs-file" onClick={() => setSelectedFile(f.path)}>
                   <input
                     type="checkbox"
                     checked={selected.has(f.path)}

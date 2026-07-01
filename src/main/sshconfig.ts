@@ -67,7 +67,7 @@ export async function parseSshConfig(): Promise<ResolvedHost[]> {
     const identityFileRaw = resolved.IdentityFile as string | string[] | undefined
     const identityFile = Array.isArray(identityFileRaw)
       ? identityFileRaw[0]
-      : identityFileRaw ?? null
+      : (identityFileRaw ?? null)
     const proxyJump = (resolved.ProxyJump as string | undefined) ?? null
     result.push({
       name,

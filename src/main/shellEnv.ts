@@ -55,7 +55,7 @@ function loadWindowsEnv(): Record<string, string> {
   // We DO want $PROFILE to run, so omit -NoProfile. The script dumps env vars
   // as "KEY=value" lines joined by NUL so newline values can't corrupt parse.
   const script =
-    "Get-ChildItem env: | ForEach-Object { \"$($_.Name)=$($_.Value)\" } | Join-String -Separator [char]0 | Write-Output"
+    'Get-ChildItem env: | ForEach-Object { "$($_.Name)=$($_.Value)" } | Join-String -Separator [char]0 | Write-Output'
   for (const exe of ['pwsh.exe', 'powershell.exe']) {
     try {
       const res = spawnSync(exe, ['-NoLogo', '-Command', script], {

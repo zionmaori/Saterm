@@ -1168,11 +1168,8 @@
   flex: 1 1 auto;
 }
 
-.project .vcs-pane-notes {
-  /* No border — the splitter between Git and Notes is a 1px hairline that
-     serves as the divider. Avoids a 6px empty gap between the two panes. */
-}
-
+/* .vcs-pane-notes needs no border — the .splitter-vertical below is a 1px
+   hairline that visually separates Git from Notes without adding a 6px gap. */
 .project .vcs-panel > .splitter-vertical {
   flex: 0 0 1px;
   height: 1px;
@@ -1244,9 +1241,9 @@
   color: var(--text-dim);
   border: 1px solid var(--border);
 }
-.tf-status-run { color: #d97706; border-color: #d97706; }
+.tf-status-run { color: var(--yellow); border-color: var(--yellow); }
 .tf-status-ok  { color: var(--accent); border-color: var(--accent); }
-.tf-status-err { color: #ef4444; border-color: #ef4444; }
+.tf-status-err { color: var(--danger); border-color: var(--danger); }
 
 .tf-note,
 .tf-error,
@@ -1255,7 +1252,7 @@
   font-size: 12px;
   color: var(--text-dim);
 }
-.tf-error { color: #ef4444; }
+.tf-error { color: var(--danger); }
 
 .tf-section {
   border-bottom: 1px solid var(--border);
@@ -1295,9 +1292,9 @@
   border: 1px solid var(--border);
 }
 .tf-pill-ok    { color: var(--accent); border-color: var(--accent); }
-.tf-pill-warn  { color: #d97706; border-color: #d97706; }
-.tf-pill-err   { color: #ef4444; border-color: #ef4444; }
-.tf-pill-stream { color: #d97706; border-color: #d97706; margin-left: 6px; }
+.tf-pill-warn  { color: var(--yellow); border-color: var(--yellow); }
+.tf-pill-err   { color: var(--danger); border-color: var(--danger); }
+.tf-pill-stream { color: var(--yellow); border-color: var(--yellow); margin-left: 6px; }
 
 .tf-diag {
   display: flex;
@@ -1332,8 +1329,8 @@
   white-space: pre-wrap;
   word-break: break-word;
 }
-.tf-diag-err > svg { color: #ef4444; flex-shrink: 0; margin-top: 2px; }
-.tf-diag-warn > svg { color: #d97706; flex-shrink: 0; margin-top: 2px; }
+.tf-diag-err > svg { color: var(--danger); flex-shrink: 0; margin-top: 2px; }
+.tf-diag-warn > svg { color: var(--yellow); flex-shrink: 0; margin-top: 2px; }
 .tf-diag-ok > svg { color: var(--accent); flex-shrink: 0; margin-top: 2px; }
 
 .tf-markdown {
@@ -2213,13 +2210,9 @@
   font-size: 12px;
   border-radius: 4px;
   margin: 0 12px 8px;
-  background: rgba(248, 81, 73, 0.1);
+  background: var(--danger-soft);
   border: 1px solid var(--danger);
   color: var(--text);
-}
-
-.chat-banner.danger {
-  border-color: var(--danger);
 }
 
 .ai-signin {
@@ -2353,7 +2346,7 @@
 }
 
 .ai-provider-tab.active {
-  background: var(--bg-base);
+  background: var(--bg);
   color: var(--text);
   box-shadow: 0 1px 3px rgba(0,0,0,0.15);
 }
@@ -2719,7 +2712,7 @@
 }
 
 .eks-nav.active {
-  background: var(--accent-bg, rgba(99, 102, 241, 0.15));
+  background: var(--accent-soft);
   color: var(--text);
 }
 
@@ -2805,7 +2798,7 @@
 }
 
 .eks-error {
-  color: #ef4444;
+  color: var(--danger);
   display: flex;
   align-items: center;
   gap: 6px;
@@ -2890,13 +2883,13 @@
 }
 
 .eks-pill-warn {
-  color: #d97706;
-  border-color: #d97706;
+  color: var(--yellow);
+  border-color: var(--yellow);
 }
 
 .eks-pill-err {
-  color: #ef4444;
-  border-color: #ef4444;
+  color: var(--danger);
+  border-color: var(--danger);
 }
 
 .eks-overview {
@@ -2940,11 +2933,11 @@
 }
 
 .eks-card-warn {
-  border-color: #d97706;
+  border-color: var(--yellow);
 }
 
 .eks-card-err {
-  border-color: #ef4444;
+  border-color: var(--danger);
 }
 
 .eks-detail-list {
@@ -3027,7 +3020,7 @@
 }
 
 .eks-view-toggle button.active {
-  background: var(--accent-bg, rgba(99, 102, 241, 0.15));
+  background: var(--accent-soft);
   color: var(--text);
   border-color: var(--border);
 }
@@ -3061,7 +3054,7 @@
 }
 
 .eks-tree-row.selected {
-  background: var(--accent-bg, rgba(99, 102, 241, 0.18));
+  background: var(--accent-soft);
   color: var(--text);
 }
 
@@ -3120,11 +3113,11 @@
 }
 
 .eks-tree-status-warn {
-  background: #d97706;
+  background: var(--yellow);
 }
 
 .eks-tree-status-err {
-  background: #ef4444;
+  background: var(--danger);
 }
 
 /* ─── Details pane ─── */

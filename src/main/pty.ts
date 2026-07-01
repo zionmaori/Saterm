@@ -3,7 +3,13 @@ import { BrowserWindow } from 'electron'
 import { homedir } from 'os'
 import { existsSync } from 'fs'
 import { execSync } from 'child_process'
-import type { PtySpawnArgs, SessionId, ShellOption, TermDataEvent, TermExitEvent } from '../shared/types'
+import type {
+  PtySpawnArgs,
+  SessionId,
+  ShellOption,
+  TermDataEvent,
+  TermExitEvent
+} from '../shared/types'
 
 interface Session {
   pty: IPty
@@ -64,7 +70,9 @@ export function detectShells(): ShellOption[] {
   try {
     const pwsh = execSync('where pwsh', { encoding: 'utf8', timeout: 2000 }).split('\n')[0].trim()
     if (pwsh && existsSync(pwsh)) shells.push({ label: 'PowerShell 7 (pwsh)', path: pwsh })
-  } catch { /* not installed */ }
+  } catch {
+    /* not installed */
+  }
 
   // Windows PowerShell 5
   const ps5 = `${process.env.SystemRoot ?? 'C:\\Windows'}\\System32\\WindowsPowerShell\\v1.0\\powershell.exe`
@@ -127,7 +135,9 @@ export function spawnPty(args: PtySpawnArgs): void {
     useConpty: isWindows ? true : undefined
   } as Parameters<typeof spawn>[2])
   sessions.set(args.sessionId, { pty })
-  pty.onData((data) => send('term:data', { sessionId: args.sessionId, data } satisfies TermDataEvent))
+  pty.onData((data) =>
+    send('term:data', { sessionId: args.sessionId, data } satisfies TermDataEvent)
+  )
   pty.onExit(({ exitCode, signal }) => {
     sessions.delete(args.sessionId)
     send('term:exit', {
@@ -151,7 +161,9 @@ export function closePty(sessionId: SessionId): void {
   if (!s) return
   try {
     s.pty.kill()
-  } catch { /* noop */ }
+  } catch {
+    /* noop */
+  }
   sessions.delete(sessionId)
 }
 

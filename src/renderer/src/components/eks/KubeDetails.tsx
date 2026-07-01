@@ -43,7 +43,11 @@ export default function KubeDetails({
       return <NamespacesTable items={bundle.namespaces} filter={filter} />
     case 'node':
       return selection.item ? (
-        <NodeDetails node={selection.item} pods={podsForNode(bundle, selection.item)} onOpen={onNavigate} />
+        <NodeDetails
+          node={selection.item}
+          pods={podsForNode(bundle, selection.item)}
+          onOpen={onNavigate}
+        />
       ) : (
         <div className="eks-note">Missing node data.</div>
       )
@@ -106,9 +110,7 @@ export default function KubeDetails({
     }
     case 'secretsFolder': {
       const ns = selection.namespace
-      const items = ns
-        ? bundle.secrets.filter((s) => s.metadata?.namespace === ns)
-        : bundle.secrets
+      const items = ns ? bundle.secrets.filter((s) => s.metadata?.namespace === ns) : bundle.secrets
       return (
         <SecretsTable
           items={items}
@@ -142,17 +144,17 @@ export default function KubeDetails({
     }
     case 'deployment':
       return selection.item ? (
-        <DeploymentDetails
-          dep={selection.item}
-          bundle={bundle}
-          onOpen={onNavigate}
-        />
+        <DeploymentDetails dep={selection.item} bundle={bundle} onOpen={onNavigate} />
       ) : (
         <div className="eks-note">Missing data.</div>
       )
     case 'replicaset':
       return selection.item ? (
-        <ReplicaSetDetails rs={selection.item} pods={selection.children ?? []} onOpen={onNavigate} />
+        <ReplicaSetDetails
+          rs={selection.item}
+          pods={selection.children ?? []}
+          onOpen={onNavigate}
+        />
       ) : (
         <div className="eks-note">Missing data.</div>
       )
@@ -187,13 +189,7 @@ export default function KubeDetails({
         <div className="eks-note">Missing data.</div>
       )
     case 'eventsFolder':
-      return (
-        <EventsPanel
-          state={eventsState}
-          onLoad={onLoadEvents}
-          filter={filter}
-        />
-      )
+      return <EventsPanel state={eventsState} onLoad={onLoadEvents} filter={filter} />
     default:
       return <div className="eks-note">Select a node to see details.</div>
   }
@@ -201,9 +197,7 @@ export default function KubeDetails({
 
 function podsForNode(bundle: KubeBundle, node: KubeItem): KubeItem[] {
   const name = node.metadata?.name ?? ''
-  return bundle.pods.filter(
-    (p) => (p.spec as { nodeName?: string } | undefined)?.nodeName === name
-  )
+  return bundle.pods.filter((p) => (p.spec as { nodeName?: string } | undefined)?.nodeName === name)
 }
 
 function DetailsHeader({
@@ -239,13 +233,7 @@ function Section({
   )
 }
 
-function KV({
-  label,
-  children
-}: {
-  label: string
-  children: React.ReactNode
-}): React.JSX.Element {
+function KV({ label, children }: { label: string; children: React.ReactNode }): React.JSX.Element {
   return (
     <div className="eks-kv-row">
       <div className="eks-kv-label">{label}</div>
@@ -408,9 +396,7 @@ function NodeDetails({
       .map((k) => k.replace('node-role.kubernetes.io/', ''))
       .join(', ') || 'worker'
   const instance =
-    labels['node.kubernetes.io/instance-type'] ||
-    labels['beta.kubernetes.io/instance-type'] ||
-    '—'
+    labels['node.kubernetes.io/instance-type'] || labels['beta.kubernetes.io/instance-type'] || '—'
   const zone =
     labels['topology.kubernetes.io/zone'] || labels['failure-domain.beta.kubernetes.io/zone'] || '—'
   const cap = status?.capacity ?? {}
@@ -419,8 +405,8 @@ function NodeDetails({
   const internalIp = addrs.find((a) => a.type === 'InternalIP')?.address ?? '—'
   const externalIp = addrs.find((a) => a.type === 'ExternalIP')?.address
   const taints =
-    ((node.spec as { taints?: Array<{ key?: string; value?: string; effect?: string }> } | undefined)
-      ?.taints) ?? []
+    (node.spec as { taints?: Array<{ key?: string; value?: string; effect?: string }> } | undefined)
+      ?.taints ?? []
 
   return (
     <div className="eks-details">
@@ -475,9 +461,7 @@ function NodeDetails({
           items={pods}
           filter=""
           onSelect={(p) =>
-            onOpen(
-              `node/${node.metadata?.name}/pods/${p.metadata?.namespace}/${p.metadata?.name}`
-            )
+            onOpen(`node/${node.metadata?.name}/pods/${p.metadata?.namespace}/${p.metadata?.name}`)
           }
         />
       </Section>
@@ -498,8 +482,7 @@ function NamespaceDetails({
   bundle: KubeBundle
   onNavigate: (id: string) => void
 }): React.JSX.Element {
-  const count = (arr: KubeItem[]): number =>
-    arr.filter((x) => x.metadata?.namespace === ns).length
+  const count = (arr: KubeItem[]): number => arr.filter((x) => x.metadata?.namespace === ns).length
   return (
     <div className="eks-details">
       <DetailsHeader title={ns} subtitle="namespace" />
@@ -643,7 +626,8 @@ function DeploymentDetails({
       <Section label={`ReplicaSets (${ownedRs.length})`}>
         <ul className="eks-plain-list">
           {ownedRs.map((rs) => {
-            const rsSt = (rs.status as { readyReplicas?: number; replicas?: number } | undefined) ?? {}
+            const rsSt =
+              (rs.status as { readyReplicas?: number; replicas?: number } | undefined) ?? {}
             const line = `${rs.metadata?.name ?? ''} — ${rsSt.readyReplicas ?? 0}/${rsSt.replicas ?? 0}`
             return (
               <li key={rs.metadata?.uid ?? rs.metadata?.name}>
@@ -1103,9 +1087,7 @@ function ConfigMapDetails({ cm }: { cm: KubeItem }): React.JSX.Element {
                 <span className="eks-mono">{k}</span>
                 <span className="eks-cm-size">{value.length} chars</span>
               </button>
-              {isOpen && (
-                <pre className="eks-cm-value">{value}</pre>
-              )}
+              {isOpen && <pre className="eks-cm-value">{value}</pre>}
             </div>
           )
         })}
@@ -1173,8 +1155,7 @@ function EventsPanel({
   onLoad: () => void
   filter: string
 }): React.JSX.Element {
-  if (state.loading && !state.items)
-    return <div className="eks-note">Loading events…</div>
+  if (state.loading && !state.items) return <div className="eks-note">Loading events…</div>
   if (state.error)
     return (
       <div className="eks-error">

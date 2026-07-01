@@ -83,7 +83,11 @@ export async function svnDiff(repoPath: string, file?: string): Promise<string> 
   return r.stdout
 }
 
-export async function svnCommit(repoPath: string, message: string, files: string[]): Promise<string> {
+export async function svnCommit(
+  repoPath: string,
+  message: string,
+  files: string[]
+): Promise<string> {
   const args = ['commit', '-m', message, ...(files.length ? ['--', ...files] : [])]
   return runOk(args, repoPath)
 }

@@ -127,14 +127,10 @@ export default function KubeTree({
             <KindIcon kind={n.kind} open={isOpen} />
           </span>
           <span className="eks-tree-name">{n.name}</span>
-          {typeof n.count === 'number' && (
-            <span className="eks-tree-count">{n.count}</span>
-          )}
+          {typeof n.count === 'number' && <span className="eks-tree-count">{n.count}</span>}
           {n.status && <span className={`eks-tree-status eks-tree-status-${n.status}`} />}
         </div>
-        {isOpen && hasChildren && (
-          <div>{n.children!.map((c) => renderNode(c, depth + 1))}</div>
-        )}
+        {isOpen && hasChildren && <div>{n.children!.map((c) => renderNode(c, depth + 1))}</div>}
       </div>
     )
   }

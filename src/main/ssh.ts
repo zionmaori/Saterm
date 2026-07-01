@@ -21,7 +21,10 @@ interface Session {
 }
 
 const sessions = new Map<SessionId, Session>()
-const pendingPrompts = new Map<SessionId, (reply: { secret: string | null; remember: boolean }) => void>()
+const pendingPrompts = new Map<
+  SessionId,
+  (reply: { secret: string | null; remember: boolean }) => void
+>()
 
 const send = (event: string, payload: unknown): void => {
   for (const win of BrowserWindow.getAllWindows()) win.webContents.send(event, payload)
@@ -95,7 +98,11 @@ function askSecret(
   })
 }
 
-export function resolveAuthPrompt(sessionId: SessionId, secret: string | null, remember: boolean): void {
+export function resolveAuthPrompt(
+  sessionId: SessionId,
+  secret: string | null,
+  remember: boolean
+): void {
   const r = pendingPrompts.get(sessionId)
   if (r) r({ secret, remember })
 }
@@ -166,7 +173,12 @@ export async function connectSsh(args: SshConnectArgs): Promise<void> {
       savedPassword = null
       return s
     }
-    const r = await askSecret(sessionId, host.id, 'password', `Password for ${host.user}@${host.name}`)
+    const r = await askSecret(
+      sessionId,
+      host.id,
+      'password',
+      `Password for ${host.user}@${host.name}`
+    )
     if (r.secret && r.remember) await setSshSecret(host.id, 'password', r.secret)
     return r.secret ?? undefined
   }
@@ -230,13 +242,17 @@ export async function connectSsh(args: SshConnectArgs): Promise<void> {
       if (err.level !== 'client-authentication') {
         try {
           client.destroy()
-        } catch { /* noop */ }
+        } catch {
+          /* noop */
+        }
         reject(err)
         return
       }
       try {
         client.destroy()
-      } catch { /* noop */ }
+      } catch {
+        /* noop */
+      }
 
       let pwd: string | undefined
       try {
@@ -255,7 +271,9 @@ export async function connectSsh(args: SshConnectArgs): Promise<void> {
       retry.once('error', (rerr: Error & { level?: string }) => {
         try {
           retry.destroy()
-        } catch { /* noop */ }
+        } catch {
+          /* noop */
+        }
         const msg =
           rerr.level === 'client-authentication'
             ? 'Authentication failed: wrong password.'
@@ -279,9 +297,8 @@ async function attachShell(
   jumpClient?: Client
 ): Promise<void> {
   const channel: ClientChannel = await new Promise((resolve, reject) => {
-    client.shell(
-      { term: 'xterm-256color', cols: args.cols, rows: args.rows },
-      (err, stream) => (err ? reject(err) : resolve(stream))
+    client.shell({ term: 'xterm-256color', cols: args.cols, rows: args.rows }, (err, stream) =>
+      err ? reject(err) : resolve(stream)
     )
   })
   sessions.set(sessionId, { client, channel, hostId: args.hostId })
@@ -292,11 +309,15 @@ async function attachShell(
     emitExit({ sessionId, code: null, signal: null })
     try {
       client.end()
-    } catch { /* noop */ }
+    } catch {
+      /* noop */
+    }
     if (jumpClient) {
       try {
         jumpClient.end()
-      } catch { /* noop */ }
+      } catch {
+        /* noop */
+      }
     }
   })
   client.on('error', (err) => emitData(sessionId, `\r\n[ssh error] ${err.message}\r\n`))
@@ -319,10 +340,14 @@ export function closeSsh(sessionId: SessionId): void {
   if (!s) return
   try {
     s.channel.close()
-  } catch { /* noop */ }
+  } catch {
+    /* noop */
+  }
   try {
     s.client.end()
-  } catch { /* noop */ }
+  } catch {
+    /* noop */
+  }
   sessions.delete(sessionId)
 }
 

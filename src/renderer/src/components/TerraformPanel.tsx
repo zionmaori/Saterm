@@ -1,7 +1,14 @@
 import { useEffect, useMemo, useState } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
-import { AlertTriangle, CheckCircle2, ChevronDown, ChevronRight, RefreshCw, XCircle } from 'lucide-react'
+import {
+  AlertTriangle,
+  CheckCircle2,
+  ChevronDown,
+  ChevronRight,
+  RefreshCw,
+  XCircle
+} from 'lucide-react'
 import { useApp } from '../store/app'
 import { useAi } from '../store/ai'
 import type { TfDiagnostic } from '../../../shared/types'
@@ -77,7 +84,8 @@ export default function TerraformPanel({ projectId, repoPath, visible }: Props):
 
       {!aiStatus?.available && (
         <div className="tf-note">
-          AI is not configured. Sign in via the AI sidebar to enable analysis. Validate output still works.
+          AI is not configured. Sign in via the AI sidebar to enable analysis. Validate output still
+          works.
         </div>
       )}
 
@@ -108,20 +116,20 @@ export default function TerraformPanel({ projectId, repoPath, visible }: Props):
                 <div className="tf-diag tf-diag-warn">
                   <AlertTriangle size={12} />
                   <div className="tf-diag-body">
-                    <div className="tf-diag-summary">{validate.stderr || 'Terraform CLI not found.'}</div>
+                    <div className="tf-diag-summary">
+                      {validate.stderr || 'Terraform CLI not found.'}
+                    </div>
                   </div>
                 </div>
               )}
-              {!validate.cliMissing &&
-                validate.diagnostics.length === 0 &&
-                !validate.stderr && (
-                  <div className="tf-diag tf-diag-ok">
-                    <CheckCircle2 size={12} />
-                    <div className="tf-diag-body">
-                      <div className="tf-diag-summary">No issues from `terraform validate`.</div>
-                    </div>
+              {!validate.cliMissing && validate.diagnostics.length === 0 && !validate.stderr && (
+                <div className="tf-diag tf-diag-ok">
+                  <CheckCircle2 size={12} />
+                  <div className="tf-diag-body">
+                    <div className="tf-diag-summary">No issues from `terraform validate`.</div>
                   </div>
-                )}
+                </div>
+              )}
               {!validate.cliMissing && validate.stderr && validate.diagnostics.length === 0 && (
                 <div className="tf-diag tf-diag-warn">
                   <AlertTriangle size={12} />
@@ -139,17 +147,16 @@ export default function TerraformPanel({ projectId, repoPath, visible }: Props):
         </div>
       )}
 
-      <div className="tf-section" style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
+      <div
+        className="tf-section"
+        style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}
+      >
         <div className="tf-section-header tf-static">
           <span>AI analysis</span>
           {isStreaming && <span className="tf-pill tf-pill-stream">streaming…</span>}
         </div>
         <div className="tf-section-body tf-markdown">
-          {aiError && (
-            <div className="tf-error">
-              {aiError.message}
-            </div>
-          )}
+          {aiError && <div className="tf-error">{aiError.message}</div>}
           {!markdown && !aiError && (
             <div className="tf-empty">
               {!aiStatus?.available
@@ -178,7 +185,8 @@ function StatusPill({
   isStreaming: boolean
 }): React.JSX.Element {
   if (!run || run.status === 'idle') return <span className="tf-status">idle</span>
-  if (run.status === 'running' || isStreaming) return <span className="tf-status tf-status-run">running</span>
+  if (run.status === 'running' || isStreaming)
+    return <span className="tf-status tf-status-run">running</span>
   if (run.status === 'error') return <span className="tf-status tf-status-err">error</span>
   return <span className="tf-status tf-status-ok">done</span>
 }

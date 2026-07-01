@@ -33,7 +33,9 @@ export default function App(): React.JSX.Element {
   const [paletteOpen, setPaletteOpen] = useState(false)
   const [quickOpenOpen, setQuickOpenOpen] = useState(false)
   const [terminalCopilotOpen, setTerminalCopilotOpen] = useState(false)
-  const [sidebarOpen, setSidebarOpen] = useState(() => readLS('sidebarOpen', 'true') !== 'false')
+  const [sidebarOpen, setSidebarOpen] = useState(
+    () => readLS<string>('sidebarOpen', 'true') !== 'false'
+  )
   const [theme, setTheme] = useState<Theme>(() => readLS<Theme>('theme', 'dark'))
   const [helpOpen, setHelpOpen] = useState(false)
 

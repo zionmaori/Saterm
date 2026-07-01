@@ -21,7 +21,10 @@ const DANGEROUS_PATTERNS: { re: RegExp; reason: string }[] = [
   { re: /\bsetuid\b/, reason: 'Sets uid' },
 
   // recursive / forced deletion
-  { re: /\brm\s+(-[a-zA-Z]*[rRf][a-zA-Z]*\s|[^|;]*--recursive|[^|;]*--force)/, reason: 'rm -rf style recursive/forced delete' },
+  {
+    re: /\brm\s+(-[a-zA-Z]*[rRf][a-zA-Z]*\s|[^|;]*--recursive|[^|;]*--force)/,
+    reason: 'rm -rf style recursive/forced delete'
+  },
   { re: /\brm\s+-[a-zA-Z]*\s+\/(\s|$)/, reason: 'rm against /' },
   { re: /\brmdir\s+--ignore-fail/, reason: 'rmdir ignoring failures' },
   { re: /\bfind\b.*-delete\b/, reason: 'find ... -delete' },
@@ -43,17 +46,29 @@ const DANGEROUS_PATTERNS: { re: RegExp; reason: string }[] = [
   { re: /\bsystemctl\s+(stop|disable|mask)\b/, reason: 'systemctl stop/disable' },
 
   // package / kernel
-  { re: /\b(apt|apt-get|yum|dnf|brew|pacman|zypper)\s+(remove|purge|autoremove)/, reason: 'package removal' },
+  {
+    re: /\b(apt|apt-get|yum|dnf|brew|pacman|zypper)\s+(remove|purge|autoremove)/,
+    reason: 'package removal'
+  },
   { re: /\b(modprobe|insmod|rmmod)\b/, reason: 'kernel module manipulation' },
 
   // remote pipe-to-shell — running arbitrary code from the internet
-  { re: /\bcurl\b[^|;]*\|\s*(sudo\s+)?(sh|bash|zsh|fish)/, reason: 'curl | sh (executes remote script)' },
-  { re: /\bwget\b[^|;]*\|\s*(sudo\s+)?(sh|bash|zsh|fish)/, reason: 'wget | sh (executes remote script)' },
+  {
+    re: /\bcurl\b[^|;]*\|\s*(sudo\s+)?(sh|bash|zsh|fish)/,
+    reason: 'curl | sh (executes remote script)'
+  },
+  {
+    re: /\bwget\b[^|;]*\|\s*(sudo\s+)?(sh|bash|zsh|fish)/,
+    reason: 'wget | sh (executes remote script)'
+  },
   { re: /\bwget\b.*-O-/, reason: 'wget -O- (often piped to shell)' },
 
   // version control destruction
   { re: /\bgit\s+push\s+(-f|--force)/, reason: 'git force-push' },
-  { re: /\bgit\s+push\b.*(--force-with-lease)?.*\b(main|master|prod|production)\b/, reason: 'push to protected branch' },
+  {
+    re: /\bgit\s+push\b.*(--force-with-lease)?.*\b(main|master|prod|production)\b/,
+    reason: 'push to protected branch'
+  },
   { re: /\bgit\s+reset\s+--hard\b/, reason: 'git reset --hard' },
   { re: /\bgit\s+clean\s+-[a-z]*f/, reason: 'git clean -f' },
   { re: /\bgit\s+branch\s+-D\b/, reason: 'git branch -D (force delete)' },
@@ -68,7 +83,10 @@ const DANGEROUS_PATTERNS: { re: RegExp; reason: string }[] = [
   { re: /\bchown\s+-R\b.*\/(\s|$)/, reason: 'recursive chown of /' },
 
   // remote infra
-  { re: /\b(terraform|tf)\s+(destroy|apply)\b.*\b(prod|production)/, reason: 'terraform destroy/apply against prod' },
+  {
+    re: /\b(terraform|tf)\s+(destroy|apply)\b.*\b(prod|production)/,
+    reason: 'terraform destroy/apply against prod'
+  },
   { re: /\bkubectl\s+delete\b/, reason: 'kubectl delete' },
   { re: /\baws\s+\S+\s+delete/, reason: 'aws delete' },
   { re: /\bgcloud\s+\S+\s+delete/, reason: 'gcloud delete' },

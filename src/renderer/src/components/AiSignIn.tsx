@@ -6,25 +6,25 @@ import type { AiProvider } from '../../../shared/types'
 const PROVIDER_LABELS: Record<AiProvider, string> = {
   anthropic: 'Claude',
   openai: 'OpenAI',
-  gemini: 'Gemini',
+  gemini: 'Gemini'
 }
 
 const PROVIDER_CONSOLE_URL: Record<AiProvider, string> = {
   anthropic: 'https://console.anthropic.com/settings/keys',
   openai: 'https://platform.openai.com/api-keys',
-  gemini: 'https://aistudio.google.com/app/apikey',
+  gemini: 'https://aistudio.google.com/app/apikey'
 }
 
 const PROVIDER_KEY_PLACEHOLDER: Record<AiProvider, string> = {
   anthropic: 'sk-ant-...',
   openai: 'sk-...',
-  gemini: 'AIza...',
+  gemini: 'AIza...'
 }
 
 const PROVIDER_CONSOLE_LABEL: Record<AiProvider, string> = {
   anthropic: 'console.anthropic.com',
   openai: 'platform.openai.com',
-  gemini: 'aistudio.google.com',
+  gemini: 'aistudio.google.com'
 }
 
 const PROVIDERS: AiProvider[] = ['anthropic', 'openai', 'gemini']
@@ -55,7 +55,10 @@ export default function AiSignIn({ reason, currentProvider }: Props): React.JSX.
     clearError()
     try {
       const status = await window.api.ai.signInWithClaudeCode()
-      if (!status.available) { setError(status.reason ?? 'Sign-in failed.'); return }
+      if (!status.available) {
+        setError(status.reason ?? 'Sign-in failed.')
+        return
+      }
       await refreshStatus()
     } catch (err) {
       setError((err as Error).message)
@@ -71,7 +74,10 @@ export default function AiSignIn({ reason, currentProvider }: Props): React.JSX.
     clearError()
     try {
       const status = await window.api.ai.signInWithProvider(tab, apiKey.trim())
-      if (!status.available) { setError(status.reason ?? 'Sign-in failed.'); return }
+      if (!status.available) {
+        setError(status.reason ?? 'Sign-in failed.')
+        return
+      }
       setApiKey('')
       await refreshStatus()
     } catch (err) {
@@ -121,7 +127,9 @@ export default function AiSignIn({ reason, currentProvider }: Props): React.JSX.
           <p className="ai-signin-blurb">
             Uses your existing Claude Code subscription — no API credits needed.
           </p>
-          <div className="ai-signin-divider"><span>or use an API key</span></div>
+          <div className="ai-signin-divider">
+            <span>or use an API key</span>
+          </div>
         </>
       )}
 

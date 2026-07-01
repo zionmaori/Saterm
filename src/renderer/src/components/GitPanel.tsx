@@ -116,7 +116,10 @@ export default function GitPanel({ repoPath, onOpenLog }: Props): React.JSX.Elem
   const unstaged = status.files.filter((f) => f.workingDir !== ' ' && f.index !== '?')
   const untracked = status.files.filter((f) => f.index === '?')
 
-  const fileBadge = (f: { index: string; workingDir: string }, isStagedSection: boolean): string => {
+  const fileBadge = (
+    f: { index: string; workingDir: string },
+    isStagedSection: boolean
+  ): string => {
     const code = isStagedSection ? f.index : f.workingDir
     return code === ' ' || code === '?' ? '?' : code
   }
@@ -285,16 +288,10 @@ export default function GitPanel({ repoPath, onOpenLog }: Props): React.JSX.Elem
         >
           Changes
         </div>
-        <div
-          className={`vt ${view === 'history' ? 'active' : ''}`}
-          onClick={() => void openLog()}
-        >
+        <div className={`vt ${view === 'history' ? 'active' : ''}`} onClick={() => void openLog()}>
           History
         </div>
-        <div
-          className={`vt ${view === 'tags' ? 'active' : ''}`}
-          onClick={() => void openTags()}
-        >
+        <div className={`vt ${view === 'tags' ? 'active' : ''}`} onClick={() => void openTags()}>
           Tags
         </div>
       </div>
@@ -317,12 +314,18 @@ export default function GitPanel({ repoPath, onOpenLog }: Props): React.JSX.Elem
                 +
               </button>
               {status.ahead ? (
-                <span className="chip chip-mono chip-success" title={`${status.ahead} ahead of ${status.tracking ?? 'upstream'}`}>
+                <span
+                  className="chip chip-mono chip-success"
+                  title={`${status.ahead} ahead of ${status.tracking ?? 'upstream'}`}
+                >
                   ↑{status.ahead}
                 </span>
               ) : null}
               {status.behind ? (
-                <span className="chip chip-mono chip-warning" title={`${status.behind} behind ${status.tracking ?? 'upstream'}`}>
+                <span
+                  className="chip chip-mono chip-warning"
+                  title={`${status.behind} behind ${status.tracking ?? 'upstream'}`}
+                >
                   ↓{status.behind}
                 </span>
               ) : null}
@@ -369,7 +372,12 @@ export default function GitPanel({ repoPath, onOpenLog }: Props): React.JSX.Elem
                 <button
                   style={{ float: 'right', padding: '0 6px', fontSize: 10 }}
                   onClick={() =>
-                    void window.api.git.unstage(repoPath, staged.map((f) => f.path)).then(refresh)
+                    void window.api.git
+                      .unstage(
+                        repoPath,
+                        staged.map((f) => f.path)
+                      )
+                      .then(refresh)
                   }
                 >
                   Unstage all
@@ -387,7 +395,13 @@ export default function GitPanel({ repoPath, onOpenLog }: Props): React.JSX.Elem
               >
                 <span className={`badge ${fileBadge(f, true)}`}>{fileBadge(f, true)}</span>
                 <span className="name">{f.path}</span>
-                <button style={{ padding: '0 4px' }} onClick={(e) => { e.stopPropagation(); void unstage(f.path) }}>
+                <button
+                  style={{ padding: '0 4px' }}
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    void unstage(f.path)
+                  }}
+                >
                   −
                 </button>
               </div>
@@ -395,7 +409,7 @@ export default function GitPanel({ repoPath, onOpenLog }: Props): React.JSX.Elem
 
             <div className="vcs-section-title">
               Changes ({unstaged.length + untracked.length}){' '}
-              {(unstaged.length + untracked.length) > 0 && (
+              {unstaged.length + untracked.length > 0 && (
                 <button
                   style={{ float: 'right', padding: '0 6px', fontSize: 10 }}
                   onClick={stageAll}
@@ -462,7 +476,7 @@ export default function GitPanel({ repoPath, onOpenLog }: Props): React.JSX.Elem
                   />{' '}
                   Amend
                 </label>
-                {staged.length === 0 && (unstaged.length + untracked.length) > 0 ? (
+                {staged.length === 0 && unstaged.length + untracked.length > 0 ? (
                   <button
                     className="primary"
                     onClick={() => void commit(true)}
@@ -486,7 +500,7 @@ export default function GitPanel({ repoPath, onOpenLog }: Props): React.JSX.Elem
                   </button>
                 )}
               </div>
-              {staged.length === 0 && (unstaged.length + untracked.length) === 0 && (
+              {staged.length === 0 && unstaged.length + untracked.length === 0 && (
                 <div style={{ fontSize: 11, color: 'var(--text-dim)' }}>
                   Nothing to commit — working tree clean.
                 </div>
@@ -524,7 +538,8 @@ export default function GitPanel({ repoPath, onOpenLog }: Props): React.JSX.Elem
                 }}
               >
                 <div style={{ color: 'var(--yellow)' }}>
-                  {e.hash.slice(0, 8)} {e.refs && <span style={{ color: 'var(--green)' }}>{e.refs}</span>}
+                  {e.hash.slice(0, 8)}{' '}
+                  {e.refs && <span style={{ color: 'var(--green)' }}>{e.refs}</span>}
                 </div>
                 <div style={{ color: 'var(--text)' }}>{e.message}</div>
                 <div style={{ color: 'var(--text-dim)' }}>
@@ -545,7 +560,9 @@ export default function GitPanel({ repoPath, onOpenLog }: Props): React.JSX.Elem
                 placeholder="Tag name (e.g. v1.0.8)"
                 value={newTag}
                 onChange={(e) => setNewTag(e.target.value)}
-                onKeyDown={(e) => { if (e.key === 'Enter' && !busy) void createTag() }}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && !busy) void createTag()
+                }}
                 style={{ fontSize: 12 }}
               />
               <input
@@ -576,7 +593,9 @@ export default function GitPanel({ repoPath, onOpenLog }: Props): React.JSX.Elem
               Local tags ({tags.length})
             </div>
             {tags.length === 0 ? (
-              <div className="empty" style={{ fontSize: 11 }}>No tags yet.</div>
+              <div className="empty" style={{ fontSize: 11 }}>
+                No tags yet.
+              </div>
             ) : (
               tags.map((t) => (
                 <div

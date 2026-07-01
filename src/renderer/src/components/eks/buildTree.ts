@@ -14,8 +14,7 @@ function nodeStatus(n: KubeItem): StatusKind {
 }
 
 function deploymentStatus(d: KubeItem): StatusKind {
-  const st =
-    (d.status as { readyReplicas?: number; replicas?: number } | undefined) ?? {}
+  const st = (d.status as { readyReplicas?: number; replicas?: number } | undefined) ?? {}
   const r = st.readyReplicas ?? 0
   const total = st.replicas ?? 0
   if (total === 0) return 'err'
@@ -25,8 +24,7 @@ function deploymentStatus(d: KubeItem): StatusKind {
 }
 
 function replicasetStatus(rs: KubeItem): StatusKind {
-  const st =
-    (rs.status as { readyReplicas?: number; replicas?: number } | undefined) ?? {}
+  const st = (rs.status as { readyReplicas?: number; replicas?: number } | undefined) ?? {}
   const r = st.readyReplicas ?? 0
   const total = st.replicas ?? 0
   if (total === 0) return 'warn'
@@ -405,4 +403,3 @@ export function findNode(root: TreeNode, id: string): TreeNode | null {
   }
   return null
 }
-

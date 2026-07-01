@@ -107,9 +107,7 @@ export async function readDir(path: string): Promise<DirEntry[]> {
   const entries = await readdir(path, { withFileTypes: true })
   const filtered = entries
     .filter(
-      (e) =>
-        !IGNORED_DIRS.has(e.name) &&
-        !IGNORED_FILE_PREFIXES.some((p) => e.name.startsWith(p))
+      (e) => !IGNORED_DIRS.has(e.name) && !IGNORED_FILE_PREFIXES.some((p) => e.name.startsWith(p))
     )
     .map((e) => ({
       name: e.name,
@@ -188,7 +186,11 @@ export function unwatchDir(root: string): void {
   if (!entry) return
   entry.refs -= 1
   if (entry.refs <= 0) {
-    try { entry.watcher.close() } catch { /* ignore */ }
+    try {
+      entry.watcher.close()
+    } catch {
+      /* ignore */
+    }
     watchers.delete(root)
   }
 }
@@ -244,7 +246,11 @@ export interface SearchHit {
   text: string
 }
 
-export async function ripgrepSearch(root: string, query: string, maxHits = 1000): Promise<SearchHit[]> {
+export async function ripgrepSearch(
+  root: string,
+  query: string,
+  maxHits = 1000
+): Promise<SearchHit[]> {
   return new Promise((resolve, reject) => {
     const child = spawn('rg', ['--json', '--smart-case', '--max-count', '200', '--', query, root])
     const hits: SearchHit[] = []
@@ -272,11 +278,15 @@ export async function ripgrepSearch(root: string, query: string, maxHits = 1000)
             })
             if (hits.length >= maxHits) break
           }
-        } catch { /* ignore non-JSON line */ }
+        } catch {
+          /* ignore non-JSON line */
+        }
         if (hits.length >= maxHits) {
           try {
             child.kill()
-          } catch { /* noop */ }
+          } catch {
+            /* noop */
+          }
           break
         }
       }

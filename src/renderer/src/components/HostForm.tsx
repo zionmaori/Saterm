@@ -11,7 +11,12 @@ interface Props {
   onDelete?: () => Promise<void>
 }
 
-export default function HostForm({ initial, onSave, onCancel, onDelete }: Props): React.JSX.Element {
+export default function HostForm({
+  initial,
+  onSave,
+  onCancel,
+  onDelete
+}: Props): React.JSX.Element {
   const [name, setName] = useState(initial?.name ?? '')
   const [hostname, setHostname] = useState(initial?.hostname ?? '')
   const [port, setPort] = useState(initial?.port ?? 22)
@@ -105,7 +110,10 @@ export default function HostForm({ initial, onSave, onCancel, onDelete }: Props)
   }
 
   return (
-    <div className="dialog-backdrop" onMouseDown={(e) => e.target === e.currentTarget && onCancel()}>
+    <div
+      className="dialog-backdrop"
+      onMouseDown={(e) => e.target === e.currentTarget && onCancel()}
+    >
       <form className="dialog" onSubmit={submit}>
         <h2>{initial ? 'Edit host' : 'New host'}</h2>
         <div className="col">
@@ -119,11 +127,7 @@ export default function HostForm({ initial, onSave, onCancel, onDelete }: Props)
           </div>
           <div className="col" style={{ flex: 1 }}>
             <label>Port</label>
-            <input
-              type="number"
-              value={port}
-              onChange={(e) => setPort(Number(e.target.value))}
-            />
+            <input type="number" value={port} onChange={(e) => setPort(Number(e.target.value))} />
           </div>
         </div>
         <div className="col">
@@ -197,9 +201,7 @@ export default function HostForm({ initial, onSave, onCancel, onDelete }: Props)
                   <button
                     type="button"
                     key={g}
-                    className={
-                      g === group ? 'combobox-item combobox-item-active' : 'combobox-item'
-                    }
+                    className={g === group ? 'combobox-item combobox-item-active' : 'combobox-item'}
                     onMouseDown={(e) => e.preventDefault()}
                     onClick={() => pickGroup(g)}
                   >

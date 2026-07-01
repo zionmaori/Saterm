@@ -8,7 +8,7 @@ import type { AiContext, AiKind, AiMessage, AiProvider, AiTier } from '../../../
 const PROVIDER_LABEL: Record<AiProvider, string> = {
   anthropic: 'Claude',
   openai: 'GPT',
-  gemini: 'Gemini',
+  gemini: 'Gemini'
 }
 
 const TIER_LABEL: Record<AiTier, string> = {
@@ -145,98 +145,105 @@ export default function ChatPanel({
         </div>
       </div>
 
-      {!status?.available && <AiSignIn reason={status?.reason} currentProvider={status?.provider} />}
+      {!status?.available && (
+        <AiSignIn reason={status?.reason} currentProvider={status?.provider} />
+      )}
 
       {status?.available && (
-      <>
-      <div className="chat-scroll" ref={scrollRef}>
-        {session?.history.map((m, i) => (
-          <ChatMessage
-            key={i}
-            message={m}
-            onInsertCommand={onInsertCommand}
-            onReviewEdit={onReviewEdit}
-          />
-        ))}
-        {session?.streamId && (
-          <StreamingAssistant
-            text={session.streamingText}
-            tools={session.streamingTools}
-          />
-        )}
-        {session?.error && (
-          <div className="chat-banner danger">
-            <strong>{errorLabel(session.error.kind)}:</strong> {session.error.message}
-          </div>
-        )}
-      </div>
-
-      <div className="chat-input">
-        <textarea
-          placeholder={
-            status?.available
-              ? kind === 'terminal'
-                ? 'Ask about output, request a command… (⌘↵)'
-                : 'Ask about this file, request an edit… (⌘↵)'
-              : 'Sign in to an AI provider to enable.'
-          }
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          onKeyDown={onKey}
-          rows={2}
-          disabled={!status?.available}
-        />
-        <div className="chat-input-actions">
-          <div className="chat-usage" title={status?.models?.[tier ?? availableTiers[0]] ?? status?.model ?? ''}>
-            {session && (session.totalUsage.inputTokens + session.totalUsage.outputTokens > 0) && (
-              <>
-                in {fmt(session.totalUsage.inputTokens)} ·{' '}
-                out {fmt(session.totalUsage.outputTokens)}
-                {session.totalUsage.cacheReadInputTokens > 0 && (
-                  <> · cache {fmt(session.totalUsage.cacheReadInputTokens)}</>
-                )}
-              </>
+        <>
+          <div className="chat-scroll" ref={scrollRef}>
+            {session?.history.map((m, i) => (
+              <ChatMessage
+                key={i}
+                message={m}
+                onInsertCommand={onInsertCommand}
+                onReviewEdit={onReviewEdit}
+              />
+            ))}
+            {session?.streamId && (
+              <StreamingAssistant text={session.streamingText} tools={session.streamingTools} />
+            )}
+            {session?.error && (
+              <div className="chat-banner danger">
+                <strong>{errorLabel(session.error.kind)}:</strong> {session.error.message}
+              </div>
             )}
           </div>
-          {status && (
-            <div className="provider-switcher">
-              {(['anthropic', 'openai', 'gemini'] as AiProvider[]).map((p) => {
-                const isActive = status.provider === p
-                const isConfigured = status.configured?.includes(p)
-                return (
-                  <button
-                    key={p}
-                    className={`provider-pill${isActive ? ' active' : ''}${isConfigured && !isActive ? ' configured' : ''}`}
-                    title={isConfigured ? `Switch to ${PROVIDER_LABEL[p]}` : `Add ${PROVIDER_LABEL[p]}`}
-                    onClick={async () => {
-                      await window.api.ai.setProvider(p)
-                      await useAi.getState().refreshStatus()
-                    }}
-                    disabled={isActive && !!session?.streamId}
-                  >
-                    {PROVIDER_LABEL[p]}
-                    {!isConfigured && <span className="provider-pill-add">+</span>}
-                  </button>
-                )
-              })}
+
+          <div className="chat-input">
+            <textarea
+              placeholder={
+                status?.available
+                  ? kind === 'terminal'
+                    ? 'Ask about output, request a command… (⌘↵)'
+                    : 'Ask about this file, request an edit… (⌘↵)'
+                  : 'Sign in to an AI provider to enable.'
+              }
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              onKeyDown={onKey}
+              rows={2}
+              disabled={!status?.available}
+            />
+            <div className="chat-input-actions">
+              <div
+                className="chat-usage"
+                title={status?.models?.[tier ?? availableTiers[0]] ?? status?.model ?? ''}
+              >
+                {session &&
+                  session.totalUsage.inputTokens + session.totalUsage.outputTokens > 0 && (
+                    <>
+                      in {fmt(session.totalUsage.inputTokens)} · out{' '}
+                      {fmt(session.totalUsage.outputTokens)}
+                      {session.totalUsage.cacheReadInputTokens > 0 && (
+                        <> · cache {fmt(session.totalUsage.cacheReadInputTokens)}</>
+                      )}
+                    </>
+                  )}
+              </div>
+              {status && (
+                <div className="provider-switcher">
+                  {(['anthropic', 'openai', 'gemini'] as AiProvider[]).map((p) => {
+                    const isActive = status.provider === p
+                    const isConfigured = status.configured?.includes(p)
+                    return (
+                      <button
+                        key={p}
+                        className={`provider-pill${isActive ? ' active' : ''}${isConfigured && !isActive ? ' configured' : ''}`}
+                        title={
+                          isConfigured
+                            ? `Switch to ${PROVIDER_LABEL[p]}`
+                            : `Add ${PROVIDER_LABEL[p]}`
+                        }
+                        onClick={async () => {
+                          await window.api.ai.setProvider(p)
+                          await useAi.getState().refreshStatus()
+                        }}
+                        disabled={isActive && !!session?.streamId}
+                      >
+                        {PROVIDER_LABEL[p]}
+                        {!isConfigured && <span className="provider-pill-add">+</span>}
+                      </button>
+                    )
+                  })}
+                </div>
+              )}
+              {session?.streamId ? (
+                <button onClick={() => void cancel(sessionKey)} className="danger">
+                  Stop
+                </button>
+              ) : (
+                <button
+                  onClick={() => void submit()}
+                  className="primary"
+                  disabled={!input.trim() || !status?.available}
+                >
+                  Send
+                </button>
+              )}
             </div>
-          )}
-          {session?.streamId ? (
-            <button onClick={() => void cancel(sessionKey)} className="danger">
-              Stop
-            </button>
-          ) : (
-            <button
-              onClick={() => void submit()}
-              className="primary"
-              disabled={!input.trim() || !status?.available}
-            >
-              Send
-            </button>
-          )}
-        </div>
-      </div>
-      </>
+          </div>
+        </>
       )}
     </div>
   )
@@ -300,9 +307,7 @@ function ChatMessage({
         }
         if (b.name === 'propose_edit') {
           const input = b.input as ProposedEdit
-          return (
-            <EditCard key={i} edit={input} onReview={onReviewEdit} />
-          )
+          return <EditCard key={i} edit={input} onReview={onReviewEdit} />
         }
         return <code key={i}>{JSON.stringify(b.input)}</code>
       })}
@@ -400,9 +405,7 @@ function CommandCard({
             </>
           ) : (
             <>
-              <button onClick={() => navigator.clipboard.writeText(command)}>
-                Copy
-              </button>
+              <button onClick={() => navigator.clipboard.writeText(command)}>Copy</button>
               <button className="danger" onClick={() => setConfirming(true)}>
                 Insert (requires confirmation)
               </button>
@@ -438,9 +441,7 @@ function EditCard({
         {edit.unified_diff}
       </pre>
       <div className="cmd-card-actions">
-        <button onClick={() => navigator.clipboard.writeText(edit.unified_diff)}>
-          Copy diff
-        </button>
+        <button onClick={() => navigator.clipboard.writeText(edit.unified_diff)}>Copy diff</button>
         <button className="primary" onClick={() => onReview?.(edit)}>
           Review in editor
         </button>

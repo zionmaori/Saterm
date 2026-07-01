@@ -108,7 +108,9 @@ export default function TerminalPane({ tab, visible, resizeKey }: Props): React.
     })
     const offExit = window.api.term.onExit((evt) => {
       if (evt.sessionId === sessionId) {
-        const msg = evt.message ?? `\r\n[session exited${evt.code != null ? ` code=${evt.code}` : ''}${evt.signal ? ` signal=${evt.signal}` : ''}]\r\n`
+        const msg =
+          evt.message ??
+          `\r\n[session exited${evt.code != null ? ` code=${evt.code}` : ''}${evt.signal ? ` signal=${evt.signal}` : ''}]\r\n`
         term.write(msg)
         setStatus('disconnected')
       }

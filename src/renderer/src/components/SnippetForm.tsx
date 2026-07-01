@@ -13,7 +13,12 @@ interface Props {
   onDelete?: () => Promise<void>
 }
 
-export default function SnippetForm({ initial, onSave, onCancel, onDelete }: Props): React.JSX.Element {
+export default function SnippetForm({
+  initial,
+  onSave,
+  onCancel,
+  onDelete
+}: Props): React.JSX.Element {
   const [title, setTitle] = useState(initial?.title ?? '')
   const [body, setBody] = useState(initial?.body ?? '')
   const [hostFilter, setHostFilter] = useState(initial?.hostFilter ?? '')
@@ -66,7 +71,8 @@ export default function SnippetForm({ initial, onSave, onCancel, onDelete }: Pro
         </label>
 
         <label className="host-form-label">
-          Host filter <span style={{ opacity: 0.5, fontWeight: 400 }}>(optional tag or host name)</span>
+          Host filter{' '}
+          <span style={{ opacity: 0.5, fontWeight: 400 }}>(optional tag or host name)</span>
           <input
             className="host-form-input"
             value={hostFilter}
@@ -104,8 +110,14 @@ export default function SnippetForm({ initial, onSave, onCancel, onDelete }: Pro
               Delete
             </button>
           )}
-          <button type="button" onClick={onCancel}>Cancel</button>
-          <button type="submit" className="primary" disabled={saving || !title.trim() || !body.trim()}>
+          <button type="button" onClick={onCancel}>
+            Cancel
+          </button>
+          <button
+            type="submit"
+            className="primary"
+            disabled={saving || !title.trim() || !body.trim()}
+          >
             {saving ? 'Saving…' : 'Save'}
           </button>
         </div>

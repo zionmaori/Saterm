@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef } from 'react'
+import { useEffect, useRef } from 'react'
 
 interface Props {
   /** Which dimension the handle scrubs. */
@@ -36,25 +36,7 @@ export default function Splitter({
 }: Props): React.JSX.Element {
   const dragging = useRef<{ start: number; origin: number } | null>(null)
 
-  const onMove = useCallback(
-    (e: PointerEvent) => {
-      const d = dragging.current
-      if (!d) return
-      const cursor = axis === 'vertical' ? e.clientY : e.clientX
-      const delta = (cursor - d.start) * (inverse ? -1 : 1)
-      const next = Math.max(min, Math.min(max, d.origin + delta))
-      onSize(next)
-    },
-    [axis, inverse, min, max, onSize]
-  )
-
-  const onUp = useCallback(() => {
-    dragging.current = null
-    document.body.style.cursor = ''
-    document.body.style.userSelect = ''
-    window.removeEventListener('pointermove', onMove)
-    window.removeEventListener('pointerup', onUp)
-  }, [onMove])
+  const handlersRef = useRef<{ onMove: (e: PointerEvent) => void; onUp: () => void } | null>(null)
 
   const onDown = (e: React.PointerEvent): void => {
     e.preventDefault()
@@ -64,18 +46,40 @@ export default function Splitter({
     }
     document.body.style.cursor = axis === 'vertical' ? 'row-resize' : 'col-resize'
     document.body.style.userSelect = 'none'
+
+    const onMove = (evt: PointerEvent): void => {
+      const d = dragging.current
+      if (!d) return
+      const cursor = axis === 'vertical' ? evt.clientY : evt.clientX
+      const delta = (cursor - d.start) * (inverse ? -1 : 1)
+      const next = Math.max(min, Math.min(max, d.origin + delta))
+      onSize(next)
+    }
+    const onUp = (): void => {
+      dragging.current = null
+      document.body.style.cursor = ''
+      document.body.style.userSelect = ''
+      window.removeEventListener('pointermove', onMove)
+      window.removeEventListener('pointerup', onUp)
+      handlersRef.current = null
+    }
+
+    handlersRef.current = { onMove, onUp }
     window.addEventListener('pointermove', onMove)
     window.addEventListener('pointerup', onUp)
   }
 
   useEffect(
     () => () => {
-      window.removeEventListener('pointermove', onMove)
-      window.removeEventListener('pointerup', onUp)
+      const h = handlersRef.current
+      if (h) {
+        window.removeEventListener('pointermove', h.onMove)
+        window.removeEventListener('pointerup', h.onUp)
+      }
       document.body.style.cursor = ''
       document.body.style.userSelect = ''
     },
-    [onMove, onUp]
+    []
   )
 
   return (

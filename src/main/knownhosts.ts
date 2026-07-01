@@ -53,9 +53,10 @@ export async function parseKnownHosts(): Promise<KnownHostEntry[]> {
  *  full FQDN.
  */
 function deriveName(hostname: string, port: number, taken: Set<string>): string {
-  const short = hostname.includes('.') && !/^\d+\.\d+\.\d+\.\d+$/.test(hostname)
-    ? hostname.split('.')[0]
-    : hostname
+  const short =
+    hostname.includes('.') && !/^\d+\.\d+\.\d+\.\d+$/.test(hostname)
+      ? hostname.split('.')[0]
+      : hostname
   const candidate = port === 22 ? short : `${short}:${port}`
   if (!taken.has(candidate)) return candidate
   // collision — use the full hostname

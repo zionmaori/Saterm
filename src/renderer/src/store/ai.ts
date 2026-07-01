@@ -71,8 +71,7 @@ export const useAi = create<AiState>((set, get) => ({
     set({ status })
   },
 
-  setTier: (key, tier) =>
-    set((state) => ({ tierByKey: { ...state.tierByKey, [key]: tier } })),
+  setTier: (key, tier) => set((state) => ({ tierByKey: { ...state.tierByKey, [key]: tier } })),
 
   ensureSession: (key) => {
     let s = get().sessions[key]
@@ -180,10 +179,7 @@ const onDelta: Apply<AiDeltaEvent> = (_k, sess, evt) => ({
 })
 
 const onToolUse: Apply<AiToolUseEvent> = (_k, sess, evt) => ({
-  streamingTools: [
-    ...sess.streamingTools,
-    { id: evt.id, name: evt.name, input: evt.input }
-  ]
+  streamingTools: [...sess.streamingTools, { id: evt.id, name: evt.name, input: evt.input }]
 })
 
 const onDone: Apply<AiDoneEvent> = (_k, sess, evt) => {
@@ -211,8 +207,7 @@ const onDone: Apply<AiDoneEvent> = (_k, sess, evt) => {
     totalUsage: {
       inputTokens: sess.totalUsage.inputTokens + evt.usage.inputTokens,
       outputTokens: sess.totalUsage.outputTokens + evt.usage.outputTokens,
-      cacheReadInputTokens:
-        sess.totalUsage.cacheReadInputTokens + evt.usage.cacheReadInputTokens,
+      cacheReadInputTokens: sess.totalUsage.cacheReadInputTokens + evt.usage.cacheReadInputTokens,
       cacheCreationInputTokens:
         sess.totalUsage.cacheCreationInputTokens + evt.usage.cacheCreationInputTokens
     }

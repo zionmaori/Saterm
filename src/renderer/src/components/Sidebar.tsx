@@ -961,9 +961,10 @@ function AwsProfileRow({
     if (next && effectiveRegion) onExpand(effectiveRegion)
   }
 
-  const regionOptions = effectiveRegion && !COMMON_AWS_REGIONS.includes(effectiveRegion)
-    ? [effectiveRegion, ...COMMON_AWS_REGIONS]
-    : COMMON_AWS_REGIONS
+  const regionOptions =
+    effectiveRegion && !COMMON_AWS_REGIONS.includes(effectiveRegion)
+      ? [effectiveRegion, ...COMMON_AWS_REGIONS]
+      : COMMON_AWS_REGIONS
 
   return (
     <div className={`aws-profile-card${open ? ' open' : ''}`}>
@@ -989,7 +990,8 @@ function AwsProfileRow({
               className="aws-profile-region"
               value={effectiveRegion ?? ''}
               onChange={(e) => {
-                if (e.target.value && e.target.value !== effectiveRegion) onSetRegion(e.target.value)
+                if (e.target.value && e.target.value !== effectiveRegion)
+                  onSetRegion(e.target.value)
               }}
             >
               {!effectiveRegion && <option value="">pick…</option>}

@@ -108,12 +108,15 @@ function countEntries(dataPath: string): number {
   return (content.match(/^## /gm) || []).length
 }
 
-const MEMORY_INDEX_LINE = '- [Bug reports](bugs.md) — pointer to Termion\'s userData bug log'
+const MEMORY_INDEX_LINE = "- [Bug reports](bugs.md) — pointer to Termion's userData bug log"
 
 function updateMemoryIndex(memDir: string): void {
   const indexPath = join(memDir, 'MEMORY.md')
   const existing = existsSync(indexPath) ? readFileSync(indexPath, 'utf8') : ''
   if (existing.includes('(bugs.md)')) return
-  const next = existing.length === 0 ? `${MEMORY_INDEX_LINE}\n` : `${existing.replace(/\s*$/, '')}\n${MEMORY_INDEX_LINE}\n`
+  const next =
+    existing.length === 0
+      ? `${MEMORY_INDEX_LINE}\n`
+      : `${existing.replace(/\s*$/, '')}\n${MEMORY_INDEX_LINE}\n`
   atomicWrite(indexPath, next)
 }
