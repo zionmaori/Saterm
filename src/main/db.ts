@@ -110,6 +110,29 @@ function migrate(db: Database.Database): void {
       d.exec(`
         ALTER TABLE snippets ADD COLUMN confirm_before_run INTEGER NOT NULL DEFAULT 0;
       `)
+    },
+    (d) => {
+      // Migration #5 — local task manager.
+      // project_id NULL means "global" scope.
+      d.exec(`
+        CREATE TABLE tasks (
+          id           INTEGER PRIMARY KEY AUTOINCREMENT,
+          project_id   INTEGER,
+          title        TEXT    NOT NULL,
+          body         TEXT,
+          status       TEXT    NOT NULL DEFAULT 'todo',
+          priority     INTEGER NOT NULL DEFAULT 0,
+          due_at       INTEGER,
+          created_at   INTEGER NOT NULL,
+          updated_at   INTEGER NOT NULL,
+          completed_at INTEGER,
+          sort_key     INTEGER NOT NULL DEFAULT 0,
+          FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE
+        );
+        CREATE INDEX idx_tasks_project ON tasks(project_id);
+        CREATE INDEX idx_tasks_status  ON tasks(status);
+        CREATE INDEX idx_tasks_due     ON tasks(due_at);
+      `)
     }
   ]
   const target = migrations.length
@@ -188,4 +211,127 @@ export function updateSnippet(
 
 export function deleteSnippet(id: number): void {
   getDb().prepare('DELETE FROM snippets WHERE id = ?').run(id)
+}
+
+// ---- Tasks ------------------------------------------------------------------
+
+export interface TaskRow {
+  id: number
+  project_id: number | null
+  title: string
+  body: string | null
+  status: string
+  priority: number
+  due_at: number | null
+  created_at: number
+  updated_at: number
+  completed_at: number | null
+  sort_key: number
+}
+
+const TASK_COLS =
+  'id, project_id, title, body, status, priority, due_at, created_at, updated_at, completed_at, sort_key'
+
+/**
+ * List tasks.
+ *  - `projectId === undefined` → every task across all scopes (future global inbox).
+ *  - `projectId === null`      → global tasks only (project_id IS NULL).
+ *  - `projectId === <n>`       → tasks for that project.
+ */
+export function listTasks(projectId: number | null | undefined): TaskRow[] {
+  const db = getDb()
+  if (projectId === undefined) {
+    return db
+      .prepare(`SELECT ${TASK_COLS} FROM tasks ORDER BY sort_key, created_at`)
+      .all() as TaskRow[]
+  }
+  if (projectId === null) {
+    return db
+      .prepare(
+        `SELECT ${TASK_COLS} FROM tasks WHERE project_id IS NULL ORDER BY sort_key, created_at`
+      )
+      .all() as TaskRow[]
+  }
+  return db
+    .prepare(
+      `SELECT ${TASK_COLS} FROM tasks WHERE project_id = ? ORDER BY sort_key, created_at`
+    )
+    .all(projectId) as TaskRow[]
+}
+
+export interface TaskCreateInput {
+  projectId: number | null
+  title: string
+  body?: string | null
+  status?: string
+  priority?: number
+  dueAt?: number | null
+}
+
+export function createTask(input: TaskCreateInput): TaskRow {
+  const db = getDb()
+  const now = Date.now()
+  const info = db
+    .prepare(
+      `INSERT INTO tasks(project_id, title, body, status, priority, due_at, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
+    )
+    .run(
+      input.projectId,
+      input.title,
+      input.body ?? null,
+      input.status ?? 'todo',
+      input.priority ?? 0,
+      input.dueAt ?? null,
+      now,
+      now
+    )
+  return db
+    .prepare(`SELECT ${TASK_COLS} FROM tasks WHERE id = ?`)
+    .get(info.lastInsertRowid) as TaskRow
+}
+
+export interface TaskPatch {
+  title?: string
+  body?: string | null
+  status?: string
+  priority?: number
+  dueAt?: number | null
+  sortKey?: number
+}
+
+export function updateTask(id: number, patch: TaskPatch): TaskRow {
+  const db = getDb()
+  const current = db.prepare(`SELECT ${TASK_COLS} FROM tasks WHERE id = ?`).get(id) as
+    | TaskRow
+    | undefined
+  if (!current) throw new Error(`Task ${id} not found`)
+
+  const now = Date.now()
+  const nextStatus = patch.status ?? current.status
+  let completedAt: number | null = current.completed_at
+  if (nextStatus === 'done' && current.status !== 'done') completedAt = now
+  else if (nextStatus !== 'done' && current.status === 'done') completedAt = null
+
+  db.prepare(
+    `UPDATE tasks
+       SET title = ?, body = ?, status = ?, priority = ?, due_at = ?, sort_key = ?,
+           updated_at = ?, completed_at = ?
+       WHERE id = ?`
+  ).run(
+    patch.title ?? current.title,
+    patch.body === undefined ? current.body : patch.body,
+    nextStatus,
+    patch.priority ?? current.priority,
+    patch.dueAt === undefined ? current.due_at : patch.dueAt,
+    patch.sortKey ?? current.sort_key,
+    now,
+    completedAt,
+    id
+  )
+  return db.prepare(`SELECT ${TASK_COLS} FROM tasks WHERE id = ?`).get(id) as TaskRow
+}
+
+export function deleteTask(id: number): void {
+  getDb().prepare('DELETE FROM tasks WHERE id = ?').run(id)
 }

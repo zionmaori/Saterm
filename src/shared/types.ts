@@ -54,6 +54,45 @@ export interface Snippet {
 
 export type SnippetInput = Omit<Snippet, 'id'>
 
+// ---- Tasks ----------------------------------------------------------------
+
+export type TaskStatus = 'todo' | 'doing' | 'done'
+
+/** -1 low, 0 normal, 1 high. */
+export type TaskPriority = -1 | 0 | 1
+
+export interface Task {
+  id: number
+  projectId: number | null
+  title: string
+  body: string | null
+  status: TaskStatus
+  priority: TaskPriority
+  dueAt: number | null
+  createdAt: number
+  updatedAt: number
+  completedAt: number | null
+  sortKey: number
+}
+
+export interface TaskCreateInput {
+  projectId: number | null
+  title: string
+  body?: string | null
+  status?: TaskStatus
+  priority?: TaskPriority
+  dueAt?: number | null
+}
+
+export interface TaskPatch {
+  title?: string
+  body?: string | null
+  status?: TaskStatus
+  priority?: TaskPriority
+  dueAt?: number | null
+  sortKey?: number
+}
+
 export interface BugTabContext {
   kind: TabKind | null
   title: string | null

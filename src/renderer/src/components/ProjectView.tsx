@@ -8,6 +8,7 @@ import GitPanel from './GitPanel'
 import SvnPanel from './SvnPanel'
 import ProjectNotesPanel from './ProjectNotesPanel'
 import TerraformPanel from './TerraformPanel'
+import TasksPanel from './TasksPanel'
 import TerminalPane from './TerminalPane'
 import EditorCopilot from './EditorCopilot'
 import Splitter from './Splitter'
@@ -40,7 +41,7 @@ export default function ProjectView({ tab, visible }: Props): React.JSX.Element 
     project ? s.terraformDetected[project.id] === true : false
   )
   const detectTerraform = useApp((s) => s.detectTerraform)
-  const [rightView, setRightView] = useState<'vcs' | 'tf'>('vcs')
+  const [rightView, setRightView] = useState<'vcs' | 'tf' | 'tasks'>('vcs')
 
   const [open, setOpen] = useState<OpenFile[]>([])
   const [activePath, setActivePath] = useState<string | null>(null)
@@ -372,15 +373,15 @@ export default function ProjectView({ tab, visible }: Props): React.JSX.Element 
         />
         <div className="vcs-panel">
           <div className="vcs-pane vcs-pane-top">
-            {terraformDetected && (
-              <div className="vcs-toptabs">
-                <button
-                  type="button"
-                  className={`vtt ${rightView === 'vcs' ? 'active' : ''}`}
-                  onClick={() => setRightView('vcs')}
-                >
-                  {vcs === 'svn' ? 'SVN' : vcs === 'git' ? 'Git' : 'Files'}
-                </button>
+            <div className="vcs-toptabs">
+              <button
+                type="button"
+                className={`vtt ${rightView === 'vcs' ? 'active' : ''}`}
+                onClick={() => setRightView('vcs')}
+              >
+                {vcs === 'svn' ? 'SVN' : vcs === 'git' ? 'Git' : 'Files'}
+              </button>
+              {terraformDetected && (
                 <button
                   type="button"
                   className={`vtt ${rightView === 'tf' ? 'active' : ''}`}
@@ -388,9 +389,18 @@ export default function ProjectView({ tab, visible }: Props): React.JSX.Element 
                 >
                   Terraform
                 </button>
-              </div>
-            )}
-            {rightView === 'tf' && terraformDetected && project ? (
+              )}
+              <button
+                type="button"
+                className={`vtt ${rightView === 'tasks' ? 'active' : ''}`}
+                onClick={() => setRightView('tasks')}
+              >
+                Tasks
+              </button>
+            </div>
+            {rightView === 'tasks' ? (
+              <TasksPanel projectId={project?.id} />
+            ) : rightView === 'tf' && terraformDetected && project ? (
               <TerraformPanel
                 projectId={project.id}
                 repoPath={repoPath}

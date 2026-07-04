@@ -9,6 +9,9 @@ import type {
   Project,
   SessionId,
   TabKind,
+  Task,
+  TaskCreateInput,
+  TaskPatch,
   TfValidateResult
 } from '../../../shared/types'
 import { useAi } from './ai'
@@ -77,7 +80,20 @@ interface AppState {
   detectTerraform: (projectId: number, root: string) => Promise<boolean>
   analyzeTerraform: (projectId: number, root: string) => Promise<void>
   resetTerraformRun: (projectId: number) => void
+
+  tasks: Record<string, Task[]>
+  tasksLoading: Record<string, boolean>
+  tasksScopePref: 'global' | 'project'
+  loadTasks: (scopeKey: string, projectId: number | null) => Promise<void>
+  addTask: (scopeKey: string, input: TaskCreateInput) => Promise<Task | null>
+  patchTask: (scopeKey: string, id: number, patch: TaskPatch) => Promise<void>
+  removeTask: (scopeKey: string, id: number) => Promise<void>
+  setTasksScopePref: (scope: 'global' | 'project') => Promise<void>
+  loadTasksScopePref: () => Promise<void>
 }
+
+export const taskScopeKey = (projectId: number | null): string =>
+  projectId == null ? 'global' : `project:${projectId}`
 
 export const useApp = create<AppState>((set, get) => ({
   hosts: [],
@@ -91,6 +107,9 @@ export const useApp = create<AppState>((set, get) => ({
   awsRegions: {},
   terraformDetected: {},
   terraformRuns: {},
+  tasks: {},
+  tasksLoading: {},
+  tasksScopePref: 'project',
 
   refreshHosts: async () => {
     const hosts = await window.api.hosts.list()
@@ -451,5 +470,88 @@ export const useApp = create<AppState>((set, get) => ({
       return { terraformRuns: next }
     })
     useAi.getState().reset(`tf:${projectId}`)
+  },
+
+  loadTasks: async (scopeKey, projectId) => {
+    set((s) => ({ tasksLoading: { ...s.tasksLoading, [scopeKey]: true } }))
+    try {
+      const list = await window.api.tasks.list(projectId)
+      set((s) => ({
+        tasks: { ...s.tasks, [scopeKey]: list },
+        tasksLoading: { ...s.tasksLoading, [scopeKey]: false }
+      }))
+    } catch {
+      set((s) => ({ tasksLoading: { ...s.tasksLoading, [scopeKey]: false } }))
+    }
+  },
+
+  addTask: async (scopeKey, input) => {
+    try {
+      const created = await window.api.tasks.create(input)
+      set((s) => ({
+        tasks: { ...s.tasks, [scopeKey]: [...(s.tasks[scopeKey] ?? []), created] }
+      }))
+      return created
+    } catch {
+      return null
+    }
+  },
+
+  patchTask: async (scopeKey, id, patch) => {
+    const prev = get().tasks[scopeKey] ?? []
+    // optimistic
+    set((s) => ({
+      tasks: {
+        ...s.tasks,
+        [scopeKey]: prev.map((t) =>
+          t.id === id ? { ...t, ...taskPatchToPartial(patch), updatedAt: Date.now() } : t
+        )
+      }
+    }))
+    try {
+      const updated = await window.api.tasks.update(id, patch)
+      set((s) => ({
+        tasks: {
+          ...s.tasks,
+          [scopeKey]: (s.tasks[scopeKey] ?? []).map((t) => (t.id === id ? updated : t))
+        }
+      }))
+    } catch {
+      // rollback
+      set((s) => ({ tasks: { ...s.tasks, [scopeKey]: prev } }))
+    }
+  },
+
+  removeTask: async (scopeKey, id) => {
+    const prev = get().tasks[scopeKey] ?? []
+    set((s) => ({
+      tasks: { ...s.tasks, [scopeKey]: prev.filter((t) => t.id !== id) }
+    }))
+    try {
+      await window.api.tasks.delete(id)
+    } catch {
+      set((s) => ({ tasks: { ...s.tasks, [scopeKey]: prev } }))
+    }
+  },
+
+  setTasksScopePref: async (scope) => {
+    set({ tasksScopePref: scope })
+    await window.api.kv.set('tasks.scope', scope)
+  },
+
+  loadTasksScopePref: async () => {
+    const v = await window.api.kv.get('tasks.scope')
+    if (v === 'global' || v === 'project') set({ tasksScopePref: v })
   }
 }))
+
+function taskPatchToPartial(patch: TaskPatch): Partial<Task> {
+  const out: Partial<Task> = {}
+  if (patch.title !== undefined) out.title = patch.title
+  if (patch.body !== undefined) out.body = patch.body
+  if (patch.status !== undefined) out.status = patch.status
+  if (patch.priority !== undefined) out.priority = patch.priority
+  if (patch.dueAt !== undefined) out.dueAt = patch.dueAt
+  if (patch.sortKey !== undefined) out.sortKey = patch.sortKey
+  return out
+}

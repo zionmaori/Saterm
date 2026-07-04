@@ -29,6 +29,9 @@ import type {
   Snippet,
   SshConnectArgs,
   TagCount,
+  Task,
+  TaskCreateInput,
+  TaskPatch,
   TermDataEvent,
   TermExitEvent,
   TermInputArgs,
@@ -213,6 +216,14 @@ const api = {
     ): Promise<Snippet> =>
       ipcRenderer.invoke('snippets:update', id, title, body, hostFilter, confirmBeforeRun),
     delete: (id: number): Promise<void> => ipcRenderer.invoke('snippets:delete', id)
+  },
+  tasks: {
+    list: (projectId: number | null | undefined): Promise<Task[]> =>
+      ipcRenderer.invoke('tasks:list', projectId),
+    create: (input: TaskCreateInput): Promise<Task> => ipcRenderer.invoke('tasks:create', input),
+    update: (id: number, patch: TaskPatch): Promise<Task> =>
+      ipcRenderer.invoke('tasks:update', id, patch),
+    delete: (id: number): Promise<void> => ipcRenderer.invoke('tasks:delete', id)
   },
   terraform: {
     detect: (root: string): Promise<boolean> => ipcRenderer.invoke('terraform:detect', root),

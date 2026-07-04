@@ -2,7 +2,20 @@ import { app, dialog, ipcMain } from 'electron'
 import { homedir } from 'os'
 import { join } from 'path'
 import { existsSync } from 'fs'
-import { kvGet, kvSet, listSnippets, createSnippet, updateSnippet, deleteSnippet } from './db'
+import {
+  kvGet,
+  kvSet,
+  listSnippets,
+  createSnippet,
+  updateSnippet,
+  deleteSnippet,
+  listTasks,
+  createTask,
+  updateTask,
+  deleteTask,
+  type TaskRow
+} from './db'
+import type { Task, TaskCreateInput, TaskPatch } from '../shared/types'
 import {
   listHosts,
   getHost,
@@ -303,6 +316,31 @@ export function registerIpcHandlers(): void {
     }
   )
   ipcMain.handle('snippets:delete', (_e, id: number) => deleteSnippet(id))
+
+  // Tasks
+  const rowToTask = (r: TaskRow): Task => ({
+    id: r.id,
+    projectId: r.project_id,
+    title: r.title,
+    body: r.body,
+    status: r.status as Task['status'],
+    priority: r.priority as Task['priority'],
+    dueAt: r.due_at,
+    createdAt: r.created_at,
+    updatedAt: r.updated_at,
+    completedAt: r.completed_at,
+    sortKey: r.sort_key
+  })
+  ipcMain.handle('tasks:list', (_e, projectId: number | null | undefined) =>
+    listTasks(projectId).map(rowToTask)
+  )
+  ipcMain.handle('tasks:create', (_e, input: TaskCreateInput) =>
+    rowToTask(createTask(input))
+  )
+  ipcMain.handle('tasks:update', (_e, id: number, patch: TaskPatch) =>
+    rowToTask(updateTask(id, patch))
+  )
+  ipcMain.handle('tasks:delete', (_e, id: number) => deleteTask(id))
 
   // Bugs
   ipcMain.handle('bugs:report', (_e, input: BugReportInput) => reportBug(input))
