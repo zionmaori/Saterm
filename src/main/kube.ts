@@ -1,6 +1,24 @@
 import { spawn, spawnSync } from 'child_process'
 import { getPath } from './shellEnv'
 
+const IS_WIN = process.platform === 'win32'
+
+function kubectlInstallHint(): string {
+  if (IS_WIN) {
+    return 'kubectl not found on PATH. Install with `winget install Kubernetes.kubectl` (or `choco install kubernetes-cli`) and reopen Termion.'
+  }
+  if (process.platform === 'linux') {
+    return 'kubectl not found on PATH. Install via your package manager (e.g. `apt install kubectl`) and reopen Termion.'
+  }
+  return 'kubectl not found on PATH. Install with `brew install kubectl` and reopen Termion.'
+}
+
+function shellQuote(a: string): string {
+  if (!IS_WIN) return a
+  if (a.length > 0 && !/[\s"^&|<>()%!]/.test(a)) return a
+  return `"${a.replace(/"/g, '""')}"`
+}
+
 export interface KubeEnv {
   kubeconfigPath: string
   profile: string
@@ -28,7 +46,9 @@ function kubectlExists(env: KubeEnv): boolean {
   try {
     const r = spawnSync('kubectl', ['version', '--client=true', '--output=json'], {
       env: buildEnv(env),
-      timeout: 4000
+      timeout: 4000,
+      shell: IS_WIN,
+      windowsHide: true
     })
     return r.status === 0
   } catch {
@@ -40,7 +60,12 @@ function runKubectl(env: KubeEnv, args: string[], timeoutMs = 15_000): Promise<R
   return new Promise((resolve, reject) => {
     let proc: ReturnType<typeof spawn>
     try {
-      proc = spawn('kubectl', args, { env: buildEnv(env), shell: false })
+      const spawnArgs = IS_WIN ? args.map(shellQuote) : args
+      proc = spawn('kubectl', spawnArgs, {
+        env: buildEnv(env),
+        shell: IS_WIN,
+        windowsHide: true
+      })
     } catch (e) {
       reject(e)
       return
@@ -61,11 +86,7 @@ function runKubectl(env: KubeEnv, args: string[], timeoutMs = 15_000): Promise<R
     proc.on('error', (e: NodeJS.ErrnoException) => {
       clearTimeout(timer)
       if (e.code === 'ENOENT') {
-        reject(
-          new Error(
-            'kubectl not found on PATH. Install with `brew install kubectl` and reopen Termion.'
-          )
-        )
+        reject(new Error(kubectlInstallHint()))
       } else {
         reject(e)
       }
@@ -108,9 +129,7 @@ export async function kubectlGet(
   opts: { namespace?: string; cluster?: boolean } = {}
 ): Promise<unknown> {
   if (!kubectlExists(env)) {
-    throw new Error(
-      'kubectl not found on PATH. Install with `brew install kubectl` and reopen Termion.'
-    )
+    throw new Error(kubectlInstallHint())
   }
   const args = ['get', resource]
   if (opts.cluster) {

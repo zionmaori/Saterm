@@ -8,6 +8,26 @@ import { getPath } from './shellEnv'
 import type { AwsProfile, EksCluster, EksOpenArgs, EksOpenResult } from '../shared/types'
 
 const CLUSTER_TTL_MS = 60_000
+const IS_WIN = process.platform === 'win32'
+
+function awsInstallHint(): string {
+  if (IS_WIN) {
+    return 'AWS CLI not found on PATH. Install with `winget install Amazon.AWSCLI` (or `choco install awscli`) and reopen Termion.'
+  }
+  if (process.platform === 'linux') {
+    return 'AWS CLI not found on PATH. Install via your package manager (e.g. `apt install awscli`) and reopen Termion.'
+  }
+  return 'AWS CLI not found on PATH. Install with `brew install awscli` and reopen Termion.'
+}
+
+// cmd.exe quoting for spawn({ shell: true }) on Windows. Node passes the
+// argv joined by spaces through cmd, so any arg with whitespace or shell
+// metacharacters must be pre-quoted. On non-Windows this is a no-op.
+function shellQuote(a: string): string {
+  if (!IS_WIN) return a
+  if (a.length > 0 && !/[\s"^&|<>()%!]/.test(a)) return a
+  return `"${a.replace(/"/g, '""')}"`
+}
 
 interface CacheEntry {
   at: number
@@ -130,7 +150,14 @@ function runAwsCli(args: string[]): Promise<RunResult> {
   return new Promise((resolve, reject) => {
     let proc: ReturnType<typeof spawn>
     try {
-      proc = spawn('aws', args, { env: buildEnv(), shell: false })
+      // shell:true on Windows lets us resolve aws.cmd / aws.bat shims (some
+      // corporate installers) that spawn(shell:false) can't find.
+      const spawnArgs = IS_WIN ? args.map(shellQuote) : args
+      proc = spawn('aws', spawnArgs, {
+        env: buildEnv(),
+        shell: IS_WIN,
+        windowsHide: true
+      })
     } catch (e) {
       reject(e)
       return
@@ -141,11 +168,7 @@ function runAwsCli(args: string[]): Promise<RunResult> {
     proc.stderr?.on('data', (d: Buffer) => (stderr += d.toString('utf8')))
     proc.on('error', (e: NodeJS.ErrnoException) => {
       if (e.code === 'ENOENT') {
-        reject(
-          new Error(
-            'AWS CLI not found on PATH. Install with `brew install awscli` and reopen Termion.'
-          )
-        )
+        reject(new Error(awsInstallHint()))
       } else {
         reject(e)
       }
@@ -156,7 +179,12 @@ function runAwsCli(args: string[]): Promise<RunResult> {
 
 function awsCliExists(): boolean {
   try {
-    const r = spawnSync('aws', ['--version'], { env: buildEnv(), timeout: 3000 })
+    const r = spawnSync('aws', ['--version'], {
+      env: buildEnv(),
+      timeout: 3000,
+      shell: IS_WIN,
+      windowsHide: true
+    })
     return r.status === 0
   } catch {
     return false
@@ -180,9 +208,7 @@ export async function listEksClusters(
     if (hit && Date.now() - hit.at < CLUSTER_TTL_MS) return hit.clusters
   }
   if (!awsCliExists()) {
-    throw new Error(
-      'AWS CLI not found on PATH. Install with `brew install awscli` and reopen Termion.'
-    )
+    throw new Error(awsInstallHint())
   }
   const isSso = listAwsProfiles().find((p) => p.name === profile)?.isSso ?? false
   const r = await runAwsCli([
@@ -244,9 +270,7 @@ function safeFileName(s: string): string {
 export async function prepareKubeconfig(args: EksOpenArgs): Promise<EksOpenResult> {
   const { profile, region, cluster } = args
   if (!awsCliExists()) {
-    throw new Error(
-      'AWS CLI not found on PATH. Install with `brew install awscli` and reopen Termion.'
-    )
+    throw new Error(awsInstallHint())
   }
   const fname = `${safeFileName(profile)}-${safeFileName(region)}-${safeFileName(cluster)}-${uuid()}.yaml`
   const kubeconfigPath = join(kubeconfigDir(), fname)
@@ -286,9 +310,7 @@ export async function describeEksCluster(
   name: string
 ): Promise<unknown> {
   if (!awsCliExists()) {
-    throw new Error(
-      'AWS CLI not found on PATH. Install with `brew install awscli` and reopen Termion.'
-    )
+    throw new Error(awsInstallHint())
   }
   const isSso = listAwsProfiles().find((p) => p.name === profile)?.isSso ?? false
   const r = await runAwsCli([

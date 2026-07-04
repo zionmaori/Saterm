@@ -4,6 +4,24 @@ import { join, relative } from 'path'
 import { getPath } from './shellEnv'
 import type { TfBundle, TfDiagnostic, TfFile, TfValidateResult } from '../shared/types'
 
+const IS_WIN = process.platform === 'win32'
+
+function terraformInstallHint(): string {
+  if (IS_WIN) {
+    return 'Terraform CLI not found on PATH. Install with `winget install HashiCorp.Terraform` (or `choco install terraform`) and reopen Termion.'
+  }
+  if (process.platform === 'linux') {
+    return 'Terraform CLI not found on PATH. Install via your package manager (e.g. `apt install terraform`) and reopen Termion.'
+  }
+  return 'Terraform CLI not found on PATH. Install with `brew install terraform` and reopen Termion.'
+}
+
+function shellQuote(a: string): string {
+  if (!IS_WIN) return a
+  if (a.length > 0 && !/[\s"^&|<>()%!]/.test(a)) return a
+  return `"${a.replace(/"/g, '""')}"`
+}
+
 const IGNORE_DIRS = new Set([
   '.terraform',
   '.git',
@@ -30,7 +48,12 @@ function detectCli(): 'terraform' | 'tofu' | null {
   if (cachedCli !== undefined) return cachedCli
   for (const candidate of ['terraform', 'tofu'] as const) {
     try {
-      const r = spawnSync(candidate, ['version'], { env: buildEnv(), timeout: 3000 })
+      const r = spawnSync(candidate, ['version'], {
+        env: buildEnv(),
+        timeout: 3000,
+        shell: IS_WIN,
+        windowsHide: true
+      })
       if (r.status === 0) {
         cachedCli = candidate
         return candidate
@@ -179,7 +202,13 @@ function runCli(
   return new Promise((resolve, reject) => {
     let proc: ReturnType<typeof spawn>
     try {
-      proc = spawn(cmd, args, { env: buildEnv(), cwd, shell: false })
+      const spawnArgs = IS_WIN ? args.map(shellQuote) : args
+      proc = spawn(cmd, spawnArgs, {
+        env: buildEnv(),
+        cwd,
+        shell: IS_WIN,
+        windowsHide: true
+      })
     } catch (e) {
       reject(e)
       return
@@ -199,8 +228,7 @@ export async function tfValidate(root: string): Promise<TfValidateResult> {
     return {
       ok: false,
       diagnostics: [],
-      stderr:
-        'Terraform CLI not found on PATH. Install with `brew install terraform` and reopen Termion.',
+      stderr: terraformInstallHint(),
       cliMissing: true
     }
   }
