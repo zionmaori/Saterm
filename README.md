@@ -127,3 +127,13 @@ src/
 ```
 
 Built with electron-vite, React 19, xterm.js, Monaco, simple-git.
+
+## License
+
+Termion is proprietary software.
+Copyright (c) 2026 Zion Maor. All rights reserved.
+
+See [LICENSE](./LICENSE) for the full terms. The author's copyright notice
+and attribution must be preserved in every copy, fork, and derivative work
+of this software — see also [NOTICE.md](./NOTICE.md).
+

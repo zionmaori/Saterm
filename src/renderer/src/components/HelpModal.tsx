@@ -5,7 +5,8 @@ interface Props {
   onClose: () => void
 }
 
-const YEAR = new Date().getFullYear()
+// Author's original copyright year — must not be changed in forks per LICENSE.
+const COPYRIGHT_YEAR = 2026
 const isMac =
   typeof navigator !== 'undefined' &&
   /Mac|iPhone|iPad/i.test(navigator.platform || navigator.userAgent)
@@ -35,7 +36,8 @@ export default function HelpModal({ onClose }: Props): React.JSX.Element {
             <h2>What is Termion?</h2>
             <p>
               Termion is a desktop terminal and SSH client with an integrated code editor, version
-              control panel, and AI assistant. It runs on Windows, Linux, and macOS.
+              control panel, cloud tooling (AWS/EKS, Terraform), task manager, snippets, and AI
+              assistant. It runs on Windows, Linux, and macOS.
             </p>
           </section>
 
@@ -217,9 +219,11 @@ export default function HelpModal({ onClose }: Props): React.JSX.Element {
           <section className="help-section">
             <h2>Sidebar</h2>
             <p>
-              The sidebar lists your SSH hosts and local projects in collapsible sections. Click any
-              section header to expand or collapse it. Use <kbd>{modKey} B</kbd> or the panel button
-              in the top-left to hide/show the sidebar.
+              The sidebar lists your SSH hosts, projects, cloud resources, and snippets in
+              collapsible sections. Click any section header to expand or collapse it. The{' '}
+              <strong>collapse-all</strong> button next to the search box folds every section at
+              once. Use <kbd>{modKey} B</kbd> or the panel button in the top-left to hide/show the
+              sidebar itself.
             </p>
             <ul>
               <li>
@@ -229,13 +233,27 @@ export default function HelpModal({ onClose }: Props): React.JSX.Element {
                 <strong>Recent</strong> — last-used hosts and projects
               </li>
               <li>
-                <strong>Hosts</strong> — all SSH connections grouped by type
+                <strong>Groups &amp; Tags</strong> — chips that filter the host list; click to
+                toggle, ⌘-click to combine, use the AND/OR switch to change combine mode
               </li>
               <li>
-                <strong>Local</strong> — local terminal sessions
+                <strong>Hosts</strong> — all SSH connections, sortable by name or last-used
               </li>
               <li>
-                <strong>Projects</strong> — code folders with editor + terminal
+                <strong>Local</strong> — open a new local terminal
+              </li>
+              <li>
+                <strong>Projects</strong> — code folders with editor + terminal. The{' '}
+                <em>bot icon</em> next to each project opens a terminal in that folder and
+                auto-runs the Claude Code CLI.
+              </li>
+              <li>
+                <strong>AWS</strong> — configured AWS profiles; expand a profile to browse EKS
+                clusters by region, open a kubeconfig-scoped terminal, or open the EKS dashboard
+              </li>
+              <li>
+                <strong>Snippets</strong> — reusable command snippets that insert into the active
+                terminal at the prompt
               </li>
             </ul>
           </section>
@@ -276,7 +294,99 @@ export default function HelpModal({ onClose }: Props): React.JSX.Element {
             <p>
               Click the <strong>↕</strong> button in the terminal header to move the terminal
               between the top and bottom of the editor. The shell dropdown lets you switch between
-              available shells (PowerShell, Git Bash, cmd, WSL…).
+              available shells — on macOS/Linux it lists your login shell, zsh, bash, fish, sh; on
+              Windows it lists PowerShell 7, Windows PowerShell, Git Bash, WSL, and cmd (whichever
+              are installed).
+            </p>
+            <p>
+              Tip: the <strong>bot icon</strong> next to each project in the sidebar opens a
+              terminal in that project's directory and auto-runs the Claude Code CLI — when you
+              exit Claude you land back at a working shell prompt.
+            </p>
+          </section>
+
+          <section className="help-section">
+            <h2>Right-side project panels</h2>
+            <p>
+              Inside a project tab, the right-hand panel has three tabs — click the header buttons
+              to switch:
+            </p>
+            <ul>
+              <li>
+                <strong>VCS</strong> — Git or SVN operations (default).
+              </li>
+              <li>
+                <strong>Terraform</strong> — appears when Termion detects a Terraform root under
+                the project (a <code>*.tf</code> file at any depth). Runs <code>terraform fmt</code>{' '}
+                and <code>terraform validate</code>, shows diagnostics inline, and provides a{' '}
+                <em>copy for AI</em> action so you can paste the raw files into Copilot.
+              </li>
+              <li>
+                <strong>Tasks</strong> — a lightweight task manager scoped either globally or to
+                the current project. Toggle the scope switch at the top; tasks persist between
+                sessions. Set priority (Low / Normal / High), due date, and status (todo / doing /
+                done). Filter by status or overdue.
+              </li>
+            </ul>
+          </section>
+
+          <section className="help-section">
+            <h2>AWS &amp; EKS</h2>
+            <p>
+              Termion reads <code>~/.aws/config</code> and <code>~/.aws/credentials</code> and
+              lists every profile in the sidebar's <strong>AWS</strong> section (SSO profiles too).
+              Expand a profile to browse EKS clusters — pick a region from the dropdown or use the
+              profile's default. For each cluster you can:
+            </p>
+            <ul>
+              <li>
+                <strong>Open a terminal</strong> pre-scoped to that cluster's kubeconfig — the tab
+                has <code>KUBECONFIG</code> pointing at a temporary file so <code>kubectl</code>{' '}
+                only sees this cluster, and it's cleaned up when you close the tab.
+              </li>
+              <li>
+                <strong>Open the EKS dashboard tab</strong> — a browsable tree of nodes, namespaces,
+                workloads, pods, services, ingresses, and events. Click any resource to see YAML,
+                logs (for pods), or drill into related resources.
+              </li>
+            </ul>
+            <p>
+              The AWS status bar at the bottom of the sidebar shows the active profile/region.
+              Click it to switch profiles or force a refresh (useful after <code>aws sso login</code>).
+            </p>
+          </section>
+
+          <section className="help-section">
+            <h2>Snippets</h2>
+            <p>
+              Snippets are named command blocks you can paste into any active terminal at the
+              prompt (they don't auto-run unless you press Enter). Open the <strong>Snippets</strong>{' '}
+              section in the sidebar and click <strong>+</strong> to create one:
+            </p>
+            <ul>
+              <li>
+                <strong>Title</strong> — how it appears in the sidebar.
+              </li>
+              <li>
+                <strong>Body</strong> — the command(s) to insert.
+              </li>
+              <li>
+                <strong>Host filter</strong> (optional) — only show this snippet in terminals for
+                matching SSH hosts.
+              </li>
+              <li>
+                <strong>Confirm before run</strong> — pop a confirmation dialog first (useful for
+                destructive commands).
+              </li>
+            </ul>
+          </section>
+
+          <section className="help-section">
+            <h2>Bug reports</h2>
+            <p>
+              Click the <strong>bug icon</strong> in the sidebar footer to open the bug report
+              dialog. It captures your description plus recent app logs and opens a pre-filled
+              GitHub issue.
             </p>
           </section>
 
@@ -362,7 +472,10 @@ export default function HelpModal({ onClose }: Props): React.JSX.Element {
         </div>
 
         <div className="help-footer">
-          <span>© {YEAR} Zion Maor. All rights reserved.</span>
+          <span>
+            © {COPYRIGHT_YEAR} <strong>Zion Maor</strong>. All rights reserved. Licensed under a
+            proprietary license — see LICENSE.
+          </span>
           <span className="help-footer-version">Termion</span>
         </div>
       </div>

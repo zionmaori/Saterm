@@ -1,0 +1,49 @@
+Termion
+
+Copyright (c) 2026 Zion Maor. All rights reserved.
+
+PROPRIETARY LICENSE
+
+This software and its accompanying source code, documentation, artwork,
+build artifacts, and any derivative works thereof (collectively, the
+"Software") are the proprietary work of Zion Maor ("the Author") and are
+protected by copyright law and international treaty provisions.
+
+1. No license is granted to use, copy, modify, merge, publish, distribute,
+   sublicense, sell, or create derivative works of the Software, in whole
+   or in part, without the prior written permission of the Author.
+
+2. Regardless of any permission granted, the following restrictions ALWAYS
+   apply and may not be waived by any recipient of the Software:
+
+   a. The Author's name, copyright notices, attribution strings, and any
+      "Copyright (c) YEAR Zion Maor" markers appearing in the source code,
+      the built application (including but not limited to the "About"
+      window, Help dialog, application menu, and packaged binary
+      metadata), the LICENSE file, README, and NOTICE file MUST be
+      preserved verbatim in every copy, fork, redistribution, and
+      derivative work of the Software.
+
+   b. Attribution to the Author may not be removed, obscured, replaced,
+      or minimized in any user-facing surface of the Software or any
+      derivative work.
+
+   c. Any redistribution or derivative work must include this LICENSE
+      file unmodified.
+
+3. If you wish to use, modify, or redistribute the Software under terms
+   other than those set out above, contact the Author at
+   zion.maori@gmail.com to negotiate a separate license.
+
+4. THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+   EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+   MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE, AND
+   NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR ANY
+   CLAIM, DAMAGES, OR OTHER LIABILITY, WHETHER IN AN ACTION OF
+   CONTRACT, TORT, OR OTHERWISE, ARISING FROM, OUT OF, OR IN
+   CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+   SOFTWARE.
+
+5. Third-party open-source components bundled with the Software retain
+   their original licenses and copyright notices. See NOTICE.md for a
+   summary.

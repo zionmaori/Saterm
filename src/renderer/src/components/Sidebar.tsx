@@ -5,6 +5,8 @@ import {
   Bug,
   ChevronDown,
   ChevronRight,
+  ChevronsDownUp,
+  ChevronsUpDown,
   Folder,
   GitBranch,
   Pin,
@@ -116,6 +118,7 @@ export default function Sidebar(): React.JSX.Element {
   const [bugDialogOpen, setBugDialogOpen] = useState(false)
   const [hostSort, setHostSort] = useState<'default' | 'name' | 'recent'>('default')
   const [projectSort, setProjectSort] = useState<'recent' | 'name'>('recent')
+  const [allCollapsed, setAllCollapsed] = useState(false)
   const searchInputRef = useRef<HTMLInputElement>(null)
 
   const activeTabId = useApp((s) => s.activeTabId)
@@ -152,6 +155,14 @@ export default function Sidebar(): React.JSX.Element {
   useEffect(() => {
     void refreshAwsProfiles()
   }, [refreshAwsProfiles])
+
+  // Reset the collapse-all button's toggle state whenever the user manually
+  // opens/closes an individual section — otherwise the icon can lie.
+  useEffect(() => {
+    const handler = (): void => setAllCollapsed(false)
+    window.addEventListener('sidebar:section-toggled', handler)
+    return () => window.removeEventListener('sidebar:section-toggled', handler)
+  }, [])
 
   const matched = useMemo(() => {
     const filtered = hosts.filter(
@@ -338,6 +349,19 @@ export default function Sidebar(): React.JSX.Element {
         <kbd className="titlebar-kbd" style={{ marginLeft: 4 }}>
           ⌘F
         </kbd>
+        <button
+          className="sidebar2-search-clear"
+          onClick={() => {
+            const open = allCollapsed
+            window.dispatchEvent(new CustomEvent('sidebar:set-all', { detail: { open } }))
+            setAllCollapsed(!open)
+          }}
+          title={allCollapsed ? 'Expand all sections' : 'Collapse all sections'}
+          tabIndex={-1}
+          style={{ marginLeft: 2 }}
+        >
+          {allCollapsed ? <ChevronsUpDown size={12} /> : <ChevronsDownUp size={12} />}
+        </button>
       </div>
 
       <div className="sidebar2-scroll">
@@ -904,7 +928,22 @@ function Section({
     } catch {
       /* noop */
     }
+    // Let the sidebar toolbar know we've diverged from all-open / all-closed.
+    window.dispatchEvent(new CustomEvent('sidebar:section-toggled'))
   }
+  useEffect(() => {
+    const handler = (e: Event): void => {
+      const next = (e as CustomEvent<{ open: boolean }>).detail?.open ?? false
+      setOpen(next)
+      try {
+        localStorage.setItem(key, String(next))
+      } catch {
+        /* noop */
+      }
+    }
+    window.addEventListener('sidebar:set-all', handler)
+    return () => window.removeEventListener('sidebar:set-all', handler)
+  }, [key])
   return (
     <div className="sidebar2-section">
       <div className="sidebar2-section-header" onClick={toggle}>

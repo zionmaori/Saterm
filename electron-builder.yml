@@ -1,5 +1,6 @@
 appId: com.electron.app
 productName: termion
+copyright: Copyright (c) 2026 Zion Maor. All rights reserved.
 directories:
   buildResources: build
 files:
@@ -9,6 +10,9 @@ files:
   - '!{.eslintcache,eslint.config.mjs,.prettierignore,.prettierrc.yaml,dev-app-update.yml,CHANGELOG.md,README.md}'
   - '!{.env,.env.*,.npmrc,pnpm-lock.yaml}'
   - '!{tsconfig.json,tsconfig.node.json,tsconfig.web.json}'
+extraResources:
+  - LICENSE
+  - NOTICE.md
 asarUnpack:
   - resources/**
 win:

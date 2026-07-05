@@ -120,6 +120,17 @@ function dedupHostsOnce(): void {
 
 app.whenReady().then(async () => {
   electronApp.setAppUserModelId('com.termion.app')
+  // Native "About Termion" dialog (macOS: app menu; Linux: some DEs).
+  // Windows uses the LegalCopyright field from electron-builder.yml instead.
+  app.setAboutPanelOptions({
+    applicationName: 'Termion',
+    applicationVersion: app.getVersion(),
+    version: app.getVersion(),
+    copyright: 'Copyright (c) 2026 Zion Maor. All rights reserved.',
+    credits: 'Created by Zion Maor · zion.maori@gmail.com',
+    authors: ['Zion Maor'],
+    website: 'https://github.com/zionmaori/Termion'
+  })
   getDb()
   registerIpcHandlers()
   await firstLaunchImport()
