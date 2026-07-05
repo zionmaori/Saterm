@@ -156,6 +156,7 @@ export interface PtySpawnArgs {
   shell?: string
   env?: Record<string, string>
   title?: string
+  initialCommand?: string
 }
 
 export interface AwsProfile {

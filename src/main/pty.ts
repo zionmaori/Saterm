@@ -146,6 +146,17 @@ export function spawnPty(args: PtySpawnArgs): void {
       signal: signal ? String(signal) : null
     } satisfies TermExitEvent)
   })
+  // Auto-run a command as if the user typed it at the first prompt. Give the
+  // login shell a moment to finish sourcing rc files (so PATH is populated)
+  // before we write — otherwise the command can race the shell's startup and
+  // land before the prompt is drawn, or run in a shell that hasn't yet
+  // picked up user-installed CLIs like `claude`.
+  if (args.initialCommand) {
+    const cmd = args.initialCommand
+    setTimeout(() => {
+      sessions.get(args.sessionId)?.pty.write(`${cmd}\r`)
+    }, 400)
+  }
 }
 
 export function writePty(sessionId: SessionId, data: string): void {

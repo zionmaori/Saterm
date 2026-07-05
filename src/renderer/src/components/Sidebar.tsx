@@ -682,7 +682,7 @@ export default function Sidebar(): React.JSX.Element {
                 title="Open Claude Code in this project"
                 onClick={(e) => {
                   e.stopPropagation()
-                  openLocalTab(p.path, 'claude')
+                  openLocalTab(p.path, undefined, 'claude')
                 }}
               >
                 <BotMessageSquare size={13} />

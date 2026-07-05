@@ -137,7 +137,8 @@ export default function TerminalPane({ tab, visible, resizeKey }: Props): React.
             cols,
             rows,
             shell: tab.shell,
-            env: tab.env
+            env: tab.env,
+            initialCommand: tab.initialCommand
           })
         }
       } catch (err) {

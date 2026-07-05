@@ -24,6 +24,7 @@ export interface Tab {
   projectId?: number
   cwd?: string
   shell?: string
+  initialCommand?: string
   env?: Record<string, string>
   kubeconfigPath?: string
   /** EKS dashboard tab metadata. Only present when kind === 'eks'. */
@@ -62,7 +63,7 @@ interface AppState {
   refreshHosts: () => Promise<void>
   refreshProjects: () => Promise<void>
   openSshTab: (host: Host) => Tab
-  openLocalTab: (cwd?: string, shell?: string) => Tab
+  openLocalTab: (cwd?: string, shell?: string, initialCommand?: string) => Tab
   openProjectTab: (project: Project) => Tab
   closeTab: (id: SessionId) => void
   setActiveTab: (id: SessionId) => void
@@ -129,9 +130,13 @@ export const useApp = create<AppState>((set, get) => ({
     return tab
   },
 
-  openLocalTab: (cwd, shell) => {
-    const title = shell ? shell.split(/[\\/]/).pop()! : 'local'
-    const tab: Tab = { id: uuid(), kind: 'local', title, cwd, shell }
+  openLocalTab: (cwd, shell, initialCommand) => {
+    const title = initialCommand
+      ? initialCommand.split(/\s+/)[0]
+      : shell
+        ? shell.split(/[\\/]/).pop()!
+        : 'local'
+    const tab: Tab = { id: uuid(), kind: 'local', title, cwd, shell, initialCommand }
     set((s) => ({ tabs: [...s.tabs, tab], activeTabId: tab.id }))
     void get().persistLayout()
     return tab
