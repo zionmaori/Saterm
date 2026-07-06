@@ -32,8 +32,10 @@ interface EventsState {
   items: KubeItem[] | null
 }
 
+type BundleKey = keyof Omit<KubeBundle, 'cluster'>
+
 const RESOURCES: Array<{
-  key: keyof Omit<KubeBundle, 'cluster'>
+  key: BundleKey
   resource: string
   cluster: boolean
 }> = [
@@ -45,7 +47,20 @@ const RESOURCES: Array<{
   { key: 'services', resource: 'services', cluster: false },
   { key: 'ingresses', resource: 'ingresses', cluster: false },
   { key: 'configmaps', resource: 'configmaps', cluster: false },
-  { key: 'secrets', resource: 'secrets', cluster: false }
+  { key: 'secrets', resource: 'secrets', cluster: false },
+  { key: 'storageClasses', resource: 'storageclasses', cluster: true },
+  { key: 'persistentVolumes', resource: 'persistentvolumes', cluster: true },
+  { key: 'persistentVolumeClaims', resource: 'persistentvolumeclaims', cluster: false },
+  { key: 'resourceQuotas', resource: 'resourcequotas', cluster: false },
+  { key: 'limitRanges', resource: 'limitranges', cluster: false },
+  { key: 'networkPolicies', resource: 'networkpolicies', cluster: false },
+  { key: 'serviceAccounts', resource: 'serviceaccounts', cluster: false }
+]
+
+// Operator StorageCluster CRDs — probed best-effort. Missing CRDs render as empty.
+const STORAGE_CLUSTER_CRDS = [
+  'storageclusters.ceph.rook.io',
+  'storageclusters.core.libopenstorage.org'
 ]
 
 export default function EksDashboard({ tab, visible }: Props): React.JSX.Element {
@@ -87,9 +102,16 @@ export default function EksDashboard({ tab, visible }: Props): React.JSX.Element
               r.cluster ? { cluster: true } : nsOpts
             ) as Promise<ListPayload>
           ).catch(() => ({ items: [] as KubeItem[] }))
+        ),
+        ...STORAGE_CLUSTER_CRDS.map((res) =>
+          (
+            window.api.kube.get(env, res, { cluster: true }) as Promise<ListPayload>
+          ).catch(() => ({ items: [] as KubeItem[] }))
         )
       ])
-      const [clusterInfo, ...lists] = results
+      const [clusterInfo, ...rest] = results
+      const lists = rest.slice(0, RESOURCES.length)
+      const crdLists = rest.slice(RESOURCES.length)
       const data: KubeBundle = {
         cluster: (clusterInfo as Record<string, unknown> | null) ?? null,
         nodes: [],
@@ -100,12 +122,21 @@ export default function EksDashboard({ tab, visible }: Props): React.JSX.Element
         services: [],
         ingresses: [],
         configmaps: [],
-        secrets: []
+        secrets: [],
+        storageClasses: [],
+        persistentVolumes: [],
+        persistentVolumeClaims: [],
+        storageClusters: [],
+        resourceQuotas: [],
+        limitRanges: [],
+        networkPolicies: [],
+        serviceAccounts: []
       }
       RESOURCES.forEach((r, i) => {
         const payload = lists[i] as ListPayload
         data[r.key] = payload?.items ?? []
       })
+      data.storageClusters = crdLists.flatMap((p) => ((p as ListPayload)?.items ?? []) as KubeItem[])
       setBundle({ loading: false, error: null, data })
     } catch (e) {
       setBundle({ loading: false, error: (e as Error).message, data: null })

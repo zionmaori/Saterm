@@ -545,6 +545,472 @@ export function SecretsTable({
   )
 }
 
+export function StorageClassesTable({
+  items,
+  filter,
+  onSelect
+}: {
+  items: KubeItem[]
+  filter: string
+  onSelect?: (s: KubeItem) => void
+}): React.JSX.Element {
+  const rows = items.filter((s) => matchesFilter(s.metadata?.name ?? '', filter))
+  if (!rows.length) return <div className="eks-note">No storage classes.</div>
+  return (
+    <div className="eks-table-wrap">
+      <table className="eks-table">
+        <thead>
+          <tr>
+            <th>Name</th>
+            <th>Provisioner</th>
+            <th>Reclaim</th>
+            <th>Binding mode</th>
+            <th>Allow expand</th>
+            <th>Default</th>
+            <th>Age</th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((s, i) => {
+            const sc = s as unknown as {
+              provisioner?: string
+              reclaimPolicy?: string
+              volumeBindingMode?: string
+              allowVolumeExpansion?: boolean
+            }
+            const isDefault =
+              s.metadata?.labels?.['storageclass.kubernetes.io/is-default-class'] === 'true' ||
+              (s.metadata as { annotations?: Record<string, string> } | undefined)?.annotations?.[
+                'storageclass.kubernetes.io/is-default-class'
+              ] === 'true'
+            return (
+              <tr
+                key={rowKey(s, i)}
+                onClick={onSelect ? () => onSelect(s) : undefined}
+                className={onSelect ? 'eks-row-clickable' : undefined}
+              >
+                <td className="eks-td-name">{s.metadata?.name ?? ''}</td>
+                <td className="eks-mono">{sc.provisioner ?? '—'}</td>
+                <td>{sc.reclaimPolicy ?? '—'}</td>
+                <td>{sc.volumeBindingMode ?? '—'}</td>
+                <td>{sc.allowVolumeExpansion ? 'yes' : 'no'}</td>
+                <td>{isDefault ? <Pill kind="ok">default</Pill> : '—'}</td>
+                <td>{ageOf(s.metadata?.creationTimestamp)}</td>
+              </tr>
+            )
+          })}
+        </tbody>
+      </table>
+    </div>
+  )
+}
+
+export function PersistentVolumesTable({
+  items,
+  filter,
+  onSelect
+}: {
+  items: KubeItem[]
+  filter: string
+  onSelect?: (v: KubeItem) => void
+}): React.JSX.Element {
+  const rows = items.filter((v) => matchesFilter(v.metadata?.name ?? '', filter))
+  if (!rows.length) return <div className="eks-note">No persistent volumes.</div>
+  return (
+    <div className="eks-table-wrap">
+      <table className="eks-table">
+        <thead>
+          <tr>
+            <th>Name</th>
+            <th>Capacity</th>
+            <th>Access</th>
+            <th>Reclaim</th>
+            <th>Status</th>
+            <th>Claim</th>
+            <th>Storage class</th>
+            <th>Age</th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((v, i) => {
+            const spec =
+              (v.spec as
+                | {
+                    capacity?: { storage?: string }
+                    accessModes?: string[]
+                    persistentVolumeReclaimPolicy?: string
+                    storageClassName?: string
+                    claimRef?: { namespace?: string; name?: string }
+                  }
+                | undefined) ?? {}
+            const status = (v.status as { phase?: string } | undefined) ?? {}
+            const phase = status.phase ?? '—'
+            const accent: 'ok' | 'warn' | 'err' =
+              phase === 'Bound' ? 'ok' : phase === 'Available' ? 'warn' : 'err'
+            const claim = spec.claimRef ? `${spec.claimRef.namespace}/${spec.claimRef.name}` : '—'
+            return (
+              <tr
+                key={rowKey(v, i)}
+                onClick={onSelect ? () => onSelect(v) : undefined}
+                className={onSelect ? 'eks-row-clickable' : undefined}
+              >
+                <td className="eks-td-name">{v.metadata?.name ?? ''}</td>
+                <td>{spec.capacity?.storage ?? '—'}</td>
+                <td className="eks-mono">{(spec.accessModes ?? []).join(',') || '—'}</td>
+                <td>{spec.persistentVolumeReclaimPolicy ?? '—'}</td>
+                <td>
+                  <Pill kind={accent}>{phase}</Pill>
+                </td>
+                <td className="eks-td-truncate" title={claim}>
+                  {claim}
+                </td>
+                <td>{spec.storageClassName ?? '—'}</td>
+                <td>{ageOf(v.metadata?.creationTimestamp)}</td>
+              </tr>
+            )
+          })}
+        </tbody>
+      </table>
+    </div>
+  )
+}
+
+export function StorageClustersTable({
+  items,
+  filter,
+  onSelect
+}: {
+  items: KubeItem[]
+  filter: string
+  onSelect?: (s: KubeItem) => void
+}): React.JSX.Element {
+  const rows = items.filter((s) => matchesFilter(s.metadata?.name ?? '', filter))
+  if (!rows.length) return <div className="eks-note">No storage clusters.</div>
+  return (
+    <div className="eks-table-wrap">
+      <table className="eks-table">
+        <thead>
+          <tr>
+            <th>Name</th>
+            <th>Kind</th>
+            <th>Namespace</th>
+            <th>Phase</th>
+            <th>Age</th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((s, i) => {
+            const status = (s.status as { phase?: string; state?: string } | undefined) ?? {}
+            const phase = status.phase ?? status.state ?? '—'
+            return (
+              <tr
+                key={rowKey(s, i)}
+                onClick={onSelect ? () => onSelect(s) : undefined}
+                className={onSelect ? 'eks-row-clickable' : undefined}
+              >
+                <td className="eks-td-name">{s.metadata?.name ?? ''}</td>
+                <td className="eks-mono">{s.kind ?? '—'}</td>
+                <td>{s.metadata?.namespace ?? '—'}</td>
+                <td>{phase}</td>
+                <td>{ageOf(s.metadata?.creationTimestamp)}</td>
+              </tr>
+            )
+          })}
+        </tbody>
+      </table>
+    </div>
+  )
+}
+
+export function PVCsTable({
+  items,
+  filter,
+  onSelect
+}: {
+  items: KubeItem[]
+  filter: string
+  onSelect?: (p: KubeItem) => void
+}): React.JSX.Element {
+  const rows = items.filter((p) => {
+    const name = p.metadata?.name ?? ''
+    const ns = p.metadata?.namespace ?? ''
+    return matchesFilter(`${ns}/${name}`, filter)
+  })
+  if (!rows.length) return <div className="eks-note">No persistent volume claims.</div>
+  return (
+    <div className="eks-table-wrap">
+      <table className="eks-table">
+        <thead>
+          <tr>
+            <th>Namespace</th>
+            <th>Name</th>
+            <th>Status</th>
+            <th>Volume</th>
+            <th>Capacity</th>
+            <th>Access</th>
+            <th>Storage class</th>
+            <th>Age</th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((p, i) => {
+            const spec =
+              (p.spec as
+                | {
+                    volumeName?: string
+                    storageClassName?: string
+                    accessModes?: string[]
+                    resources?: { requests?: { storage?: string } }
+                  }
+                | undefined) ?? {}
+            const status =
+              (p.status as { phase?: string; capacity?: { storage?: string } } | undefined) ?? {}
+            const phase = status.phase ?? '—'
+            const accent: 'ok' | 'warn' | 'err' =
+              phase === 'Bound' ? 'ok' : phase === 'Pending' ? 'warn' : 'err'
+            const cap = status.capacity?.storage ?? spec.resources?.requests?.storage ?? '—'
+            return (
+              <tr
+                key={rowKey(p, i)}
+                onClick={onSelect ? () => onSelect(p) : undefined}
+                className={onSelect ? 'eks-row-clickable' : undefined}
+              >
+                <td>{p.metadata?.namespace ?? ''}</td>
+                <td className="eks-td-name">{p.metadata?.name ?? ''}</td>
+                <td>
+                  <Pill kind={accent}>{phase}</Pill>
+                </td>
+                <td className="eks-td-truncate eks-mono" title={spec.volumeName ?? ''}>
+                  {spec.volumeName ?? '—'}
+                </td>
+                <td>{cap}</td>
+                <td className="eks-mono">{(spec.accessModes ?? []).join(',') || '—'}</td>
+                <td>{spec.storageClassName ?? '—'}</td>
+                <td>{ageOf(p.metadata?.creationTimestamp)}</td>
+              </tr>
+            )
+          })}
+        </tbody>
+      </table>
+    </div>
+  )
+}
+
+export function ResourceQuotasTable({
+  items,
+  filter,
+  onSelect
+}: {
+  items: KubeItem[]
+  filter: string
+  onSelect?: (q: KubeItem) => void
+}): React.JSX.Element {
+  const rows = items.filter((q) => {
+    const name = q.metadata?.name ?? ''
+    const ns = q.metadata?.namespace ?? ''
+    return matchesFilter(`${ns}/${name}`, filter)
+  })
+  if (!rows.length) return <div className="eks-note">No resource quotas.</div>
+  return (
+    <div className="eks-table-wrap">
+      <table className="eks-table">
+        <thead>
+          <tr>
+            <th>Namespace</th>
+            <th>Name</th>
+            <th>Hard limits</th>
+            <th>Age</th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((q, i) => {
+            const status = (q.status as { hard?: Record<string, string> } | undefined) ?? {}
+            const spec = (q.spec as { hard?: Record<string, string> } | undefined) ?? {}
+            const hardCount = Object.keys(status.hard ?? spec.hard ?? {}).length
+            return (
+              <tr
+                key={rowKey(q, i)}
+                onClick={onSelect ? () => onSelect(q) : undefined}
+                className={onSelect ? 'eks-row-clickable' : undefined}
+              >
+                <td>{q.metadata?.namespace ?? ''}</td>
+                <td className="eks-td-name">{q.metadata?.name ?? ''}</td>
+                <td>{hardCount}</td>
+                <td>{ageOf(q.metadata?.creationTimestamp)}</td>
+              </tr>
+            )
+          })}
+        </tbody>
+      </table>
+    </div>
+  )
+}
+
+export function LimitRangesTable({
+  items,
+  filter,
+  onSelect
+}: {
+  items: KubeItem[]
+  filter: string
+  onSelect?: (l: KubeItem) => void
+}): React.JSX.Element {
+  const rows = items.filter((l) => {
+    const name = l.metadata?.name ?? ''
+    const ns = l.metadata?.namespace ?? ''
+    return matchesFilter(`${ns}/${name}`, filter)
+  })
+  if (!rows.length) return <div className="eks-note">No limit ranges.</div>
+  return (
+    <div className="eks-table-wrap">
+      <table className="eks-table">
+        <thead>
+          <tr>
+            <th>Namespace</th>
+            <th>Name</th>
+            <th>Types</th>
+            <th>Age</th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((l, i) => {
+            const spec = (l.spec as { limits?: Array<{ type?: string }> } | undefined) ?? {}
+            const types = (spec.limits ?? [])
+              .map((t) => t.type ?? '')
+              .filter(Boolean)
+              .join(', ')
+            return (
+              <tr
+                key={rowKey(l, i)}
+                onClick={onSelect ? () => onSelect(l) : undefined}
+                className={onSelect ? 'eks-row-clickable' : undefined}
+              >
+                <td>{l.metadata?.namespace ?? ''}</td>
+                <td className="eks-td-name">{l.metadata?.name ?? ''}</td>
+                <td className="eks-td-truncate" title={types}>
+                  {types || '—'}
+                </td>
+                <td>{ageOf(l.metadata?.creationTimestamp)}</td>
+              </tr>
+            )
+          })}
+        </tbody>
+      </table>
+    </div>
+  )
+}
+
+export function NetworkPoliciesTable({
+  items,
+  filter,
+  onSelect
+}: {
+  items: KubeItem[]
+  filter: string
+  onSelect?: (n: KubeItem) => void
+}): React.JSX.Element {
+  const rows = items.filter((n) => {
+    const name = n.metadata?.name ?? ''
+    const ns = n.metadata?.namespace ?? ''
+    return matchesFilter(`${ns}/${name}`, filter)
+  })
+  if (!rows.length) return <div className="eks-note">No network policies.</div>
+  return (
+    <div className="eks-table-wrap">
+      <table className="eks-table">
+        <thead>
+          <tr>
+            <th>Namespace</th>
+            <th>Name</th>
+            <th>Types</th>
+            <th>Pod selector</th>
+            <th>Age</th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((n, i) => {
+            const spec =
+              (n.spec as
+                | {
+                    policyTypes?: string[]
+                    podSelector?: { matchLabels?: Record<string, string> }
+                  }
+                | undefined) ?? {}
+            const types = (spec.policyTypes ?? []).join(', ') || '—'
+            const sel = spec.podSelector?.matchLabels ?? {}
+            const selStr = Object.entries(sel)
+              .map(([k, v]) => `${k}=${v}`)
+              .join(', ')
+            return (
+              <tr
+                key={rowKey(n, i)}
+                onClick={onSelect ? () => onSelect(n) : undefined}
+                className={onSelect ? 'eks-row-clickable' : undefined}
+              >
+                <td>{n.metadata?.namespace ?? ''}</td>
+                <td className="eks-td-name">{n.metadata?.name ?? ''}</td>
+                <td className="eks-mono">{types}</td>
+                <td className="eks-td-truncate eks-mono" title={selStr}>
+                  {selStr || 'all pods'}
+                </td>
+                <td>{ageOf(n.metadata?.creationTimestamp)}</td>
+              </tr>
+            )
+          })}
+        </tbody>
+      </table>
+    </div>
+  )
+}
+
+export function ServiceAccountsTable({
+  items,
+  filter,
+  onSelect
+}: {
+  items: KubeItem[]
+  filter: string
+  onSelect?: (s: KubeItem) => void
+}): React.JSX.Element {
+  const rows = items.filter((s) => {
+    const name = s.metadata?.name ?? ''
+    const ns = s.metadata?.namespace ?? ''
+    return matchesFilter(`${ns}/${name}`, filter)
+  })
+  if (!rows.length) return <div className="eks-note">No service accounts.</div>
+  return (
+    <div className="eks-table-wrap">
+      <table className="eks-table">
+        <thead>
+          <tr>
+            <th>Namespace</th>
+            <th>Name</th>
+            <th>Secrets</th>
+            <th>Age</th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((s, i) => {
+            const secrets = (s as unknown as { secrets?: unknown[] }).secrets ?? []
+            return (
+              <tr
+                key={rowKey(s, i)}
+                onClick={onSelect ? () => onSelect(s) : undefined}
+                className={onSelect ? 'eks-row-clickable' : undefined}
+              >
+                <td>{s.metadata?.namespace ?? ''}</td>
+                <td className="eks-td-name">{s.metadata?.name ?? ''}</td>
+                <td>{secrets.length}</td>
+                <td>{ageOf(s.metadata?.creationTimestamp)}</td>
+              </tr>
+            )
+          })}
+        </tbody>
+      </table>
+    </div>
+  )
+}
+
 export function EventsTable({
   items,
   filter

@@ -54,6 +54,23 @@ export type TreeKind =
   | 'orphanPodsFolder'
   | 'unscheduledPodsFolder'
   | 'eventsFolder'
+  | 'storageFolder'
+  | 'storageClassesFolder'
+  | 'storageClass'
+  | 'pvsFolder'
+  | 'pv'
+  | 'storageClustersFolder'
+  | 'storageCluster'
+  | 'pvcsFolder'
+  | 'pvc'
+  | 'resourceQuotasFolder'
+  | 'resourceQuota'
+  | 'limitRangesFolder'
+  | 'limitRange'
+  | 'networkPoliciesFolder'
+  | 'networkPolicy'
+  | 'serviceAccountsFolder'
+  | 'serviceAccount'
 
 export type StatusKind = 'ok' | 'warn' | 'err'
 
@@ -79,6 +96,14 @@ export interface KubeBundle {
   ingresses: KubeItem[]
   configmaps: KubeItem[]
   secrets: KubeItem[]
+  storageClasses: KubeItem[]
+  persistentVolumes: KubeItem[]
+  persistentVolumeClaims: KubeItem[]
+  storageClusters: KubeItem[]
+  resourceQuotas: KubeItem[]
+  limitRanges: KubeItem[]
+  networkPolicies: KubeItem[]
+  serviceAccounts: KubeItem[]
 }
 
 export interface EksClusterCtx {

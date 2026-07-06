@@ -7,12 +7,20 @@ import {
   DeploymentsTable,
   EventsTable,
   IngressesTable,
+  LimitRangesTable,
   NamespacesTable,
+  NetworkPoliciesTable,
   NodesTable,
+  PVCsTable,
+  PersistentVolumesTable,
   Pill,
   PodsTable,
+  ResourceQuotasTable,
   SecretsTable,
-  ServicesTable
+  ServiceAccountsTable,
+  ServicesTable,
+  StorageClassesTable,
+  StorageClustersTable
 } from './tables'
 
 interface Props {
@@ -185,6 +193,145 @@ export default function KubeDetails({
     case 'secret':
       return selection.item ? (
         <SecretDetails sec={selection.item} />
+      ) : (
+        <div className="eks-note">Missing data.</div>
+      )
+    case 'storageFolder':
+      return <StorageOverview bundle={bundle} onNavigate={onNavigate} />
+    case 'storageClassesFolder':
+      return (
+        <StorageClassesTable
+          items={bundle.storageClasses}
+          filter={filter}
+          onSelect={(s) => onNavigate(`storage/sc/${s.metadata?.name}`)}
+        />
+      )
+    case 'pvsFolder':
+      return (
+        <PersistentVolumesTable
+          items={bundle.persistentVolumes}
+          filter={filter}
+          onSelect={(v) => onNavigate(`storage/pv/${v.metadata?.name}`)}
+        />
+      )
+    case 'storageClustersFolder':
+      return (
+        <StorageClustersTable
+          items={bundle.storageClusters}
+          filter={filter}
+          onSelect={(s) => onNavigate(`storage/sccluster/${s.kind}/${s.metadata?.name}`)}
+        />
+      )
+    case 'pvcsFolder': {
+      const ns = selection.namespace
+      const items = ns
+        ? bundle.persistentVolumeClaims.filter((p) => p.metadata?.namespace === ns)
+        : bundle.persistentVolumeClaims
+      return (
+        <PVCsTable
+          items={items}
+          filter={filter}
+          onSelect={(p) => onNavigate(`ns/${p.metadata?.namespace}/pvc/${p.metadata?.name}`)}
+        />
+      )
+    }
+    case 'resourceQuotasFolder': {
+      const ns = selection.namespace
+      const items = ns
+        ? bundle.resourceQuotas.filter((q) => q.metadata?.namespace === ns)
+        : bundle.resourceQuotas
+      return (
+        <ResourceQuotasTable
+          items={items}
+          filter={filter}
+          onSelect={(q) => onNavigate(`ns/${q.metadata?.namespace}/quota/${q.metadata?.name}`)}
+        />
+      )
+    }
+    case 'limitRangesFolder': {
+      const ns = selection.namespace
+      const items = ns
+        ? bundle.limitRanges.filter((l) => l.metadata?.namespace === ns)
+        : bundle.limitRanges
+      return (
+        <LimitRangesTable
+          items={items}
+          filter={filter}
+          onSelect={(l) => onNavigate(`ns/${l.metadata?.namespace}/limit/${l.metadata?.name}`)}
+        />
+      )
+    }
+    case 'networkPoliciesFolder': {
+      const ns = selection.namespace
+      const items = ns
+        ? bundle.networkPolicies.filter((n) => n.metadata?.namespace === ns)
+        : bundle.networkPolicies
+      return (
+        <NetworkPoliciesTable
+          items={items}
+          filter={filter}
+          onSelect={(n) => onNavigate(`ns/${n.metadata?.namespace}/netpol/${n.metadata?.name}`)}
+        />
+      )
+    }
+    case 'serviceAccountsFolder': {
+      const ns = selection.namespace
+      const items = ns
+        ? bundle.serviceAccounts.filter((s) => s.metadata?.namespace === ns)
+        : bundle.serviceAccounts
+      return (
+        <ServiceAccountsTable
+          items={items}
+          filter={filter}
+          onSelect={(s) => onNavigate(`ns/${s.metadata?.namespace}/sa/${s.metadata?.name}`)}
+        />
+      )
+    }
+    case 'storageClass':
+      return selection.item ? (
+        <StorageClassDetails sc={selection.item} bundle={bundle} onOpen={onNavigate} />
+      ) : (
+        <div className="eks-note">Missing data.</div>
+      )
+    case 'pv':
+      return selection.item ? (
+        <PersistentVolumeDetails pv={selection.item} onOpen={onNavigate} />
+      ) : (
+        <div className="eks-note">Missing data.</div>
+      )
+    case 'pvc':
+      return selection.item ? (
+        <PersistentVolumeClaimDetails pvc={selection.item} bundle={bundle} onOpen={onNavigate} />
+      ) : (
+        <div className="eks-note">Missing data.</div>
+      )
+    case 'storageCluster':
+      return selection.item ? (
+        <StorageClusterDetails sc={selection.item} />
+      ) : (
+        <div className="eks-note">Missing data.</div>
+      )
+    case 'resourceQuota':
+      return selection.item ? (
+        <ResourceQuotaDetails q={selection.item} />
+      ) : (
+        <div className="eks-note">Missing data.</div>
+      )
+    case 'limitRange':
+      return selection.item ? (
+        <LimitRangeDetails lr={selection.item} />
+      ) : (
+        <div className="eks-note">Missing data.</div>
+      )
+    case 'networkPolicy':
+      return selection.item ? (
+        <NetworkPolicyDetails np={selection.item} />
+      ) : (
+        <div className="eks-note">Missing data.</div>
+      )
+    case 'serviceAccount':
+      return selection.item ? (
+        <ServiceAccountDetails sa={selection.item} />
       ) : (
         <div className="eks-note">Missing data.</div>
       )
@@ -483,9 +630,18 @@ function NamespaceDetails({
   onNavigate: (id: string) => void
 }): React.JSX.Element {
   const count = (arr: KubeItem[]): number => arr.filter((x) => x.metadata?.namespace === ns).length
+  const nsObj = bundle.namespaces.find((n) => n.metadata?.name === ns)
+  const labels = nsObj?.metadata?.labels ?? {}
+  const annotations =
+    (nsObj?.metadata as { annotations?: Record<string, string> } | undefined)?.annotations ?? {}
+  const phase = (nsObj?.status as { phase?: string } | undefined)?.phase ?? '—'
   return (
     <div className="eks-details">
-      <DetailsHeader title={ns} subtitle="namespace" />
+      <DetailsHeader
+        title={ns}
+        subtitle="namespace"
+        status={<Pill kind={phase === 'Active' ? 'ok' : 'warn'}>{phase}</Pill>}
+      />
       <div className="eks-card-grid">
         <button
           className="eks-card eks-card-neutral eks-card-clickable"
@@ -529,7 +685,71 @@ function NamespaceDetails({
           <div className="eks-card-label">Secrets</div>
           <div className="eks-card-value">{count(bundle.secrets)}</div>
         </button>
+        <button
+          className="eks-card eks-card-neutral eks-card-clickable"
+          onClick={() => onNavigate(`ns/${ns}/pvcs`)}
+        >
+          <div className="eks-card-label">PVCs</div>
+          <div className="eks-card-value">{count(bundle.persistentVolumeClaims)}</div>
+        </button>
+        <button
+          className="eks-card eks-card-neutral eks-card-clickable"
+          onClick={() => onNavigate(`ns/${ns}/quotas`)}
+        >
+          <div className="eks-card-label">Resource quotas</div>
+          <div className="eks-card-value">{count(bundle.resourceQuotas)}</div>
+        </button>
+        <button
+          className="eks-card eks-card-neutral eks-card-clickable"
+          onClick={() => onNavigate(`ns/${ns}/limits`)}
+        >
+          <div className="eks-card-label">Limit ranges</div>
+          <div className="eks-card-value">{count(bundle.limitRanges)}</div>
+        </button>
+        <button
+          className="eks-card eks-card-neutral eks-card-clickable"
+          onClick={() => onNavigate(`ns/${ns}/netpols`)}
+        >
+          <div className="eks-card-label">Network policies</div>
+          <div className="eks-card-value">{count(bundle.networkPolicies)}</div>
+        </button>
+        <button
+          className="eks-card eks-card-neutral eks-card-clickable"
+          onClick={() => onNavigate(`ns/${ns}/sas`)}
+        >
+          <div className="eks-card-label">Service accounts</div>
+          <div className="eks-card-value">{count(bundle.serviceAccounts)}</div>
+        </button>
       </div>
+      {Object.keys(labels).length > 0 && (
+        <Section label={`Labels (${Object.keys(labels).length})`}>
+          <div className="eks-chips">
+            {Object.entries(labels).map(([k, v]) => (
+              <span key={k} className="eks-chip">
+                {k}={v}
+              </span>
+            ))}
+          </div>
+        </Section>
+      )}
+      {Object.keys(annotations).length > 0 && (
+        <Section label={`Annotations (${Object.keys(annotations).length})`}>
+          <div className="eks-chips">
+            {Object.entries(annotations).map(([k, v]) => (
+              <span key={k} className="eks-chip" title={v}>
+                {k}={v.length > 60 ? `${v.slice(0, 60)}…` : v}
+              </span>
+            ))}
+          </div>
+        </Section>
+      )}
+      <Section label="Created">
+        <div className="eks-mono">
+          {nsObj?.metadata?.creationTimestamp
+            ? `${nsObj.metadata.creationTimestamp} · ${ageOf(nsObj.metadata.creationTimestamp)} ago`
+            : '—'}
+        </div>
+      </Section>
     </div>
   )
 }
@@ -1173,4 +1393,561 @@ function EventsPanel({
     )
   }
   return <EventsTable items={state.items} filter={filter} />
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// Storage overview
+// ─────────────────────────────────────────────────────────────────────────
+
+function StorageOverview({
+  bundle,
+  onNavigate
+}: {
+  bundle: KubeBundle
+  onNavigate: (id: string) => void
+}): React.JSX.Element {
+  const totalPvCapacity = bundle.persistentVolumes.reduce((acc, v) => {
+    const spec = (v.spec as { capacity?: { storage?: string } } | undefined) ?? {}
+    return acc + parseMemBytes(spec.capacity?.storage)
+  }, 0)
+  const boundPvs = bundle.persistentVolumes.filter(
+    (v) => (v.status as { phase?: string } | undefined)?.phase === 'Bound'
+  ).length
+  return (
+    <div className="eks-details">
+      <DetailsHeader title="storage" subtitle="cluster-scoped storage resources" />
+      <div className="eks-card-grid">
+        <button
+          className="eks-card eks-card-neutral eks-card-clickable"
+          onClick={() => onNavigate('storage/storageclasses')}
+        >
+          <div className="eks-card-label">Storage classes</div>
+          <div className="eks-card-value">{bundle.storageClasses.length}</div>
+        </button>
+        <button
+          className="eks-card eks-card-neutral eks-card-clickable"
+          onClick={() => onNavigate('storage/pvs')}
+        >
+          <div className="eks-card-label">PVs</div>
+          <div className="eks-card-value">
+            {boundPvs}/{bundle.persistentVolumes.length}
+          </div>
+        </button>
+        <Card label="Total capacity" value={formatMem(totalPvCapacity)} />
+        {bundle.storageClusters.length > 0 && (
+          <button
+            className="eks-card eks-card-neutral eks-card-clickable"
+            onClick={() => onNavigate('storage/storageclusters')}
+          >
+            <div className="eks-card-label">Storage clusters</div>
+            <div className="eks-card-value">{bundle.storageClusters.length}</div>
+          </button>
+        )}
+      </div>
+    </div>
+  )
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// StorageClass
+// ─────────────────────────────────────────────────────────────────────────
+
+function StorageClassDetails({
+  sc,
+  bundle,
+  onOpen
+}: {
+  sc: KubeItem
+  bundle: KubeBundle
+  onOpen: (id: string) => void
+}): React.JSX.Element {
+  const scAny = sc as unknown as {
+    provisioner?: string
+    reclaimPolicy?: string
+    volumeBindingMode?: string
+    allowVolumeExpansion?: boolean
+    parameters?: Record<string, string>
+    mountOptions?: string[]
+  }
+  const name = sc.metadata?.name ?? ''
+  const isDefault =
+    sc.metadata?.labels?.['storageclass.kubernetes.io/is-default-class'] === 'true' ||
+    (sc.metadata as { annotations?: Record<string, string> } | undefined)?.annotations?.[
+      'storageclass.kubernetes.io/is-default-class'
+    ] === 'true'
+  const params = scAny.parameters ?? {}
+  const pvsUsing = bundle.persistentVolumes.filter(
+    (v) => (v.spec as { storageClassName?: string } | undefined)?.storageClassName === name
+  )
+  return (
+    <div className="eks-details">
+      <DetailsHeader
+        title={name}
+        subtitle="storage class"
+        status={isDefault ? <Pill kind="ok">default</Pill> : undefined}
+      />
+      <div className="eks-kv-grid">
+        <KV label="Provisioner">
+          <code>{scAny.provisioner ?? '—'}</code>
+        </KV>
+        <KV label="Reclaim policy">{scAny.reclaimPolicy ?? '—'}</KV>
+        <KV label="Volume binding mode">{scAny.volumeBindingMode ?? '—'}</KV>
+        <KV label="Allow volume expansion">{scAny.allowVolumeExpansion ? 'yes' : 'no'}</KV>
+        <KV label="Age">{ageOf(sc.metadata?.creationTimestamp)}</KV>
+      </div>
+      {Object.keys(params).length > 0 && (
+        <Section label={`Parameters (${Object.keys(params).length})`}>
+          <div className="eks-chips">
+            {Object.entries(params).map(([k, v]) => (
+              <span key={k} className="eks-chip">
+                {k}={v}
+              </span>
+            ))}
+          </div>
+        </Section>
+      )}
+      {(scAny.mountOptions?.length ?? 0) > 0 && (
+        <Section label="Mount options">
+          <ul className="eks-plain-list">
+            {(scAny.mountOptions ?? []).map((m, i) => (
+              <li key={i} className="eks-mono">
+                {m}
+              </li>
+            ))}
+          </ul>
+        </Section>
+      )}
+      <Section label={`PVs using this class (${pvsUsing.length})`}>
+        {!pvsUsing.length && <div className="eks-note">None.</div>}
+        <ul className="eks-plain-list">
+          {pvsUsing.map((v) => (
+            <li key={v.metadata?.uid ?? v.metadata?.name}>
+              <button
+                className="eks-linklike"
+                onClick={() => onOpen(`storage/pv/${v.metadata?.name}`)}
+              >
+                {v.metadata?.name}
+              </button>
+            </li>
+          ))}
+        </ul>
+      </Section>
+    </div>
+  )
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// PersistentVolume
+// ─────────────────────────────────────────────────────────────────────────
+
+function PersistentVolumeDetails({
+  pv,
+  onOpen
+}: {
+  pv: KubeItem
+  onOpen: (id: string) => void
+}): React.JSX.Element {
+  const spec =
+    (pv.spec as
+      | {
+          capacity?: { storage?: string }
+          accessModes?: string[]
+          persistentVolumeReclaimPolicy?: string
+          storageClassName?: string
+          claimRef?: { namespace?: string; name?: string; kind?: string }
+          volumeMode?: string
+          csi?: { driver?: string; volumeHandle?: string }
+          nfs?: { server?: string; path?: string }
+          hostPath?: { path?: string }
+          awsElasticBlockStore?: { volumeID?: string }
+        }
+      | undefined) ?? {}
+  const status =
+    (pv.status as { phase?: string; reason?: string; message?: string } | undefined) ?? {}
+  const phase = status.phase ?? '—'
+  const accent: 'ok' | 'warn' | 'err' =
+    phase === 'Bound' ? 'ok' : phase === 'Available' ? 'warn' : 'err'
+  const source = spec.csi
+    ? `csi/${spec.csi.driver ?? ''} · ${spec.csi.volumeHandle ?? ''}`
+    : spec.nfs
+      ? `nfs/${spec.nfs.server}:${spec.nfs.path}`
+      : spec.awsElasticBlockStore
+        ? `ebs/${spec.awsElasticBlockStore.volumeID}`
+        : spec.hostPath
+          ? `hostPath/${spec.hostPath.path}`
+          : '—'
+  return (
+    <div className="eks-details">
+      <DetailsHeader
+        title={pv.metadata?.name ?? ''}
+        subtitle="persistent volume"
+        status={<Pill kind={accent}>{phase}</Pill>}
+      />
+      <div className="eks-kv-grid">
+        <KV label="Capacity">{spec.capacity?.storage ?? '—'}</KV>
+        <KV label="Access modes">
+          <code>{(spec.accessModes ?? []).join(',') || '—'}</code>
+        </KV>
+        <KV label="Reclaim policy">{spec.persistentVolumeReclaimPolicy ?? '—'}</KV>
+        <KV label="Storage class">{spec.storageClassName ?? '—'}</KV>
+        <KV label="Volume mode">{spec.volumeMode ?? '—'}</KV>
+        <KV label="Source">
+          <code>{source}</code>
+        </KV>
+        <KV label="Age">{ageOf(pv.metadata?.creationTimestamp)}</KV>
+      </div>
+      {spec.claimRef && (
+        <Section label="Claim">
+          <button
+            className="eks-linklike"
+            onClick={() =>
+              spec.claimRef?.namespace && spec.claimRef?.name
+                ? onOpen(`ns/${spec.claimRef.namespace}/pvc/${spec.claimRef.name}`)
+                : undefined
+            }
+          >
+            {spec.claimRef.namespace}/{spec.claimRef.name}
+          </button>
+        </Section>
+      )}
+      {status.message && (
+        <Section label="Message">
+          <div className="eks-mono">{status.message}</div>
+        </Section>
+      )}
+    </div>
+  )
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// PersistentVolumeClaim
+// ─────────────────────────────────────────────────────────────────────────
+
+function PersistentVolumeClaimDetails({
+  pvc,
+  bundle,
+  onOpen
+}: {
+  pvc: KubeItem
+  bundle: KubeBundle
+  onOpen: (id: string) => void
+}): React.JSX.Element {
+  const spec =
+    (pvc.spec as
+      | {
+          volumeName?: string
+          storageClassName?: string
+          accessModes?: string[]
+          resources?: { requests?: { storage?: string } }
+          volumeMode?: string
+        }
+      | undefined) ?? {}
+  const status =
+    (pvc.status as { phase?: string; capacity?: { storage?: string } } | undefined) ?? {}
+  const phase = status.phase ?? '—'
+  const accent: 'ok' | 'warn' | 'err' =
+    phase === 'Bound' ? 'ok' : phase === 'Pending' ? 'warn' : 'err'
+  const name = pvc.metadata?.name ?? ''
+  const ns = pvc.metadata?.namespace ?? ''
+  const mountedBy = bundle.pods.filter((p) => {
+    if (p.metadata?.namespace !== ns) return false
+    const volumes =
+      (
+        p.spec as
+          | { volumes?: Array<{ persistentVolumeClaim?: { claimName?: string } }> }
+          | undefined
+      )?.volumes ?? []
+    return volumes.some((v) => v.persistentVolumeClaim?.claimName === name)
+  })
+  return (
+    <div className="eks-details">
+      <DetailsHeader
+        title={name}
+        subtitle={`persistent volume claim · ${ns}`}
+        status={<Pill kind={accent}>{phase}</Pill>}
+      />
+      <div className="eks-kv-grid">
+        <KV label="Volume">
+          {spec.volumeName ? (
+            <button
+              className="eks-linklike"
+              onClick={() => onOpen(`storage/pv/${spec.volumeName}`)}
+            >
+              {spec.volumeName}
+            </button>
+          ) : (
+            '—'
+          )}
+        </KV>
+        <KV label="Storage class">{spec.storageClassName ?? '—'}</KV>
+        <KV label="Capacity">
+          {status.capacity?.storage ?? spec.resources?.requests?.storage ?? '—'}
+        </KV>
+        <KV label="Access modes">
+          <code>{(spec.accessModes ?? []).join(',') || '—'}</code>
+        </KV>
+        <KV label="Volume mode">{spec.volumeMode ?? '—'}</KV>
+        <KV label="Age">{ageOf(pvc.metadata?.creationTimestamp)}</KV>
+      </div>
+      <Section label={`Mounted by pods (${mountedBy.length})`}>
+        {!mountedBy.length && <div className="eks-note">Not mounted.</div>}
+        <ul className="eks-plain-list">
+          {mountedBy.map((p) => (
+            <li key={p.metadata?.uid ?? p.metadata?.name} className="eks-mono">
+              {p.metadata?.name}
+            </li>
+          ))}
+        </ul>
+      </Section>
+    </div>
+  )
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// StorageCluster (operator CR — raw dump)
+// ─────────────────────────────────────────────────────────────────────────
+
+function StorageClusterDetails({ sc }: { sc: KubeItem }): React.JSX.Element {
+  const status = (sc.status ?? {}) as Record<string, unknown>
+  const spec = (sc.spec ?? {}) as Record<string, unknown>
+  return (
+    <div className="eks-details">
+      <DetailsHeader
+        title={sc.metadata?.name ?? ''}
+        subtitle={`${sc.kind ?? 'StorageCluster'}${sc.metadata?.namespace ? ` · ${sc.metadata.namespace}` : ''}`}
+      />
+      <div className="eks-kv-grid">
+        <KV label="API version">
+          <code>{sc.apiVersion ?? '—'}</code>
+        </KV>
+        <KV label="Kind">{sc.kind ?? '—'}</KV>
+        <KV label="Age">{ageOf(sc.metadata?.creationTimestamp)}</KV>
+      </div>
+      <Section label="Spec">
+        <pre className="eks-cm-value">{JSON.stringify(spec, null, 2)}</pre>
+      </Section>
+      <Section label="Status">
+        <pre className="eks-cm-value">{JSON.stringify(status, null, 2)}</pre>
+      </Section>
+    </div>
+  )
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// ResourceQuota
+// ─────────────────────────────────────────────────────────────────────────
+
+function ResourceQuotaDetails({ q }: { q: KubeItem }): React.JSX.Element {
+  const spec = (q.spec as { hard?: Record<string, string>; scopes?: string[] } | undefined) ?? {}
+  const status =
+    (q.status as { hard?: Record<string, string>; used?: Record<string, string> } | undefined) ?? {}
+  const hard = status.hard ?? spec.hard ?? {}
+  const used = status.used ?? {}
+  const keys = Object.keys(hard).sort()
+  return (
+    <div className="eks-details">
+      <DetailsHeader
+        title={q.metadata?.name ?? ''}
+        subtitle={`resource quota · ${q.metadata?.namespace ?? ''}`}
+      />
+      <div className="eks-kv-grid">
+        <KV label="Scopes">
+          <code>{(spec.scopes ?? []).join(', ') || '—'}</code>
+        </KV>
+        <KV label="Age">{ageOf(q.metadata?.creationTimestamp)}</KV>
+      </div>
+      <Section label={`Resources (${keys.length})`}>
+        {!keys.length && <div className="eks-note">No limits defined.</div>}
+        {keys.length > 0 && (
+          <table className="eks-table">
+            <thead>
+              <tr>
+                <th>Resource</th>
+                <th>Used</th>
+                <th>Hard</th>
+              </tr>
+            </thead>
+            <tbody>
+              {keys.map((k) => (
+                <tr key={k}>
+                  <td className="eks-mono">{k}</td>
+                  <td>{used[k] ?? '—'}</td>
+                  <td>{hard[k] ?? '—'}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </Section>
+    </div>
+  )
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// LimitRange
+// ─────────────────────────────────────────────────────────────────────────
+
+function LimitRangeDetails({ lr }: { lr: KubeItem }): React.JSX.Element {
+  const spec =
+    (lr.spec as
+      | {
+          limits?: Array<{
+            type?: string
+            default?: Record<string, string>
+            defaultRequest?: Record<string, string>
+            max?: Record<string, string>
+            min?: Record<string, string>
+          }>
+        }
+      | undefined) ?? {}
+  const limits = spec.limits ?? []
+  return (
+    <div className="eks-details">
+      <DetailsHeader
+        title={lr.metadata?.name ?? ''}
+        subtitle={`limit range · ${lr.metadata?.namespace ?? ''}`}
+      />
+      <div className="eks-kv-grid">
+        <KV label="Age">{ageOf(lr.metadata?.creationTimestamp)}</KV>
+      </div>
+      {!limits.length && <div className="eks-note">No limits defined.</div>}
+      {limits.map((lim, i) => {
+        const resources = new Set<string>([
+          ...Object.keys(lim.default ?? {}),
+          ...Object.keys(lim.defaultRequest ?? {}),
+          ...Object.keys(lim.max ?? {}),
+          ...Object.keys(lim.min ?? {})
+        ])
+        const keys = Array.from(resources).sort()
+        return (
+          <Section key={i} label={`${lim.type ?? 'Limit'}`}>
+            <table className="eks-table">
+              <thead>
+                <tr>
+                  <th>Resource</th>
+                  <th>Min</th>
+                  <th>Default request</th>
+                  <th>Default</th>
+                  <th>Max</th>
+                </tr>
+              </thead>
+              <tbody>
+                {keys.map((k) => (
+                  <tr key={k}>
+                    <td className="eks-mono">{k}</td>
+                    <td>{lim.min?.[k] ?? '—'}</td>
+                    <td>{lim.defaultRequest?.[k] ?? '—'}</td>
+                    <td>{lim.default?.[k] ?? '—'}</td>
+                    <td>{lim.max?.[k] ?? '—'}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </Section>
+        )
+      })}
+    </div>
+  )
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// NetworkPolicy
+// ─────────────────────────────────────────────────────────────────────────
+
+function NetworkPolicyDetails({ np }: { np: KubeItem }): React.JSX.Element {
+  const spec =
+    (np.spec as
+      | {
+          policyTypes?: string[]
+          podSelector?: { matchLabels?: Record<string, string> }
+          ingress?: unknown[]
+          egress?: unknown[]
+        }
+      | undefined) ?? {}
+  const sel = spec.podSelector?.matchLabels ?? {}
+  return (
+    <div className="eks-details">
+      <DetailsHeader
+        title={np.metadata?.name ?? ''}
+        subtitle={`network policy · ${np.metadata?.namespace ?? ''}`}
+      />
+      <div className="eks-kv-grid">
+        <KV label="Policy types">
+          <code>{(spec.policyTypes ?? []).join(', ') || '—'}</code>
+        </KV>
+        <KV label="Age">{ageOf(np.metadata?.creationTimestamp)}</KV>
+      </div>
+      <Section label="Pod selector">
+        {Object.keys(sel).length ? (
+          <div className="eks-chips">
+            {Object.entries(sel).map(([k, v]) => (
+              <span key={k} className="eks-chip">
+                {k}={v}
+              </span>
+            ))}
+          </div>
+        ) : (
+          <div className="eks-note">All pods in the namespace.</div>
+        )}
+      </Section>
+      {(spec.ingress?.length ?? 0) > 0 && (
+        <Section label={`Ingress rules (${spec.ingress?.length ?? 0})`}>
+          <pre className="eks-cm-value">{JSON.stringify(spec.ingress, null, 2)}</pre>
+        </Section>
+      )}
+      {(spec.egress?.length ?? 0) > 0 && (
+        <Section label={`Egress rules (${spec.egress?.length ?? 0})`}>
+          <pre className="eks-cm-value">{JSON.stringify(spec.egress, null, 2)}</pre>
+        </Section>
+      )}
+    </div>
+  )
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// ServiceAccount
+// ─────────────────────────────────────────────────────────────────────────
+
+function ServiceAccountDetails({ sa }: { sa: KubeItem }): React.JSX.Element {
+  const saAny = sa as unknown as {
+    secrets?: Array<{ name?: string }>
+    imagePullSecrets?: Array<{ name?: string }>
+    automountServiceAccountToken?: boolean
+  }
+  const secrets = saAny.secrets ?? []
+  const pullSecrets = saAny.imagePullSecrets ?? []
+  return (
+    <div className="eks-details">
+      <DetailsHeader
+        title={sa.metadata?.name ?? ''}
+        subtitle={`service account · ${sa.metadata?.namespace ?? ''}`}
+      />
+      <div className="eks-kv-grid">
+        <KV label="Automount token">
+          {saAny.automountServiceAccountToken === false ? 'no' : 'yes (default)'}
+        </KV>
+        <KV label="Age">{ageOf(sa.metadata?.creationTimestamp)}</KV>
+      </div>
+      <Section label={`Mounted secrets (${secrets.length})`}>
+        {!secrets.length && <div className="eks-note">None.</div>}
+        <ul className="eks-plain-list">
+          {secrets.map((s, i) => (
+            <li key={i} className="eks-mono">
+              {s.name ?? '—'}
+            </li>
+          ))}
+        </ul>
+      </Section>
+      <Section label={`Image pull secrets (${pullSecrets.length})`}>
+        {!pullSecrets.length && <div className="eks-note">None.</div>}
+        <ul className="eks-plain-list">
+          {pullSecrets.map((s, i) => (
+            <li key={i} className="eks-mono">
+              {s.name ?? '—'}
+            </li>
+          ))}
+        </ul>
+      </Section>
+    </div>
+  )
 }

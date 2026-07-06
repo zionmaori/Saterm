@@ -100,6 +100,11 @@ export function buildNamespaceTree(
     const nsIngresses = bundle.ingresses.filter((i) => i.metadata?.namespace === ns)
     const nsConfigMaps = bundle.configmaps.filter((c) => c.metadata?.namespace === ns)
     const nsSecrets = bundle.secrets.filter((s) => s.metadata?.namespace === ns)
+    const nsPvcs = bundle.persistentVolumeClaims.filter((p) => p.metadata?.namespace === ns)
+    const nsQuotas = bundle.resourceQuotas.filter((q) => q.metadata?.namespace === ns)
+    const nsLimits = bundle.limitRanges.filter((l) => l.metadata?.namespace === ns)
+    const nsNetPols = bundle.networkPolicies.filter((n) => n.metadata?.namespace === ns)
+    const nsSAs = bundle.serviceAccounts.filter((s) => s.metadata?.namespace === ns)
     const orphans = orphanPodsByNs.get(ns) ?? []
 
     const deploymentNodes: TreeNode[] = nsDeploys.map((d) => {
@@ -242,6 +247,81 @@ export function buildNamespaceTree(
       }))
     }
 
+    const pvcsNode: TreeNode = {
+      id: `ns/${ns}/pvcs`,
+      kind: 'pvcsFolder',
+      name: 'persistent volume claims',
+      namespace: ns,
+      count: nsPvcs.length,
+      children: nsPvcs.map((p) => ({
+        id: `ns/${ns}/pvc/${p.metadata?.name ?? ''}`,
+        kind: 'pvc',
+        name: p.metadata?.name ?? '',
+        namespace: ns,
+        item: p
+      }))
+    }
+
+    const quotasNode: TreeNode = {
+      id: `ns/${ns}/quotas`,
+      kind: 'resourceQuotasFolder',
+      name: 'resource quotas',
+      namespace: ns,
+      count: nsQuotas.length,
+      children: nsQuotas.map((q) => ({
+        id: `ns/${ns}/quota/${q.metadata?.name ?? ''}`,
+        kind: 'resourceQuota',
+        name: q.metadata?.name ?? '',
+        namespace: ns,
+        item: q
+      }))
+    }
+
+    const limitsNode: TreeNode = {
+      id: `ns/${ns}/limits`,
+      kind: 'limitRangesFolder',
+      name: 'limit ranges',
+      namespace: ns,
+      count: nsLimits.length,
+      children: nsLimits.map((l) => ({
+        id: `ns/${ns}/limit/${l.metadata?.name ?? ''}`,
+        kind: 'limitRange',
+        name: l.metadata?.name ?? '',
+        namespace: ns,
+        item: l
+      }))
+    }
+
+    const netPolsNode: TreeNode = {
+      id: `ns/${ns}/netpols`,
+      kind: 'networkPoliciesFolder',
+      name: 'network policies',
+      namespace: ns,
+      count: nsNetPols.length,
+      children: nsNetPols.map((n) => ({
+        id: `ns/${ns}/netpol/${n.metadata?.name ?? ''}`,
+        kind: 'networkPolicy',
+        name: n.metadata?.name ?? '',
+        namespace: ns,
+        item: n
+      }))
+    }
+
+    const sasNode: TreeNode = {
+      id: `ns/${ns}/sas`,
+      kind: 'serviceAccountsFolder',
+      name: 'service accounts',
+      namespace: ns,
+      count: nsSAs.length,
+      children: nsSAs.map((s) => ({
+        id: `ns/${ns}/sa/${s.metadata?.name ?? ''}`,
+        kind: 'serviceAccount',
+        name: s.metadata?.name ?? '',
+        namespace: ns,
+        item: s
+      }))
+    }
+
     const totalPods = bundle.pods.filter((p) => p.metadata?.namespace === ns).length
 
     return {
@@ -250,7 +330,18 @@ export function buildNamespaceTree(
       name: ns,
       namespace: ns,
       count: totalPods,
-      children: [workloadsNode, servicesNode, ingressesNode, configMapsNode, secretsNode]
+      children: [
+        workloadsNode,
+        servicesNode,
+        ingressesNode,
+        configMapsNode,
+        secretsNode,
+        pvcsNode,
+        quotasNode,
+        limitsNode,
+        netPolsNode,
+        sasNode
+      ]
     }
   })
 
@@ -283,11 +374,62 @@ export function buildNamespaceTree(
     children: []
   }
 
+  const storageClassesFolder: TreeNode = {
+    id: 'storage/storageclasses',
+    kind: 'storageClassesFolder',
+    name: 'storage classes',
+    count: bundle.storageClasses.length,
+    children: bundle.storageClasses.map((s) => ({
+      id: `storage/sc/${s.metadata?.name ?? ''}`,
+      kind: 'storageClass',
+      name: s.metadata?.name ?? '',
+      item: s
+    }))
+  }
+
+  const pvsFolder: TreeNode = {
+    id: 'storage/pvs',
+    kind: 'pvsFolder',
+    name: 'persistent volumes',
+    count: bundle.persistentVolumes.length,
+    children: bundle.persistentVolumes.map((v) => ({
+      id: `storage/pv/${v.metadata?.name ?? ''}`,
+      kind: 'pv',
+      name: v.metadata?.name ?? '',
+      item: v
+    }))
+  }
+
+  const storageChildren: TreeNode[] = [storageClassesFolder, pvsFolder]
+
+  if (bundle.storageClusters.length > 0) {
+    storageChildren.push({
+      id: 'storage/storageclusters',
+      kind: 'storageClustersFolder',
+      name: 'storage clusters',
+      count: bundle.storageClusters.length,
+      children: bundle.storageClusters.map((s) => ({
+        id: `storage/sccluster/${s.kind ?? ''}/${s.metadata?.name ?? ''}`,
+        kind: 'storageCluster',
+        name: s.metadata?.name ?? '',
+        item: s
+      }))
+    })
+  }
+
+  const storageFolder: TreeNode = {
+    id: 'storage',
+    kind: 'storageFolder',
+    name: 'storage',
+    count: bundle.storageClasses.length + bundle.persistentVolumes.length,
+    children: storageChildren
+  }
+
   const root: TreeNode = {
     id: 'cluster',
     kind: 'cluster',
     name: cluster.cluster,
-    children: [nodesFolder, namespacesFolder, eventsNode]
+    children: [nodesFolder, namespacesFolder, storageFolder, eventsNode]
   }
 
   return pruneBySearch(root, search) ?? root

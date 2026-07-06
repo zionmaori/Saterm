@@ -7,14 +7,20 @@ import {
   ChevronRight,
   Cloud,
   Copy,
+  Database,
   FileText,
   Folder,
   FolderOpen,
+  Gauge,
   Globe,
+  HardDrive,
   KeyRound,
   Layers,
   Network,
-  Server
+  Scale,
+  Server,
+  Shield,
+  UserCircle
 } from 'lucide-react'
 import type { TreeKind, TreeNode } from './kubeTypes'
 
@@ -45,6 +51,15 @@ function KindIcon({ kind, open }: { kind: TreeKind; open: boolean }): React.JSX.
     case 'orphanPodsFolder':
     case 'unscheduledPodsFolder':
     case 'eventsFolder':
+    case 'storageFolder':
+    case 'storageClassesFolder':
+    case 'pvsFolder':
+    case 'storageClustersFolder':
+    case 'pvcsFolder':
+    case 'resourceQuotasFolder':
+    case 'limitRangesFolder':
+    case 'networkPoliciesFolder':
+    case 'serviceAccountsFolder':
       return open ? <FolderOpen size={s} strokeWidth={w} /> : <Folder size={s} strokeWidth={w} />
     case 'node':
       return <Server size={s} strokeWidth={w} />
@@ -64,6 +79,21 @@ function KindIcon({ kind, open }: { kind: TreeKind; open: boolean }): React.JSX.
       return <FileText size={s} strokeWidth={w} />
     case 'secret':
       return <KeyRound size={s} strokeWidth={w} />
+    case 'storageClass':
+      return <Database size={s} strokeWidth={w} />
+    case 'pv':
+    case 'pvc':
+      return <HardDrive size={s} strokeWidth={w} />
+    case 'storageCluster':
+      return <Layers size={s} strokeWidth={w} />
+    case 'resourceQuota':
+      return <Gauge size={s} strokeWidth={w} />
+    case 'limitRange':
+      return <Scale size={s} strokeWidth={w} />
+    case 'networkPolicy':
+      return <Shield size={s} strokeWidth={w} />
+    case 'serviceAccount':
+      return <UserCircle size={s} strokeWidth={w} />
     default:
       return <Calendar size={s} strokeWidth={w} />
   }
