@@ -450,6 +450,58 @@
   gap: 4px 8px;
 }
 
+/* ===== Kubernetes sidebar ===== */
+
+.k8s-source-group {
+  display: flex;
+  flex-direction: column;
+}
+
+.k8s-source-group + .k8s-source-group {
+  border-top: 1px solid var(--border);
+  margin-top: 2px;
+  padding-top: 2px;
+}
+
+.k8s-source-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  padding: 3px 12px;
+  background: transparent;
+  border: none;
+  color: var(--text-dim);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  text-align: left;
+  cursor: pointer;
+  user-select: none;
+}
+
+.k8s-source-header:hover {
+  color: var(--text);
+}
+
+.k8s-source-label {
+  flex: 1;
+}
+
+.k8s-source-count {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--text-dimer);
+  font-weight: 400;
+  letter-spacing: 0;
+}
+
+.k8s-source-body {
+  display: flex;
+  flex-direction: column;
+}
+
 /* ===== AWS sidebar ===== */
 
 .aws-profile-card {
@@ -458,7 +510,8 @@
   border-top: 1px solid var(--border);
 }
 
-.sidebar2-section-body > .aws-profile-card:first-child {
+.sidebar2-section-body > .aws-profile-card:first-child,
+.k8s-source-body > .aws-profile-card:first-child {
   border-top: none;
 }
 

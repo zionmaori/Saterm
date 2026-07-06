@@ -7,6 +7,7 @@ import {
   ChevronRight,
   ChevronsDownUp,
   ChevronsUpDown,
+  Cloud,
   Folder,
   GitBranch,
   Pin,
@@ -606,9 +607,9 @@ export default function Sidebar(): React.JSX.Element {
           </button>
         </Section>
 
-        {/* AWS / EKS */}
+        {/* Kubernetes */}
         <Section
-          title="AWS"
+          title="Kubernetes"
           count={awsProfiles.length}
           right={
             <button
@@ -623,26 +624,34 @@ export default function Sidebar(): React.JSX.Element {
             </button>
           }
         >
-          {awsProfiles.length === 0 && (
-            <div className="sidebar2-empty">No AWS profiles found in ~/.aws/config.</div>
-          )}
-          {awsProfiles.map((p) => (
-            <AwsProfileRow
-              key={p.name}
-              profile={p}
-              effectiveRegion={awsRegions[p.name] ?? p.region}
-              clusters={awsClustersByProfile[`${p.name}|${awsRegions[p.name] ?? p.region}`] ?? null}
-              loading={!!awsLoading[`${p.name}|${awsRegions[p.name] ?? p.region}`]}
-              onRefresh={(region) => void refreshAwsClusters(p.name, region, true)}
-              onExpand={(region) => {
-                const key = `${p.name}|${region}`
-                if (!awsClustersByProfile[key]) void refreshAwsClusters(p.name, region)
-              }}
-              onSetRegion={(region) => void setAwsRegion(p.name, region)}
-              onOpenCluster={(c) => void openEksDashboardTab(c)}
-              onOpenClusterTerminal={(c) => void openEksTab(c)}
-            />
-          ))}
+          <K8sSourceGroup
+            id="aws"
+            label="AWS"
+            count={awsProfiles.length}
+            empty={
+              awsProfiles.length === 0 ? 'No AWS profiles found in ~/.aws/config.' : undefined
+            }
+          >
+            {awsProfiles.map((p) => (
+              <AwsProfileRow
+                key={p.name}
+                profile={p}
+                effectiveRegion={awsRegions[p.name] ?? p.region}
+                clusters={
+                  awsClustersByProfile[`${p.name}|${awsRegions[p.name] ?? p.region}`] ?? null
+                }
+                loading={!!awsLoading[`${p.name}|${awsRegions[p.name] ?? p.region}`]}
+                onRefresh={(region) => void refreshAwsClusters(p.name, region, true)}
+                onExpand={(region) => {
+                  const key = `${p.name}|${region}`
+                  if (!awsClustersByProfile[key]) void refreshAwsClusters(p.name, region)
+                }}
+                onSetRegion={(region) => void setAwsRegion(p.name, region)}
+                onOpenCluster={(c) => void openEksDashboardTab(c)}
+                onOpenClusterTerminal={(c) => void openEksTab(c)}
+              />
+            ))}
+          </K8sSourceGroup>
         </Section>
 
         {/* Projects */}
@@ -954,6 +963,60 @@ function Section({
         </span>
       </div>
       {open && <div className="sidebar2-section-body">{children}</div>}
+    </div>
+  )
+}
+
+// --- K8s source sub-group ---
+
+function K8sSourceGroup({
+  id,
+  label,
+  count,
+  empty,
+  children
+}: {
+  id: string
+  label: string
+  count: number
+  empty?: string
+  children: React.ReactNode
+}): React.JSX.Element {
+  const storageKey = `sidebar.k8s.source.${id}`
+  const [open, setOpen] = useState(() => {
+    try {
+      const v = localStorage.getItem(storageKey)
+      return v === null ? true : v === 'true'
+    } catch {
+      return true
+    }
+  })
+  const toggle = (): void => {
+    const next = !open
+    setOpen(next)
+    try {
+      localStorage.setItem(storageKey, String(next))
+    } catch {
+      /* noop */
+    }
+  }
+  return (
+    <div className={`k8s-source-group${open ? ' open' : ''}`}>
+      <button className="k8s-source-header" onClick={toggle}>
+        {open ? (
+          <ChevronDown size={12} strokeWidth={2} />
+        ) : (
+          <ChevronRight size={12} strokeWidth={2} />
+        )}
+        <Cloud size={13} strokeWidth={2} />
+        <span className="k8s-source-label">{label}</span>
+        <span className="k8s-source-count">{count}</span>
+      </button>
+      {open && (
+        <div className="k8s-source-body">
+          {empty ? <div className="sidebar2-empty">{empty}</div> : children}
+        </div>
+      )}
     </div>
   )
 }
