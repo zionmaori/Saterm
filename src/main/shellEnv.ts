@@ -30,10 +30,12 @@ function loadUnixEnv(): Record<string, string> {
   const shell = unixShell()
   try {
     // -i -l so .zshrc + .zprofile both run; `env -0` is null-delimited so
-    // values with newlines don't corrupt the parse.
+    // values with newlines don't corrupt the parse. Timeout is generous
+    // because noisy zsh init (nvm, gitstatus, plugin managers) can take
+    // several seconds on Electron cold start.
     const res = spawnSync(shell, ['-i', '-l', '-c', 'env -0'], {
       encoding: 'utf8',
-      timeout: 5000,
+      timeout: 8000,
       env: process.env
     })
     if (res.status !== 0 || !res.stdout) return out
@@ -95,21 +97,56 @@ export function readEnv(name: string): string | null {
 }
 
 /**
+ * Standard install locations for CLIs that ship outside the system default
+ * PATH. When the login-shell probe fails (timeout, non-zero exit from a
+ * noisy .zshrc, unusual shell config) we fall back to these so `aws`,
+ * `kubectl`, `terraform`, etc. are still discoverable at their canonical
+ * install locations.
+ */
+function fallbackPathEntries(): string[] {
+  if (isWindows) return []
+  if (process.platform === 'darwin') {
+    return [
+      '/opt/homebrew/bin', // Apple Silicon Homebrew
+      '/opt/homebrew/sbin',
+      '/usr/local/bin', // Intel Homebrew / manual installs
+      '/usr/local/sbin'
+    ]
+  }
+  return ['/usr/local/bin', '/usr/local/sbin', '/snap/bin', '/opt/homebrew/bin']
+}
+
+/**
  * Merged PATH for spawning external CLIs.
  *
  * `readEnv('PATH')` short-circuits to `process.env.PATH` whenever it's set,
  * which on macOS-from-Finder/Dock is the meager `/usr/bin:/bin:/usr/sbin:/sbin`
  * — missing `/opt/homebrew/bin` and `/usr/local/bin` where the user's `aws`,
  * `terraform`, etc. actually live. Here we merge the login-shell PATH (first,
- * so brew etc. take precedence) with any unique entries from the live env.
+ * so brew etc. take precedence) with any unique entries from the live env,
+ * plus a known set of fallback install locations in case the login-shell
+ * probe returned nothing.
  */
 export function getPath(): string {
   const sep = isWindows ? ';' : ':'
   const shell = (loadShellEnv()['PATH'] ?? '').trim()
   const proc = (process.env.PATH ?? '').trim()
-  if (!shell) return proc
-  if (!proc) return shell
-  const seen = new Set(shell.split(sep).filter(Boolean))
-  const extras = proc.split(sep).filter((p) => p && !seen.has(p))
-  return extras.length ? `${shell}${sep}${extras.join(sep)}` : shell
+  const parts: string[] = []
+  const seen = new Set<string>()
+  const push = (raw: string): void => {
+    for (const p of raw.split(sep)) {
+      if (!p || seen.has(p)) continue
+      seen.add(p)
+      parts.push(p)
+    }
+  }
+  push(shell)
+  push(proc)
+  for (const p of fallbackPathEntries()) {
+    if (!seen.has(p)) {
+      seen.add(p)
+      parts.push(p)
+    }
+  }
+  return parts.join(sep)
 }
