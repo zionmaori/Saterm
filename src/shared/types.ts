@@ -367,3 +367,36 @@ export interface AiStatus {
   /** Which providers currently have stored credentials. */
   configured: AiProvider[]
 }
+
+// ---- Onboarding ----
+
+export interface OnboardingDetected {
+  sshConfig: boolean
+  sshConfigHostCount: number
+  knownHosts: boolean
+  knownHostsCount: number
+  awsConfig: boolean
+  awsCredentials: boolean
+  awsProfileNames: string[]
+  kubeConfig: boolean
+  projectsRoot: {
+    path: string
+    exists: boolean
+    childCount: number
+  }
+}
+
+export interface OnboardingStatus {
+  completed: boolean
+  detected: OnboardingDetected
+}
+
+export interface OnboardingImportSshInput {
+  importConfig: boolean
+  importKnownHosts: boolean
+}
+
+export interface OnboardingImportSshResult {
+  configAdded: number
+  knownHostsAdded: number
+}

@@ -2,7 +2,6 @@ import { app, shell, BrowserWindow } from 'electron'
 import { join } from 'path'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import icon from '../../resources/icon.png?asset'
-import { homedir } from 'os'
 import { existsSync, readdirSync, statSync } from 'fs'
 import { getDb, kvGet, kvSet } from './db'
 import { registerIpcHandlers } from './ipc'
@@ -11,6 +10,7 @@ import { importKnownHosts } from './knownhosts'
 import { recategorizeAll, dedupHostsByEndpoint } from './hosts'
 import { addProject, refreshAllProjectVcs } from './projects'
 import { initAi, reinitAi } from './ai'
+import { getProjectsRoot } from './settings'
 
 function createWindow(): void {
   const boundsRaw = kvGet('window.bounds')
@@ -75,7 +75,7 @@ async function firstLaunchImport(): Promise<void> {
 
 function seedProjectsOnce(): void {
   if (kvGet('projects.seededV1') === '1') return
-  const root = join(homedir(), 'Projects')
+  const root = getProjectsRoot()
   if (!existsSync(root)) {
     kvSet('projects.seededV1', '1')
     return
@@ -84,7 +84,7 @@ function seedProjectsOnce(): void {
   try {
     for (const name of readdirSync(root)) {
       if (name.startsWith('.')) continue
-      const full = `${root}/${name}`
+      const full = join(root, name)
       try {
         if (!statSync(full).isDirectory()) continue
       } catch {
@@ -133,10 +133,23 @@ app.whenReady().then(async () => {
   })
   getDb()
   registerIpcHandlers()
-  await firstLaunchImport()
-  backfillCategoriesOnce()
-  dedupHostsOnce()
-  seedProjectsOnce()
+
+  // Grandfather existing installs: anyone who already went through the silent
+  // first-launch import in a prior release is considered onboarded, so they
+  // don't see the wizard on upgrade.
+  if (kvGet('imports.firstLaunchDone') === '1' && kvGet('onboarding.completedV1') !== '1') {
+    kvSet('onboarding.completedV1', '1')
+  }
+
+  // Silent seeders — only run for grandfathered users. Fresh installs go
+  // through the wizard, which triggers imports/seed explicitly and then sets
+  // the gate itself.
+  if (kvGet('onboarding.completedV1') === '1') {
+    await firstLaunchImport()
+    backfillCategoriesOnce()
+    dedupHostsOnce()
+    seedProjectsOnce()
+  }
   const changed = refreshAllProjectVcs()
   if (changed) console.log(`[vcs] refreshed ${changed} project entries`)
   const ai = initAi()

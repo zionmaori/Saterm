@@ -1,7 +1,7 @@
 import { app, dialog, ipcMain } from 'electron'
 import { homedir } from 'os'
 import { join } from 'path'
-import { existsSync } from 'fs'
+import { existsSync, readdirSync, statSync } from 'fs'
 import {
   kvGet,
   kvSet,
@@ -29,8 +29,9 @@ import {
   pinHost,
   touchHost
 } from './hosts'
-import { importSshConfig } from './sshconfig'
-import { importKnownHosts } from './knownhosts'
+import { importSshConfig, parseSshConfig } from './sshconfig'
+import { importKnownHosts, parseKnownHosts } from './knownhosts'
+import { getProjectsRoot, setProjectsRoot } from './settings'
 import { clearHostSecrets, getSshSecret, setSshSecret, deleteSshSecret } from './keychain'
 import { connectSsh, writeSsh, resizeSsh, closeSsh, isSshSession, resolveAuthPrompt } from './ssh'
 import { spawnPty, writePty, resizePty, closePty, isPtySession, detectShells } from './pty'
@@ -119,6 +120,9 @@ import type {
   BugReportInput,
   EksOpenArgs,
   HostInput,
+  OnboardingImportSshInput,
+  OnboardingImportSshResult,
+  OnboardingStatus,
   PtySpawnArgs,
   SessionId,
   SshConnectArgs,
@@ -197,7 +201,7 @@ export function registerIpcHandlers(): void {
   // Projects
   ipcMain.handle('projects:list', () => listProjects())
   ipcMain.handle('projects:pick', async () => {
-    const defaultPath = join(homedir(), 'Projects')
+    const defaultPath = getProjectsRoot()
     const r = await dialog.showOpenDialog({
       title: 'Choose a project folder',
       defaultPath: existsSync(defaultPath) ? defaultPath : homedir(),
@@ -397,4 +401,159 @@ export function registerIpcHandlers(): void {
   ipcMain.handle('terraform:readBundle', (_e, root: string) => readTfBundle(root))
   ipcMain.handle('terraform:validate', (_e, root: string) => tfValidate(root))
   ipcMain.handle('terraform:resetCli', () => resetTerraformCliCache())
+
+  // Onboarding — first-run wizard. Detection + explicit imports/seed. Once
+  // 'onboarding:complete' fires, the silent seeders in main/index.ts are
+  // considered done too (their KV gates are set here).
+  ipcMain.handle('onboarding:status', async () => onboardingStatus())
+  ipcMain.handle('onboarding:pickProjectsRoot', async () => {
+    const start = getProjectsRoot()
+    const r = await dialog.showOpenDialog({
+      title: 'Choose your projects folder',
+      defaultPath: existsSync(start) ? start : homedir(),
+      properties: ['openDirectory', 'createDirectory']
+    })
+    if (r.canceled || !r.filePaths[0]) return null
+    const chosen = r.filePaths[0]
+    setProjectsRoot(chosen)
+    return { path: chosen, childCount: countChildren(chosen) }
+  })
+  ipcMain.handle('onboarding:setProjectsRoot', async (_e, p: string) => {
+    if (!p || !existsSync(p)) throw new Error(`Not a directory: ${p}`)
+    setProjectsRoot(p)
+    return { path: p, childCount: countChildren(p) }
+  })
+  ipcMain.handle(
+    'onboarding:importSsh',
+    async (_e, input: OnboardingImportSshInput): Promise<OnboardingImportSshResult> => {
+      let configAdded = 0
+      let knownHostsAdded = 0
+      if (input.importConfig) {
+        try {
+          const r = await importSshConfig()
+          configAdded = r.added
+        } catch (err) {
+          console.error('[onboarding] importSshConfig failed', err)
+        }
+      }
+      if (input.importKnownHosts) {
+        try {
+          const r = await importKnownHosts()
+          knownHostsAdded = r.added
+        } catch (err) {
+          console.error('[onboarding] importKnownHosts failed', err)
+        }
+      }
+      return { configAdded, knownHostsAdded }
+    }
+  )
+  ipcMain.handle('onboarding:seedProjects', async () => {
+    const root = getProjectsRoot()
+    if (!existsSync(root)) return { added: 0, root }
+    let added = 0
+    try {
+      for (const name of readdirSync(root)) {
+        if (name.startsWith('.')) continue
+        const full = join(root, name)
+        try {
+          if (!statSync(full).isDirectory()) continue
+        } catch {
+          continue
+        }
+        try {
+          addProject(full)
+          added++
+        } catch {
+          /* duplicate — ignore */
+        }
+      }
+    } catch (err) {
+      console.error('[onboarding] seedProjects failed', err)
+    }
+    return { added, root }
+  })
+  ipcMain.handle('onboarding:complete', async () => {
+    kvSet('onboarding.completedV1', '1')
+    kvSet('imports.firstLaunchDone', '1')
+    kvSet('projects.seededV1', '1')
+    kvSet('hosts.dedupedV1', '1')
+    kvSet('hosts.categorizedV2', '1')
+    return { ok: true }
+  })
+}
+
+// ---- Onboarding helpers ----
+
+function countChildren(dir: string): number {
+  try {
+    let n = 0
+    for (const name of readdirSync(dir)) {
+      if (name.startsWith('.')) continue
+      try {
+        if (statSync(join(dir, name)).isDirectory()) n++
+      } catch {
+        /* ignore */
+      }
+    }
+    return n
+  } catch {
+    return 0
+  }
+}
+
+async function onboardingStatus(): Promise<OnboardingStatus> {
+  const home = homedir()
+  const sshCfg = join(home, '.ssh', 'config')
+  const knownH = join(home, '.ssh', 'known_hosts')
+  const awsCfg = process.env.AWS_CONFIG_FILE ?? join(home, '.aws', 'config')
+  const awsCreds = process.env.AWS_SHARED_CREDENTIALS_FILE ?? join(home, '.aws', 'credentials')
+  const kubeCfg = process.env.KUBECONFIG ?? join(home, '.kube', 'config')
+  const projectsRootPath = getProjectsRoot()
+  const projectsRootExists = existsSync(projectsRootPath)
+
+  let sshConfigHostCount = 0
+  if (existsSync(sshCfg)) {
+    try {
+      const rs = await parseSshConfig()
+      sshConfigHostCount = rs.length
+    } catch {
+      /* ignore parse errors — still show the file exists */
+    }
+  }
+  let knownHostsCount = 0
+  if (existsSync(knownH)) {
+    try {
+      const kh = await parseKnownHosts()
+      knownHostsCount = kh.length
+    } catch {
+      /* ignore */
+    }
+  }
+  let awsProfileNames: string[] = []
+  if (existsSync(awsCfg) || existsSync(awsCreds)) {
+    try {
+      awsProfileNames = listAwsProfiles().map((p) => p.name)
+    } catch {
+      /* ignore */
+    }
+  }
+
+  return {
+    completed: kvGet('onboarding.completedV1') === '1',
+    detected: {
+      sshConfig: existsSync(sshCfg),
+      sshConfigHostCount,
+      knownHosts: existsSync(knownH),
+      knownHostsCount,
+      awsConfig: existsSync(awsCfg),
+      awsCredentials: existsSync(awsCreds),
+      awsProfileNames,
+      kubeConfig: existsSync(kubeCfg),
+      projectsRoot: {
+        path: projectsRootPath,
+        exists: projectsRootExists,
+        childCount: projectsRootExists ? countChildren(projectsRootPath) : 0
+      }
+    }
+  }
 }

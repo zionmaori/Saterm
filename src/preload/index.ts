@@ -21,6 +21,9 @@ import type {
   Host,
   HostInput,
   ImportSshConfigResult,
+  OnboardingImportSshInput,
+  OnboardingImportSshResult,
+  OnboardingStatus,
   PersistedLayout,
   Project,
   PtySpawnArgs,
@@ -271,6 +274,20 @@ const api = {
     add: (path: string, files: string[]) => ipcRenderer.invoke('svn:add', path, files),
     delete: (path: string, files: string[]) => ipcRenderer.invoke('svn:delete', path, files),
     log: (path: string) => ipcRenderer.invoke('svn:log', path)
+  },
+  onboarding: {
+    status: (): Promise<OnboardingStatus> => ipcRenderer.invoke('onboarding:status'),
+    pickProjectsRoot: (): Promise<{ path: string; childCount: number } | null> =>
+      ipcRenderer.invoke('onboarding:pickProjectsRoot'),
+    setProjectsRoot: (
+      path: string
+    ): Promise<{ path: string; childCount: number }> =>
+      ipcRenderer.invoke('onboarding:setProjectsRoot', path),
+    importSsh: (input: OnboardingImportSshInput): Promise<OnboardingImportSshResult> =>
+      ipcRenderer.invoke('onboarding:importSsh', input),
+    seedProjects: (): Promise<{ added: number; root: string }> =>
+      ipcRenderer.invoke('onboarding:seedProjects'),
+    complete: (): Promise<{ ok: true }> => ipcRenderer.invoke('onboarding:complete')
   }
 }
 

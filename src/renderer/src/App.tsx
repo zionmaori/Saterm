@@ -12,7 +12,8 @@ import CommandPalette from './components/CommandPalette'
 import TerminalCopilot from './components/TerminalCopilot'
 import Titlebar, { type Theme } from './components/Titlebar'
 import HelpModal from './components/HelpModal'
-import type { AuthPromptEvent } from '../../shared/types'
+import OnboardingWizard from './components/OnboardingWizard'
+import type { AuthPromptEvent, OnboardingStatus } from '../../shared/types'
 
 function readLS<T extends string>(key: string, fallback: T): T {
   try {
@@ -28,6 +29,9 @@ export default function App(): React.JSX.Element {
   const activeTabId = useApp((s) => s.activeTabId)
   const projects = useApp((s) => s.projects)
   const restoreLayout = useApp((s) => s.restoreLayout)
+  const refreshProjects = useApp((s) => s.refreshProjects)
+  const refreshHosts = useApp((s) => s.refreshHosts)
+  const refreshAwsProfiles = useApp((s) => s.refreshAwsProfiles)
 
   const [authQueue, setAuthQueue] = useState<AuthPromptEvent[]>([])
   const [paletteOpen, setPaletteOpen] = useState(false)
@@ -38,6 +42,7 @@ export default function App(): React.JSX.Element {
   )
   const [theme, setTheme] = useState<Theme>(() => readLS<Theme>('theme', 'dark'))
   const [helpOpen, setHelpOpen] = useState(false)
+  const [onboardingStatus, setOnboardingStatus] = useState<OnboardingStatus | null>(null)
 
   const installAiListeners = useAi((s) => s.installListeners)
   const refreshAiStatus = useAi((s) => s.refreshStatus)
@@ -58,6 +63,19 @@ export default function App(): React.JSX.Element {
   useEffect(() => {
     void restoreLayout()
   }, [restoreLayout])
+
+  // Onboarding: check status once the app is ready. If not completed, show
+  // the wizard as a top-level overlay.
+  useEffect(() => {
+    if (!ready) return
+    let cancelled = false
+    void window.api.onboarding.status().then((s) => {
+      if (!cancelled && !s.completed) setOnboardingStatus(s)
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [ready])
 
   useEffect(() => {
     installAiListeners()
@@ -160,6 +178,17 @@ export default function App(): React.JSX.Element {
         })()}
 
       {helpOpen && <HelpModal onClose={() => setHelpOpen(false)} />}
+      {onboardingStatus && (
+        <OnboardingWizard
+          status={onboardingStatus}
+          onFinish={() => {
+            setOnboardingStatus(null)
+            void refreshProjects()
+            void refreshHosts()
+            void refreshAwsProfiles()
+          }}
+        />
+      )}
       {authQueue[0] && <AuthPrompt event={authQueue[0]} onReply={onAuthReply} />}
 
       <CommandPalette open={paletteOpen} mode="palette" onClose={() => setPaletteOpen(false)} />

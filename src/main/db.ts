@@ -1,34 +1,100 @@
 import { app } from 'electron'
 import Database from 'better-sqlite3'
 import { join } from 'path'
-import { mkdirSync } from 'fs'
+import { copyFileSync, existsSync, mkdirSync, readdirSync, statSync, unlinkSync } from 'fs'
 
 let dbInstance: Database.Database | null = null
+
+const BACKUP_KEEP = 5
 
 export function getDb(): Database.Database {
   if (dbInstance) return dbInstance
   const dir = app.getPath('userData')
   mkdirSync(dir, { recursive: true })
   const path = join(dir, 'termion.db')
+  const dbExists = existsSync(path)
   const db = new Database(path)
   db.pragma('journal_mode = WAL')
   db.pragma('foreign_keys = ON')
+
+  // Peek the current on-disk schema version so we can snapshot the DB before
+  // any migration mutates it. Only backup when a real upgrade is pending —
+  // fresh installs (dbExists=false) and no-op boots don't need snapshots.
+  const currentVersion = readSchemaVersion(db)
+  const targetVersion = MIGRATIONS.length
+  if (dbExists && currentVersion > 0 && currentVersion < targetVersion) {
+    try {
+      backupDb(dir, path, currentVersion)
+    } catch (err) {
+      console.error('[migrate] backup failed (continuing anyway)', err)
+    }
+  }
+
   migrate(db)
+
+  if (currentVersion < targetVersion) {
+    setKv(db, 'dataVersion', String(targetVersion))
+    console.log(`[migrate] schema v${currentVersion} -> v${targetVersion}`)
+  }
+
   dbInstance = db
   return db
 }
 
-function migrate(db: Database.Database): void {
-  db.exec(`
-    CREATE TABLE IF NOT EXISTS schema_version (
-      version INTEGER PRIMARY KEY
-    );
-  `)
+function readSchemaVersion(db: Database.Database): number {
+  db.exec('CREATE TABLE IF NOT EXISTS schema_version (version INTEGER PRIMARY KEY);')
   const row = db.prepare('SELECT version FROM schema_version LIMIT 1').get() as
     | { version: number }
     | undefined
-  const current = row?.version ?? 0
-  const migrations: ((d: Database.Database) => void)[] = [
+  return row?.version ?? 0
+}
+
+function setKv(db: Database.Database, key: string, value: string): void {
+  db.prepare(
+    'INSERT INTO kv(key,value) VALUES(?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value'
+  ).run(key, value)
+}
+
+function backupDb(userDataDir: string, dbPath: string, oldVersion: number): void {
+  const backupsDir = join(userDataDir, 'backups')
+  mkdirSync(backupsDir, { recursive: true })
+  const ts = timestamp()
+  const dest = join(backupsDir, `termion.db.v${oldVersion}.${ts}.bak`)
+  copyFileSync(dbPath, dest)
+  console.log(`[migrate] backed up v${oldVersion} db -> ${dest}`)
+  pruneBackups(backupsDir)
+}
+
+function pruneBackups(backupsDir: string): void {
+  let entries: { name: string; mtimeMs: number }[]
+  try {
+    entries = readdirSync(backupsDir)
+      .filter((n) => n.startsWith('termion.db.') && n.endsWith('.bak'))
+      .map((n) => ({ name: n, mtimeMs: statSync(join(backupsDir, n)).mtimeMs }))
+  } catch {
+    return
+  }
+  if (entries.length <= BACKUP_KEEP) return
+  entries.sort((a, b) => b.mtimeMs - a.mtimeMs)
+  for (const stale of entries.slice(BACKUP_KEEP)) {
+    try {
+      unlinkSync(join(backupsDir, stale.name))
+    } catch {
+      /* ignore */
+    }
+  }
+}
+
+function timestamp(): string {
+  const d = new Date()
+  const pad = (n: number): string => String(n).padStart(2, '0')
+  return (
+    `${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}-` +
+    `${pad(d.getHours())}${pad(d.getMinutes())}${pad(d.getSeconds())}`
+  )
+}
+
+const MIGRATIONS: ((d: Database.Database) => void)[] = [
     (d) => {
       d.exec(`
         CREATE TABLE hosts (
@@ -135,10 +201,13 @@ function migrate(db: Database.Database): void {
       `)
     }
   ]
-  const target = migrations.length
+
+function migrate(db: Database.Database): void {
+  const current = readSchemaVersion(db)
+  const target = MIGRATIONS.length
   if (current >= target) return
   const run = db.transaction(() => {
-    for (let i = current; i < target; i++) migrations[i](db)
+    for (let i = current; i < target; i++) MIGRATIONS[i](db)
     db.prepare('DELETE FROM schema_version').run()
     db.prepare('INSERT INTO schema_version(version) VALUES (?)').run(target)
   })
