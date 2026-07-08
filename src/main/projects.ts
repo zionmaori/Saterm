@@ -4,6 +4,7 @@ import { join, basename, relative, sep, dirname } from 'path'
 import { spawn } from 'child_process'
 import { BrowserWindow, shell } from 'electron'
 import { getDb } from './db'
+import { getPath } from './shellEnv'
 import type { Project, VcsKind } from '../shared/types'
 
 interface ProjectRow {
@@ -252,7 +253,9 @@ export async function ripgrepSearch(
   maxHits = 1000
 ): Promise<SearchHit[]> {
   return new Promise((resolve, reject) => {
-    const child = spawn('rg', ['--json', '--smart-case', '--max-count', '200', '--', query, root])
+    const child = spawn('rg', ['--json', '--smart-case', '--max-count', '200', '--', query, root], {
+      env: { ...process.env, PATH: getPath() }
+    })
     const hits: SearchHit[] = []
     let buf = ''
     child.stdout.on('data', (chunk: Buffer) => {
