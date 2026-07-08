@@ -48,7 +48,14 @@ export default function KubeDetails({
     case 'nodesFolder':
       return <NodesTable items={bundle.nodes} filter={filter} />
     case 'namespacesFolder':
-      return <NamespacesTable items={bundle.namespaces} filter={filter} />
+      return (
+        <NamespacesTable
+          items={bundle.namespaces}
+          pods={bundle.pods}
+          filter={filter}
+          onSelect={(n) => onNavigate(`ns/${n.metadata?.name ?? ''}`)}
+        />
+      )
     case 'node':
       return selection.item ? (
         <NodeDetails
@@ -630,6 +637,8 @@ function NamespaceDetails({
   onNavigate: (id: string) => void
 }): React.JSX.Element {
   const count = (arr: KubeItem[]): number => arr.filter((x) => x.metadata?.namespace === ns).length
+  const nsPods = bundle.pods.filter((p) => p.metadata?.namespace === ns)
+  const podsRunning = nsPods.filter((p) => podPhase(p) === 'Running').length
   const nsObj = bundle.namespaces.find((n) => n.metadata?.name === ns)
   const labels = nsObj?.metadata?.labels ?? {}
   const annotations =
@@ -655,7 +664,7 @@ function NamespaceDetails({
           onClick={() => onNavigate(`ns/${ns}/workloads`)}
         >
           <div className="eks-card-label">Pods</div>
-          <div className="eks-card-value">{count(bundle.pods)}</div>
+          <div className="eks-card-value">{`${podsRunning}/${nsPods.length}`}</div>
         </button>
         <button
           className="eks-card eks-card-neutral eks-card-clickable"

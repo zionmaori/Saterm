@@ -1,6 +1,6 @@
 {
   "name": "termion",
-  "version": "1.0.48",
+  "version": "1.0.49",
   "description": "Termion — desktop terminal, SSH client, editor, and AI assistant.",
   "main": "./out/main/index.js",
   "author": {

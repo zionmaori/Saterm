@@ -1,6 +1,6 @@
 import { Database, KeyRound } from 'lucide-react'
 import type { KubeItem } from './kubeTypes'
-import { ageOf, formatMem, matchesFilter, parseMemBytes, rowKey } from './utils'
+import { ageOf, formatMem, matchesFilter, parseMemBytes, podPhase, rowKey } from './utils'
 
 export function Pill({
   kind,
@@ -85,13 +85,25 @@ export function NodesTable({
 
 export function NamespacesTable({
   items,
-  filter
+  pods,
+  filter,
+  onSelect
 }: {
   items: KubeItem[]
+  pods: KubeItem[]
   filter: string
+  onSelect?: (n: KubeItem) => void
 }): React.JSX.Element {
   const rows = items.filter((n) => matchesFilter(n.metadata?.name ?? '', filter))
   if (!rows.length) return <div className="eks-note">No namespaces.</div>
+  const podsByNs = new Map<string, { running: number; total: number }>()
+  for (const p of pods) {
+    const ns = p.metadata?.namespace ?? ''
+    const bucket = podsByNs.get(ns) ?? { running: 0, total: 0 }
+    bucket.total += 1
+    if (podPhase(p) === 'Running') bucket.running += 1
+    podsByNs.set(ns, bucket)
+  }
   return (
     <div className="eks-table-wrap">
       <table className="eks-table">
@@ -99,18 +111,26 @@ export function NamespacesTable({
           <tr>
             <th>Name</th>
             <th>Status</th>
+            <th>Pods</th>
             <th>Age</th>
           </tr>
         </thead>
         <tbody>
           {rows.map((n, i) => {
             const phase = (n.status as { phase?: string } | undefined)?.phase ?? '—'
+            const name = n.metadata?.name ?? ''
+            const counts = podsByNs.get(name) ?? { running: 0, total: 0 }
             return (
-              <tr key={rowKey(n, i)}>
-                <td className="eks-td-name">{n.metadata?.name ?? ''}</td>
+              <tr
+                key={rowKey(n, i)}
+                onClick={onSelect ? () => onSelect(n) : undefined}
+                className={onSelect ? 'eks-row-clickable' : undefined}
+              >
+                <td className="eks-td-name">{name}</td>
                 <td>
                   <Pill kind={phase === 'Active' ? 'ok' : 'warn'}>{phase}</Pill>
                 </td>
+                <td>{`${counts.running}/${counts.total}`}</td>
                 <td>{ageOf(n.metadata?.creationTimestamp)}</td>
               </tr>
             )
