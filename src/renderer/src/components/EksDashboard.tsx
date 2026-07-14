@@ -1,9 +1,17 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { AlertCircle, RefreshCw, Search, Server, Terminal as TerminalIcon } from 'lucide-react'
+import {
+  AlertCircle,
+  AlertTriangle,
+  RefreshCw,
+  Search,
+  Server,
+  Terminal as TerminalIcon
+} from 'lucide-react'
 import { useApp, type Tab } from '../store/app'
 import KubeTree from './eks/KubeTree'
 import KubeDetails from './eks/KubeDetails'
 import { buildNamespaceTree, buildNodeTree, findNode } from './eks/buildTree'
+import { podHasError } from './eks/utils'
 import type {
   EksClusterCtx,
   KubeBundle,
@@ -63,6 +71,18 @@ const STORAGE_CLUSTER_CRDS = [
   'storageclusters.core.libopenstorage.org'
 ]
 
+// Gateway API CRDs (gateway.networking.k8s.io). Best-effort — clusters without
+// the Gateway API installed will simply see empty folders.
+const GATEWAY_RESOURCES: Array<{
+  key: 'gatewayClasses' | 'gateways' | 'httpRoutes'
+  resource: string
+  cluster: boolean
+}> = [
+  { key: 'gatewayClasses', resource: 'gatewayclasses.gateway.networking.k8s.io', cluster: true },
+  { key: 'gateways', resource: 'gateways.gateway.networking.k8s.io', cluster: false },
+  { key: 'httpRoutes', resource: 'httproutes.gateway.networking.k8s.io', cluster: false }
+]
+
 export default function EksDashboard({ tab, visible }: Props): React.JSX.Element {
   const openEksTab = useApp((s) => s.openEksTab)
   const env: KubeEnv | null = useMemo(() => {
@@ -77,6 +97,7 @@ export default function EksDashboard({ tab, visible }: Props): React.JSX.Element
   const [view, setView] = useState<ViewMode>('namespace')
   const [namespace, setNamespace] = useState<string>('all')
   const [filter, setFilter] = useState('')
+  const [errorsOnly, setErrorsOnly] = useState(false)
   const [bundle, setBundle] = useState<BundleState>({ loading: false, error: null, data: null })
   const [events, setEvents] = useState<EventsState>({ loading: false, error: null, items: null })
   const [selectedId, setSelectedId] = useState<string>('cluster')
@@ -107,11 +128,21 @@ export default function EksDashboard({ tab, visible }: Props): React.JSX.Element
           (
             window.api.kube.get(env, res, { cluster: true }) as Promise<ListPayload>
           ).catch(() => ({ items: [] as KubeItem[] }))
+        ),
+        ...GATEWAY_RESOURCES.map((r) =>
+          (
+            window.api.kube.get(
+              env,
+              r.resource,
+              r.cluster ? { cluster: true } : nsOpts
+            ) as Promise<ListPayload>
+          ).catch(() => ({ items: [] as KubeItem[] }))
         )
       ])
       const [clusterInfo, ...rest] = results
       const lists = rest.slice(0, RESOURCES.length)
-      const crdLists = rest.slice(RESOURCES.length)
+      const crdLists = rest.slice(RESOURCES.length, RESOURCES.length + STORAGE_CLUSTER_CRDS.length)
+      const gatewayLists = rest.slice(RESOURCES.length + STORAGE_CLUSTER_CRDS.length)
       const data: KubeBundle = {
         cluster: (clusterInfo as Record<string, unknown> | null) ?? null,
         nodes: [],
@@ -130,13 +161,20 @@ export default function EksDashboard({ tab, visible }: Props): React.JSX.Element
         resourceQuotas: [],
         limitRanges: [],
         networkPolicies: [],
-        serviceAccounts: []
+        serviceAccounts: [],
+        gatewayClasses: [],
+        gateways: [],
+        httpRoutes: []
       }
       RESOURCES.forEach((r, i) => {
         const payload = lists[i] as ListPayload
         data[r.key] = payload?.items ?? []
       })
       data.storageClusters = crdLists.flatMap((p) => ((p as ListPayload)?.items ?? []) as KubeItem[])
+      GATEWAY_RESOURCES.forEach((r, i) => {
+        const payload = gatewayLists[i] as ListPayload
+        data[r.key] = payload?.items ?? []
+      })
       setBundle({ loading: false, error: null, data })
     } catch (e) {
       setBundle({ loading: false, error: (e as Error).message, data: null })
@@ -161,12 +199,18 @@ export default function EksDashboard({ tab, visible }: Props): React.JSX.Element
     if (!bundle.data && !bundle.loading && !bundle.error) void fetchBundle()
   }, [visible, env, bundle, fetchBundle])
 
+  const viewBundle = useMemo<KubeBundle | null>(() => {
+    if (!bundle.data) return null
+    if (!errorsOnly) return bundle.data
+    return { ...bundle.data, pods: bundle.data.pods.filter(podHasError) }
+  }, [bundle.data, errorsOnly])
+
   const tree = useMemo<TreeNode | null>(() => {
-    if (!bundle.data || !cluster) return null
+    if (!viewBundle || !cluster) return null
     return view === 'namespace'
-      ? buildNamespaceTree(bundle.data, cluster, { namespaceFilter: namespace, search: filter })
-      : buildNodeTree(bundle.data, cluster, { namespaceFilter: namespace, search: filter })
-  }, [bundle.data, cluster, view, namespace, filter])
+      ? buildNamespaceTree(viewBundle, cluster, { namespaceFilter: namespace, search: filter })
+      : buildNodeTree(viewBundle, cluster, { namespaceFilter: namespace, search: filter })
+  }, [viewBundle, cluster, view, namespace, filter])
 
   const selection = useMemo<TreeNode | null>(() => {
     if (!tree) return null
@@ -262,6 +306,13 @@ export default function EksDashboard({ tab, visible }: Props): React.JSX.Element
             />
           </div>
           <button
+            className={`sidebar2-icon${errorsOnly ? ' active' : ''}`}
+            onClick={() => setErrorsOnly((v) => !v)}
+            title={errorsOnly ? 'Show all pods' : 'Show only pods with errors'}
+          >
+            <AlertTriangle size={13} />
+          </button>
+          <button
             className="sidebar2-icon"
             onClick={handleRefresh}
             title="Refresh"
@@ -292,10 +343,10 @@ export default function EksDashboard({ tab, visible }: Props): React.JSX.Element
             <div className="eks-error">
               <AlertCircle size={13} /> {bundle.error}
             </div>
-          ) : bundle.data && selection ? (
+          ) : viewBundle && selection ? (
             <KubeDetails
               selection={selection}
-              bundle={bundle.data}
+              bundle={viewBundle}
               cluster={cluster}
               filter={filter}
               onNavigate={(id) => setSelectedId(id)}

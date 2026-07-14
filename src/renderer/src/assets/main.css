@@ -297,6 +297,11 @@
   background: var(--bg-3);
 }
 
+.sidebar2-icon.active {
+  color: var(--accent, #ffb454);
+  background: var(--bg-3);
+}
+
 .sidebar2-link {
   background: transparent;
   border: none;

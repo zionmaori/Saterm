@@ -6,6 +6,9 @@ import {
   ConfigMapsTable,
   DeploymentsTable,
   EventsTable,
+  GatewayClassesTable,
+  GatewaysTable,
+  HttpRoutesTable,
   IngressesTable,
   LimitRangesTable,
   NamespacesTable,
@@ -47,6 +50,18 @@ export default function KubeDetails({
       return <OverviewView bundle={bundle} cluster={cluster} />
     case 'nodesFolder':
       return <NodesTable items={bundle.nodes} filter={filter} />
+    case 'podsFolder': {
+      const pods = (selection.children ?? [])
+        .map((c) => c.item)
+        .filter((p): p is KubeItem => !!p)
+      return (
+        <PodsTable
+          items={pods}
+          filter={filter}
+          onSelect={(p) => onNavigate(`pods/${p.metadata?.namespace}/${p.metadata?.name}`)}
+        />
+      )
+    }
     case 'namespacesFolder':
       return (
         <NamespacesTable
@@ -156,6 +171,16 @@ export default function KubeDetails({
           }}
         />
       )
+    }
+    case 'otherPodsFolder':
+    case 'otherWorkload': {
+      const collect = (n: TreeNode, acc: KubeItem[]): KubeItem[] => {
+        if (n.kind === 'pod' && n.item) acc.push(n.item)
+        for (const c of n.children ?? []) collect(c, acc)
+        return acc
+      }
+      const pods = collect(selection, [])
+      return <PodsTable items={pods} filter={filter} />
     }
     case 'deployment':
       return selection.item ? (
@@ -294,6 +319,72 @@ export default function KubeDetails({
         />
       )
     }
+    case 'gatewayFolder':
+      return <GatewayOverview bundle={bundle} onNavigate={onNavigate} />
+    case 'gatewayClassesFolder':
+      return (
+        <GatewayClassesTable
+          items={bundle.gatewayClasses}
+          filter={filter}
+          onSelect={(g) => onNavigate(`gateway/gwclass/${g.metadata?.name}`)}
+        />
+      )
+    case 'gatewaysFolder': {
+      const ns = selection.namespace
+      const items = ns
+        ? bundle.gateways.filter((g) => g.metadata?.namespace === ns)
+        : bundle.gateways
+      return (
+        <GatewaysTable
+          items={items}
+          filter={filter}
+          onSelect={(g) =>
+            onNavigate(
+              ns
+                ? `ns/${g.metadata?.namespace}/gateway/${g.metadata?.name}`
+                : `gateway/gw/${g.metadata?.namespace}/${g.metadata?.name}`
+            )
+          }
+        />
+      )
+    }
+    case 'httpRoutesFolder': {
+      const ns = selection.namespace
+      const items = ns
+        ? bundle.httpRoutes.filter((r) => r.metadata?.namespace === ns)
+        : bundle.httpRoutes
+      return (
+        <HttpRoutesTable
+          items={items}
+          filter={filter}
+          onSelect={(r) =>
+            onNavigate(
+              ns
+                ? `ns/${r.metadata?.namespace}/httproute/${r.metadata?.name}`
+                : `gateway/route/${r.metadata?.namespace}/${r.metadata?.name}`
+            )
+          }
+        />
+      )
+    }
+    case 'gatewayClass':
+      return selection.item ? (
+        <GatewayClassDetails gc={selection.item} bundle={bundle} onOpen={onNavigate} />
+      ) : (
+        <div className="eks-note">Missing data.</div>
+      )
+    case 'gateway':
+      return selection.item ? (
+        <GatewayDetails gw={selection.item} bundle={bundle} onOpen={onNavigate} />
+      ) : (
+        <div className="eks-note">Missing data.</div>
+      )
+    case 'httpRoute':
+      return selection.item ? (
+        <HttpRouteDetails route={selection.item} onOpen={onNavigate} />
+      ) : (
+        <div className="eks-note">Missing data.</div>
+      )
     case 'storageClass':
       return selection.item ? (
         <StorageClassDetails sc={selection.item} bundle={bundle} onOpen={onNavigate} />
@@ -1957,6 +2048,433 @@ function ServiceAccountDetails({ sa }: { sa: KubeItem }): React.JSX.Element {
           ))}
         </ul>
       </Section>
+    </div>
+  )
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// Gateway API
+// ─────────────────────────────────────────────────────────────────────────
+
+function GatewayOverview({
+  bundle,
+  onNavigate
+}: {
+  bundle: KubeBundle
+  onNavigate: (id: string) => void
+}): React.JSX.Element {
+  const hasAny =
+    bundle.gatewayClasses.length + bundle.gateways.length + bundle.httpRoutes.length > 0
+  return (
+    <div className="eks-details">
+      <DetailsHeader
+        title="gateway api"
+        subtitle="gateway.networking.k8s.io resources"
+      />
+      {!hasAny && (
+        <div className="eks-note">
+          Gateway API CRDs not installed on this cluster (or no resources exist).
+        </div>
+      )}
+      <div className="eks-card-grid">
+        <button
+          className="eks-card eks-card-neutral eks-card-clickable"
+          onClick={() => onNavigate('gateway/gatewayclasses')}
+        >
+          <div className="eks-card-label">Gateway classes</div>
+          <div className="eks-card-value">{bundle.gatewayClasses.length}</div>
+        </button>
+        <button
+          className="eks-card eks-card-neutral eks-card-clickable"
+          onClick={() => onNavigate('gateway/gateways')}
+        >
+          <div className="eks-card-label">Gateways</div>
+          <div className="eks-card-value">{bundle.gateways.length}</div>
+        </button>
+        <button
+          className="eks-card eks-card-neutral eks-card-clickable"
+          onClick={() => onNavigate('gateway/httproutes')}
+        >
+          <div className="eks-card-label">HTTP routes</div>
+          <div className="eks-card-value">{bundle.httpRoutes.length}</div>
+        </button>
+      </div>
+    </div>
+  )
+}
+
+function GatewayClassDetails({
+  gc,
+  bundle,
+  onOpen
+}: {
+  gc: KubeItem
+  bundle: KubeBundle
+  onOpen: (id: string) => void
+}): React.JSX.Element {
+  const spec = (gc.spec as { controllerName?: string; description?: string } | undefined) ?? {}
+  const conds =
+    (gc.status as { conditions?: Array<{ type?: string; status?: string; message?: string }> } | undefined)
+      ?.conditions ?? []
+  const accepted = conds.find((c) => c.type === 'Accepted')?.status === 'True'
+  const name = gc.metadata?.name ?? ''
+  const gwsUsing = bundle.gateways.filter(
+    (g) => (g.spec as { gatewayClassName?: string } | undefined)?.gatewayClassName === name
+  )
+  return (
+    <div className="eks-details">
+      <DetailsHeader
+        title={name}
+        subtitle="gateway class"
+        status={<Pill kind={accepted ? 'ok' : 'warn'}>{accepted ? 'Accepted' : 'Not accepted'}</Pill>}
+      />
+      <div className="eks-kv-grid">
+        <KV label="Controller">
+          <code>{spec.controllerName ?? '—'}</code>
+        </KV>
+        <KV label="Description">{spec.description ?? '—'}</KV>
+        <KV label="Age">{ageOf(gc.metadata?.creationTimestamp)}</KV>
+      </div>
+      {conds.length > 0 && (
+        <Section label="Conditions">
+          <div className="eks-kv-grid">
+            {conds.map((c, i) => (
+              <KV key={i} label={c.type ?? '—'}>
+                {c.status ?? '—'}
+                {c.message ? ` — ${c.message}` : ''}
+              </KV>
+            ))}
+          </div>
+        </Section>
+      )}
+      <Section label={`Gateways using this class (${gwsUsing.length})`}>
+        {!gwsUsing.length && <div className="eks-note">None.</div>}
+        <ul className="eks-plain-list">
+          {gwsUsing.map((g) => (
+            <li key={g.metadata?.uid ?? g.metadata?.name}>
+              <button
+                className="eks-linklike"
+                onClick={() =>
+                  onOpen(`gateway/gw/${g.metadata?.namespace}/${g.metadata?.name}`)
+                }
+              >
+                {g.metadata?.namespace}/{g.metadata?.name}
+              </button>
+            </li>
+          ))}
+        </ul>
+      </Section>
+    </div>
+  )
+}
+
+function GatewayDetails({
+  gw,
+  bundle,
+  onOpen
+}: {
+  gw: KubeItem
+  bundle: KubeBundle
+  onOpen: (id: string) => void
+}): React.JSX.Element {
+  const spec =
+    (gw.spec as
+      | {
+          gatewayClassName?: string
+          listeners?: Array<{
+            name?: string
+            port?: number
+            protocol?: string
+            hostname?: string
+            allowedRoutes?: {
+              namespaces?: { from?: string }
+            }
+          }>
+          addresses?: Array<{ type?: string; value?: string }>
+        }
+      | undefined) ?? {}
+  const status =
+    (gw.status as
+      | {
+          addresses?: Array<{ type?: string; value?: string }>
+          conditions?: Array<{ type?: string; status?: string; message?: string }>
+          listeners?: Array<{
+            name?: string
+            attachedRoutes?: number
+            supportedKinds?: Array<{ kind?: string }>
+          }>
+        }
+      | undefined) ?? {}
+  const conds = status.conditions ?? []
+  const programmed = conds.find((c) => c.type === 'Programmed')?.status === 'True'
+  const accepted = conds.find((c) => c.type === 'Accepted')?.status === 'True'
+  const listeners = spec.listeners ?? []
+  const listenerStatus = status.listeners ?? []
+  const addrs = (status.addresses ?? spec.addresses ?? []).map((a) => a.value ?? '').filter(Boolean)
+  const ns = gw.metadata?.namespace ?? ''
+  const name = gw.metadata?.name ?? ''
+
+  // HTTPRoutes that reference this gateway via parentRefs.
+  const attachedRoutes = bundle.httpRoutes.filter((r) => {
+    const refs =
+      (r.spec as { parentRefs?: Array<{ name?: string; namespace?: string }> } | undefined)
+        ?.parentRefs ?? []
+    return refs.some(
+      (p) => p.name === name && (p.namespace ?? r.metadata?.namespace) === ns
+    )
+  })
+
+  return (
+    <div className="eks-details">
+      <DetailsHeader
+        title={name}
+        subtitle={`gateway · ${ns}`}
+        status={<Pill kind={programmed ? 'ok' : 'warn'}>{programmed ? 'Programmed' : 'Not programmed'}</Pill>}
+      />
+      <div className="eks-card-grid">
+        <Card label="Class" value={spec.gatewayClassName ?? '—'} />
+        <Card label="Accepted" value={accepted ? 'yes' : 'no'} accent={accepted ? 'ok' : 'warn'} />
+        <Card label="Listeners" value={String(listeners.length)} />
+        <Card label="Attached routes" value={String(attachedRoutes.length)} />
+        <Card label="Age" value={ageOf(gw.metadata?.creationTimestamp)} />
+      </div>
+      {addrs.length > 0 && (
+        <Section label="Addresses">
+          <ul className="eks-plain-list">
+            {addrs.map((a, i) => (
+              <li key={i} className="eks-mono">
+                {a}
+              </li>
+            ))}
+          </ul>
+        </Section>
+      )}
+      <Section label={`Listeners (${listeners.length})`}>
+        {!listeners.length && <div className="eks-note">No listeners.</div>}
+        {listeners.length > 0 && (
+          <table className="eks-table">
+            <thead>
+              <tr>
+                <th>Name</th>
+                <th>Port</th>
+                <th>Protocol</th>
+                <th>Hostname</th>
+                <th>Attached</th>
+              </tr>
+            </thead>
+            <tbody>
+              {listeners.map((l, i) => {
+                const st = listenerStatus.find((s) => s.name === l.name)
+                return (
+                  <tr key={i}>
+                    <td className="eks-mono">{l.name ?? '—'}</td>
+                    <td>{l.port ?? '—'}</td>
+                    <td>{l.protocol ?? '—'}</td>
+                    <td className="eks-mono">{l.hostname ?? '*'}</td>
+                    <td>{st?.attachedRoutes ?? 0}</td>
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
+        )}
+      </Section>
+      <Section label={`Attached HTTP routes (${attachedRoutes.length})`}>
+        {!attachedRoutes.length && <div className="eks-note">None.</div>}
+        <ul className="eks-plain-list">
+          {attachedRoutes.map((r) => (
+            <li key={r.metadata?.uid ?? r.metadata?.name}>
+              <button
+                className="eks-linklike"
+                onClick={() =>
+                  onOpen(`gateway/route/${r.metadata?.namespace}/${r.metadata?.name}`)
+                }
+              >
+                {r.metadata?.namespace}/{r.metadata?.name}
+              </button>
+            </li>
+          ))}
+        </ul>
+      </Section>
+      {conds.length > 0 && (
+        <Section label="Conditions">
+          <div className="eks-kv-grid">
+            {conds.map((c, i) => (
+              <KV key={i} label={c.type ?? '—'}>
+                {c.status ?? '—'}
+                {c.message ? ` — ${c.message}` : ''}
+              </KV>
+            ))}
+          </div>
+        </Section>
+      )}
+    </div>
+  )
+}
+
+function HttpRouteDetails({
+  route,
+  onOpen
+}: {
+  route: KubeItem
+  onOpen: (id: string) => void
+}): React.JSX.Element {
+  const spec =
+    (route.spec as
+      | {
+          hostnames?: string[]
+          parentRefs?: Array<{
+            name?: string
+            namespace?: string
+            sectionName?: string
+            kind?: string
+          }>
+          rules?: Array<{
+            matches?: Array<{
+              path?: { type?: string; value?: string }
+              method?: string
+              headers?: Array<{ name?: string; value?: string }>
+            }>
+            backendRefs?: Array<{
+              name?: string
+              namespace?: string
+              port?: number
+              weight?: number
+              kind?: string
+            }>
+          }>
+        }
+      | undefined) ?? {}
+  const status =
+    (route.status as
+      | {
+          parents?: Array<{
+            parentRef?: { name?: string; namespace?: string }
+            conditions?: Array<{ type?: string; status?: string; message?: string }>
+          }>
+        }
+      | undefined) ?? {}
+  const hostnames = spec.hostnames ?? []
+  const parents = spec.parentRefs ?? []
+  const rules = spec.rules ?? []
+  const ns = route.metadata?.namespace ?? ''
+  return (
+    <div className="eks-details">
+      <DetailsHeader
+        title={route.metadata?.name ?? ''}
+        subtitle={`http route · ${ns}`}
+      />
+      <div className="eks-card-grid">
+        <Card label="Hostnames" value={hostnames.length ? String(hostnames.length) : '—'} />
+        <Card label="Parents" value={String(parents.length)} />
+        <Card label="Rules" value={String(rules.length)} />
+        <Card label="Age" value={ageOf(route.metadata?.creationTimestamp)} />
+      </div>
+      {hostnames.length > 0 && (
+        <Section label={`Hostnames (${hostnames.length})`}>
+          <ul className="eks-plain-list">
+            {hostnames.map((h, i) => (
+              <li key={i} className="eks-mono">
+                {h}
+              </li>
+            ))}
+          </ul>
+        </Section>
+      )}
+      <Section label={`Parent gateways (${parents.length})`}>
+        {!parents.length && <div className="eks-note">None.</div>}
+        <ul className="eks-plain-list">
+          {parents.map((p, i) => {
+            const pns = p.namespace ?? ns
+            const label = `${pns}/${p.name ?? ''}${p.sectionName ? ` (listener ${p.sectionName})` : ''}`
+            return (
+              <li key={i}>
+                <button
+                  className="eks-linklike"
+                  onClick={() => onOpen(`gateway/gw/${pns}/${p.name ?? ''}`)}
+                >
+                  {label}
+                </button>
+              </li>
+            )
+          })}
+        </ul>
+      </Section>
+      <Section label={`Rules (${rules.length})`}>
+        {!rules.length && <div className="eks-note">No rules.</div>}
+        {rules.map((r, i) => {
+          const matches = r.matches ?? []
+          const backends = r.backendRefs ?? []
+          return (
+            <div key={i} className="eks-container-card">
+              <div className="eks-container-head">
+                <span className="eks-container-name">rule #{i + 1}</span>
+              </div>
+              <div className="eks-kv-grid">
+                <KV label="Matches">
+                  {matches.length ? (
+                    <ul className="eks-plain-list">
+                      {matches.map((m, j) => {
+                        const path = m.path
+                          ? `${m.path.type ?? 'PathPrefix'} ${m.path.value ?? '/'}`
+                          : '*'
+                        const method = m.method ? ` [${m.method}]` : ''
+                        const headers = (m.headers ?? [])
+                          .map((h) => `${h.name}=${h.value}`)
+                          .join(', ')
+                        return (
+                          <li key={j} className="eks-mono">
+                            {path}
+                            {method}
+                            {headers ? ` · ${headers}` : ''}
+                          </li>
+                        )
+                      })}
+                    </ul>
+                  ) : (
+                    <span className="eks-note">any</span>
+                  )}
+                </KV>
+                <KV label="Backends">
+                  {backends.length ? (
+                    <ul className="eks-plain-list">
+                      {backends.map((b, j) => (
+                        <li key={j} className="eks-mono">
+                          {`${b.namespace ?? ns}/${b.name ?? ''}:${b.port ?? '—'}`}
+                          {typeof b.weight === 'number' ? ` (weight ${b.weight})` : ''}
+                        </li>
+                      ))}
+                    </ul>
+                  ) : (
+                    <span className="eks-note">none</span>
+                  )}
+                </KV>
+              </div>
+            </div>
+          )
+        })}
+      </Section>
+      {(status.parents ?? []).length > 0 && (
+        <Section label="Status">
+          {(status.parents ?? []).map((p, i) => (
+            <div key={i} className="eks-container-card">
+              <div className="eks-container-head">
+                <span className="eks-container-name">
+                  {p.parentRef?.namespace ?? ns}/{p.parentRef?.name ?? ''}
+                </span>
+              </div>
+              <div className="eks-kv-grid">
+                {(p.conditions ?? []).map((c, j) => (
+                  <KV key={j} label={c.type ?? '—'}>
+                    {c.status ?? '—'}
+                    {c.message ? ` — ${c.message}` : ''}
+                  </KV>
+                ))}
+              </div>
+            </div>
+          ))}
+        </Section>
+      )}
     </div>
   )
 }

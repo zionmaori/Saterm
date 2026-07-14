@@ -94,6 +94,12 @@ export function buildNamespaceTree(
     }
   }
 
+  // Track which pods we render under deployment→RS so we can surface anything
+  // left over (StatefulSet/DaemonSet/Job/CronJob/bare-RS pods) under an
+  // "other workloads" folder. Without this, ArgoCD-managed StatefulSet pods
+  // etc. become invisible even though `kubectl get pods` returns them.
+  const claimedPodUids = new Set<string>()
+
   const nsRoots: TreeNode[] = nsList.map((ns) => {
     const nsDeploys = bundle.deployments.filter((d) => d.metadata?.namespace === ns)
     const nsSvcs = bundle.services.filter((s) => s.metadata?.namespace === ns)
@@ -105,6 +111,8 @@ export function buildNamespaceTree(
     const nsLimits = bundle.limitRanges.filter((l) => l.metadata?.namespace === ns)
     const nsNetPols = bundle.networkPolicies.filter((n) => n.metadata?.namespace === ns)
     const nsSAs = bundle.serviceAccounts.filter((s) => s.metadata?.namespace === ns)
+    const nsGws = bundle.gateways.filter((g) => g.metadata?.namespace === ns)
+    const nsRoutes = bundle.httpRoutes.filter((r) => r.metadata?.namespace === ns)
     const orphans = orphanPodsByNs.get(ns) ?? []
 
     const deploymentNodes: TreeNode[] = nsDeploys.map((d) => {
@@ -118,6 +126,9 @@ export function buildNamespaceTree(
       const rsNodes: TreeNode[] = ownedRs.map((rs) => {
         const rsUid = rs.metadata?.uid ?? ''
         const pods = podsByOwnerUid.get(rsUid) ?? []
+        for (const p of pods) {
+          if (p.metadata?.uid) claimedPodUids.add(p.metadata.uid)
+        }
         return {
           id: `ns/${ns}/dep/${dName}/rs/${rs.metadata?.name ?? ''}`,
           kind: 'replicaset',
@@ -170,6 +181,9 @@ export function buildNamespaceTree(
     }
 
     if (orphans.length) {
+      for (const p of orphans) {
+        if (p.metadata?.uid) claimedPodUids.add(p.metadata.uid)
+      }
       workloadsNode.children!.push({
         id: `ns/${ns}/orphanPods`,
         kind: 'orphanPodsFolder',
@@ -184,6 +198,51 @@ export function buildNamespaceTree(
           status: podStatus(p),
           item: p
         }))
+      })
+    }
+
+    // Pods managed by StatefulSet / DaemonSet / Job / CronJob / bare-RS end up
+    // in podsByOwnerUid but aren't reachable via the deployment→RS walk above.
+    // Group them by their controller kind+name so the tree still surfaces them.
+    const otherPodsInNs = bundle.pods.filter(
+      (p) => p.metadata?.namespace === ns && p.metadata?.uid && !claimedPodUids.has(p.metadata.uid)
+    )
+    if (otherPodsInNs.length) {
+      const byCtrl = new Map<string, { kind: string; name: string; pods: KubeItem[] }>()
+      for (const p of otherPodsInNs) {
+        const ctrl = findControllerRef(p.metadata?.ownerReferences)
+        const kind = ctrl?.kind ?? 'pod'
+        const name = ctrl?.name ?? p.metadata?.name ?? ''
+        const key = `${kind}/${name}`
+        const bucket = byCtrl.get(key) ?? { kind, name, pods: [] }
+        bucket.pods.push(p)
+        byCtrl.set(key, bucket)
+        if (p.metadata?.uid) claimedPodUids.add(p.metadata.uid)
+      }
+      const ctrlChildren: TreeNode[] = Array.from(byCtrl.values())
+        .sort((a, b) => a.name.localeCompare(b.name))
+        .map((c) => ({
+          id: `ns/${ns}/otherPods/${c.kind}/${c.name}`,
+          kind: 'otherWorkload',
+          name: `${c.name} · ${c.kind}`,
+          namespace: ns,
+          count: c.pods.length,
+          children: c.pods.map((p) => ({
+            id: `ns/${ns}/otherPods/${c.kind}/${c.name}/pod/${p.metadata?.name ?? ''}`,
+            kind: 'pod',
+            name: p.metadata?.name ?? '',
+            namespace: ns,
+            status: podStatus(p),
+            item: p
+          }))
+        }))
+      workloadsNode.children!.push({
+        id: `ns/${ns}/otherPods`,
+        kind: 'otherPodsFolder',
+        name: 'other pods',
+        namespace: ns,
+        count: otherPodsInNs.length,
+        children: ctrlChildren
       })
     }
 
@@ -322,6 +381,36 @@ export function buildNamespaceTree(
       }))
     }
 
+    const gatewaysNode: TreeNode = {
+      id: `ns/${ns}/gateways`,
+      kind: 'gatewaysFolder',
+      name: 'gateways',
+      namespace: ns,
+      count: nsGws.length,
+      children: nsGws.map((g) => ({
+        id: `ns/${ns}/gateway/${g.metadata?.name ?? ''}`,
+        kind: 'gateway',
+        name: g.metadata?.name ?? '',
+        namespace: ns,
+        item: g
+      }))
+    }
+
+    const httpRoutesNode: TreeNode = {
+      id: `ns/${ns}/httproutes`,
+      kind: 'httpRoutesFolder',
+      name: 'http routes',
+      namespace: ns,
+      count: nsRoutes.length,
+      children: nsRoutes.map((r) => ({
+        id: `ns/${ns}/httproute/${r.metadata?.name ?? ''}`,
+        kind: 'httpRoute',
+        name: r.metadata?.name ?? '',
+        namespace: ns,
+        item: r
+      }))
+    }
+
     const totalPods = bundle.pods.filter((p) => p.metadata?.namespace === ns).length
 
     return {
@@ -334,6 +423,8 @@ export function buildNamespaceTree(
         workloadsNode,
         servicesNode,
         ingressesNode,
+        gatewaysNode,
+        httpRoutesNode,
         configMapsNode,
         secretsNode,
         pvcsNode,
@@ -356,6 +447,26 @@ export function buildNamespaceTree(
       name: n.metadata?.name ?? '',
       status: nodeStatus(n),
       item: n
+    }))
+  }
+
+  const allPods =
+    namespaceFilter === 'all'
+      ? bundle.pods
+      : bundle.pods.filter((p) => p.metadata?.namespace === namespaceFilter)
+
+  const podsFolder: TreeNode = {
+    id: 'pods',
+    kind: 'podsFolder',
+    name: 'pods',
+    count: allPods.length,
+    children: allPods.map((p) => ({
+      id: `pods/${p.metadata?.namespace}/${p.metadata?.name ?? ''}`,
+      kind: 'pod',
+      name: `${p.metadata?.namespace}/${p.metadata?.name ?? ''}`,
+      namespace: p.metadata?.namespace,
+      status: podStatus(p),
+      item: p
     }))
   }
 
@@ -425,11 +536,69 @@ export function buildNamespaceTree(
     children: storageChildren
   }
 
+  const scopedGateways =
+    namespaceFilter === 'all'
+      ? bundle.gateways
+      : bundle.gateways.filter((g) => g.metadata?.namespace === namespaceFilter)
+  const scopedRoutes =
+    namespaceFilter === 'all'
+      ? bundle.httpRoutes
+      : bundle.httpRoutes.filter((r) => r.metadata?.namespace === namespaceFilter)
+
+  const gatewayClassesFolder: TreeNode = {
+    id: 'gateway/gatewayclasses',
+    kind: 'gatewayClassesFolder',
+    name: 'gateway classes',
+    count: bundle.gatewayClasses.length,
+    children: bundle.gatewayClasses.map((g) => ({
+      id: `gateway/gwclass/${g.metadata?.name ?? ''}`,
+      kind: 'gatewayClass',
+      name: g.metadata?.name ?? '',
+      item: g
+    }))
+  }
+
+  const allGatewaysFolder: TreeNode = {
+    id: 'gateway/gateways',
+    kind: 'gatewaysFolder',
+    name: 'gateways',
+    count: scopedGateways.length,
+    children: scopedGateways.map((g) => ({
+      id: `gateway/gw/${g.metadata?.namespace}/${g.metadata?.name ?? ''}`,
+      kind: 'gateway',
+      name: `${g.metadata?.namespace}/${g.metadata?.name ?? ''}`,
+      namespace: g.metadata?.namespace,
+      item: g
+    }))
+  }
+
+  const allRoutesFolder: TreeNode = {
+    id: 'gateway/httproutes',
+    kind: 'httpRoutesFolder',
+    name: 'http routes',
+    count: scopedRoutes.length,
+    children: scopedRoutes.map((r) => ({
+      id: `gateway/route/${r.metadata?.namespace}/${r.metadata?.name ?? ''}`,
+      kind: 'httpRoute',
+      name: `${r.metadata?.namespace}/${r.metadata?.name ?? ''}`,
+      namespace: r.metadata?.namespace,
+      item: r
+    }))
+  }
+
+  const gatewayFolder: TreeNode = {
+    id: 'gateway',
+    kind: 'gatewayFolder',
+    name: 'gateway api',
+    count: bundle.gatewayClasses.length + bundle.gateways.length + bundle.httpRoutes.length,
+    children: [gatewayClassesFolder, allGatewaysFolder, allRoutesFolder]
+  }
+
   const root: TreeNode = {
     id: 'cluster',
     kind: 'cluster',
     name: cluster.cluster,
-    children: [nodesFolder, namespacesFolder, storageFolder, eventsNode]
+    children: [nodesFolder, podsFolder, namespacesFolder, storageFolder, gatewayFolder, eventsNode]
   }
 
   return pruneBySearch(root, search) ?? root

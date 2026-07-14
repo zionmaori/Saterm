@@ -76,6 +76,40 @@ export function podPhase(p: KubeItem): string {
   return st.reason || st.phase || '—'
 }
 
+const HEALTHY_POD_PHASES = new Set(['Running', 'Succeeded', 'Pending', 'ContainerCreating'])
+
+/**
+ * True if the pod looks unhealthy: not in a normal phase, or has a container
+ * that isn't ready / is waiting with a real reason / has crashed.
+ */
+export function podHasError(p: KubeItem): boolean {
+  const phase = podPhase(p)
+  if (!HEALTHY_POD_PHASES.has(phase)) return true
+  const st =
+    (p.status as
+      | {
+          containerStatuses?: Array<{
+            ready?: boolean
+            restartCount?: number
+            state?: Record<string, { reason?: string; exitCode?: number }>
+          }>
+        }
+      | undefined) ?? {}
+  const cs = st.containerStatuses ?? []
+  if (!cs.length && phase !== 'Succeeded') return phase !== 'Running' && phase !== 'Pending'
+  for (const c of cs) {
+    const waiting = c.state?.waiting
+    if (waiting?.reason && waiting.reason !== 'ContainerCreating' && waiting.reason !== 'PodInitializing') {
+      return true
+    }
+    const terminated = c.state?.terminated
+    if (terminated && typeof terminated.exitCode === 'number' && terminated.exitCode !== 0) {
+      return true
+    }
+  }
+  return false
+}
+
 export function podReadyCount(p: KubeItem): { ready: number; total: number; restarts: number } {
   const st =
     (p.status as

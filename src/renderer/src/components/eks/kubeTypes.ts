@@ -42,6 +42,7 @@ export type TreeKind =
   | 'deployment'
   | 'replicaset'
   | 'pod'
+  | 'podsFolder'
   | 'servicesFolder'
   | 'service'
   | 'ingressesFolder'
@@ -52,6 +53,8 @@ export type TreeKind =
   | 'secret'
   | 'nodePodsFolder'
   | 'orphanPodsFolder'
+  | 'otherPodsFolder'
+  | 'otherWorkload'
   | 'unscheduledPodsFolder'
   | 'eventsFolder'
   | 'storageFolder'
@@ -71,6 +74,13 @@ export type TreeKind =
   | 'networkPolicy'
   | 'serviceAccountsFolder'
   | 'serviceAccount'
+  | 'gatewayClassesFolder'
+  | 'gatewayClass'
+  | 'gatewaysFolder'
+  | 'gateway'
+  | 'httpRoutesFolder'
+  | 'httpRoute'
+  | 'gatewayFolder'
 
 export type StatusKind = 'ok' | 'warn' | 'err'
 
@@ -104,6 +114,9 @@ export interface KubeBundle {
   limitRanges: KubeItem[]
   networkPolicies: KubeItem[]
   serviceAccounts: KubeItem[]
+  gatewayClasses: KubeItem[]
+  gateways: KubeItem[]
+  httpRoutes: KubeItem[]
 }
 
 export interface EksClusterCtx {

@@ -1031,6 +1031,208 @@ export function ServiceAccountsTable({
   )
 }
 
+export function GatewayClassesTable({
+  items,
+  filter,
+  onSelect
+}: {
+  items: KubeItem[]
+  filter: string
+  onSelect?: (g: KubeItem) => void
+}): React.JSX.Element {
+  const rows = items.filter((g) => matchesFilter(g.metadata?.name ?? '', filter))
+  if (!rows.length) return <div className="eks-note">No gateway classes.</div>
+  return (
+    <div className="eks-table-wrap">
+      <table className="eks-table">
+        <thead>
+          <tr>
+            <th>Name</th>
+            <th>Controller</th>
+            <th>Accepted</th>
+            <th>Age</th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((g, i) => {
+            const spec = (g.spec as { controllerName?: string } | undefined) ?? {}
+            const conds =
+              (g.status as { conditions?: Array<{ type?: string; status?: string }> } | undefined)
+                ?.conditions ?? []
+            const accepted = conds.find((c) => c.type === 'Accepted')?.status === 'True'
+            return (
+              <tr
+                key={rowKey(g, i)}
+                onClick={onSelect ? () => onSelect(g) : undefined}
+                className={onSelect ? 'eks-row-clickable' : undefined}
+              >
+                <td className="eks-td-name">{g.metadata?.name ?? ''}</td>
+                <td className="eks-mono eks-td-truncate" title={spec.controllerName ?? ''}>
+                  {spec.controllerName ?? '—'}
+                </td>
+                <td>
+                  <Pill kind={accepted ? 'ok' : 'warn'}>{accepted ? 'Accepted' : '—'}</Pill>
+                </td>
+                <td>{ageOf(g.metadata?.creationTimestamp)}</td>
+              </tr>
+            )
+          })}
+        </tbody>
+      </table>
+    </div>
+  )
+}
+
+export function GatewaysTable({
+  items,
+  filter,
+  onSelect
+}: {
+  items: KubeItem[]
+  filter: string
+  onSelect?: (g: KubeItem) => void
+}): React.JSX.Element {
+  const rows = items.filter((g) => {
+    const name = g.metadata?.name ?? ''
+    const ns = g.metadata?.namespace ?? ''
+    return matchesFilter(`${ns}/${name}`, filter)
+  })
+  if (!rows.length) return <div className="eks-note">No gateways.</div>
+  return (
+    <div className="eks-table-wrap">
+      <table className="eks-table">
+        <thead>
+          <tr>
+            <th>Namespace</th>
+            <th>Name</th>
+            <th>Class</th>
+            <th>Listeners</th>
+            <th>Address</th>
+            <th>Programmed</th>
+            <th>Age</th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((g, i) => {
+            const spec =
+              (g.spec as
+                | {
+                    gatewayClassName?: string
+                    listeners?: Array<{ name?: string; port?: number; protocol?: string }>
+                  }
+                | undefined) ?? {}
+            const status =
+              (g.status as
+                | {
+                    addresses?: Array<{ value?: string }>
+                    conditions?: Array<{ type?: string; status?: string }>
+                  }
+                | undefined) ?? {}
+            const addr =
+              (status.addresses ?? [])
+                .map((a) => a.value ?? '')
+                .filter(Boolean)
+                .join(', ') || '—'
+            const listeners = (spec.listeners ?? [])
+              .map((l) => `${l.name ?? ''}:${l.port ?? '—'}/${l.protocol ?? '—'}`)
+              .join(', ')
+            const programmed =
+              status.conditions?.find((c) => c.type === 'Programmed')?.status === 'True'
+            return (
+              <tr
+                key={rowKey(g, i)}
+                onClick={onSelect ? () => onSelect(g) : undefined}
+                className={onSelect ? 'eks-row-clickable' : undefined}
+              >
+                <td>{g.metadata?.namespace ?? ''}</td>
+                <td className="eks-td-name">{g.metadata?.name ?? ''}</td>
+                <td>{spec.gatewayClassName ?? '—'}</td>
+                <td className="eks-td-truncate eks-mono" title={listeners}>
+                  {listeners || '—'}
+                </td>
+                <td className="eks-td-truncate eks-mono" title={addr}>
+                  {addr}
+                </td>
+                <td>
+                  <Pill kind={programmed ? 'ok' : 'warn'}>{programmed ? 'yes' : 'no'}</Pill>
+                </td>
+                <td>{ageOf(g.metadata?.creationTimestamp)}</td>
+              </tr>
+            )
+          })}
+        </tbody>
+      </table>
+    </div>
+  )
+}
+
+export function HttpRoutesTable({
+  items,
+  filter,
+  onSelect
+}: {
+  items: KubeItem[]
+  filter: string
+  onSelect?: (r: KubeItem) => void
+}): React.JSX.Element {
+  const rows = items.filter((r) => {
+    const name = r.metadata?.name ?? ''
+    const ns = r.metadata?.namespace ?? ''
+    return matchesFilter(`${ns}/${name}`, filter)
+  })
+  if (!rows.length) return <div className="eks-note">No http routes.</div>
+  return (
+    <div className="eks-table-wrap">
+      <table className="eks-table">
+        <thead>
+          <tr>
+            <th>Namespace</th>
+            <th>Name</th>
+            <th>Hostnames</th>
+            <th>Parents</th>
+            <th>Rules</th>
+            <th>Age</th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((r, i) => {
+            const spec =
+              (r.spec as
+                | {
+                    hostnames?: string[]
+                    parentRefs?: Array<{ name?: string; namespace?: string; sectionName?: string }>
+                    rules?: unknown[]
+                  }
+                | undefined) ?? {}
+            const hosts = (spec.hostnames ?? []).join(', ') || '—'
+            const parents = (spec.parentRefs ?? [])
+              .map((p) => `${p.namespace ? `${p.namespace}/` : ''}${p.name ?? ''}${p.sectionName ? `:${p.sectionName}` : ''}`)
+              .join(', ')
+            return (
+              <tr
+                key={rowKey(r, i)}
+                onClick={onSelect ? () => onSelect(r) : undefined}
+                className={onSelect ? 'eks-row-clickable' : undefined}
+              >
+                <td>{r.metadata?.namespace ?? ''}</td>
+                <td className="eks-td-name">{r.metadata?.name ?? ''}</td>
+                <td className="eks-td-truncate" title={hosts}>
+                  {hosts}
+                </td>
+                <td className="eks-td-truncate eks-mono" title={parents}>
+                  {parents || '—'}
+                </td>
+                <td>{(spec.rules ?? []).length}</td>
+                <td>{ageOf(r.metadata?.creationTimestamp)}</td>
+              </tr>
+            )
+          })}
+        </tbody>
+      </table>
+    </div>
+  )
+}
+
 export function EventsTable({
   items,
   filter

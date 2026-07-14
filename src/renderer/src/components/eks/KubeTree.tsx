@@ -43,12 +43,18 @@ function KindIcon({ kind, open }: { kind: TreeKind; open: boolean }): React.JSX.
     case 'namespacesFolder':
     case 'workloadsFolder':
     case 'deploymentsFolder':
+    case 'podsFolder':
+    case 'gatewayFolder':
+    case 'gatewayClassesFolder':
+    case 'gatewaysFolder':
+    case 'httpRoutesFolder':
     case 'servicesFolder':
     case 'ingressesFolder':
     case 'configmapsFolder':
     case 'secretsFolder':
     case 'nodePodsFolder':
     case 'orphanPodsFolder':
+    case 'otherPodsFolder':
     case 'unscheduledPodsFolder':
     case 'eventsFolder':
     case 'storageFolder':
@@ -66,6 +72,7 @@ function KindIcon({ kind, open }: { kind: TreeKind; open: boolean }): React.JSX.
     case 'namespace':
       return <Layers size={s} strokeWidth={w} />
     case 'deployment':
+    case 'otherWorkload':
       return <Boxes size={s} strokeWidth={w} />
     case 'replicaset':
       return <Copy size={s} strokeWidth={w} />
@@ -74,6 +81,9 @@ function KindIcon({ kind, open }: { kind: TreeKind; open: boolean }): React.JSX.
     case 'service':
       return <Network size={s} strokeWidth={w} />
     case 'ingress':
+    case 'gateway':
+    case 'httpRoute':
+    case 'gatewayClass':
       return <Globe size={s} strokeWidth={w} />
     case 'configmap':
       return <FileText size={s} strokeWidth={w} />
