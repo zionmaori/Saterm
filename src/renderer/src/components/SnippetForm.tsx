@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import type { Snippet } from '../../../shared/types'
+import Modal from './Modal'
 
 interface Props {
   initial: Snippet | null
@@ -37,30 +38,24 @@ export default function SnippetForm({
   }
 
   return (
-    <div className="host-form-backdrop" onClick={onCancel}>
-      <form
-        className="host-form"
-        onClick={(e) => e.stopPropagation()}
-        onSubmit={(e) => void submit(e)}
-      >
-        <div className="host-form-title">{initial ? 'Edit snippet' : 'New snippet'}</div>
+    <Modal onClose={onCancel}>
+      <form className="dialog" onSubmit={(e) => void submit(e)}>
+        <h2>{initial ? 'Edit snippet' : 'New snippet'}</h2>
 
-        <label className="host-form-label">
-          Title
+        <div className="col">
+          <label>Title</label>
           <input
-            className="host-form-input"
             value={title}
             onChange={(e) => setTitle(e.target.value)}
             placeholder="e.g. Restart services"
             autoFocus
             required
           />
-        </label>
+        </div>
 
-        <label className="host-form-label">
-          Command
+        <div className="col">
+          <label>Command</label>
           <textarea
-            className="host-form-input"
             value={body}
             onChange={(e) => setBody(e.target.value)}
             placeholder="e.g. sudo systemctl restart nginx"
@@ -68,22 +63,26 @@ export default function SnippetForm({
             style={{ resize: 'vertical', fontFamily: 'monospace', fontSize: 12 }}
             required
           />
-        </label>
+        </div>
 
-        <label className="host-form-label">
-          Host filter{' '}
-          <span style={{ opacity: 0.5, fontWeight: 400 }}>(optional tag or host name)</span>
+        <div className="col">
+          <label>Host filter (optional tag or host name)</label>
           <input
-            className="host-form-input"
             value={hostFilter}
             onChange={(e) => setHostFilter(e.target.value)}
             placeholder="e.g. production"
           />
-        </label>
+        </div>
 
         <label
-          className="host-form-label"
-          style={{ flexDirection: 'row', alignItems: 'center', gap: 8, cursor: 'pointer' }}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 8,
+            margin: '0 0 10px',
+            cursor: 'pointer',
+            fontSize: 'var(--fs-sm)'
+          }}
         >
           <input
             type="checkbox"
@@ -93,13 +92,11 @@ export default function SnippetForm({
           />
           <span>
             Require confirmation before inserting{' '}
-            <span style={{ opacity: 0.5, fontWeight: 400 }}>
-              (for destructive or critical commands)
-            </span>
+            <span style={{ opacity: 0.5 }}>(for destructive or critical commands)</span>
           </span>
         </label>
 
-        <div className="host-form-actions">
+        <div className="dialog-actions">
           {onDelete && (
             <button
               type="button"
@@ -122,6 +119,6 @@ export default function SnippetForm({
           </button>
         </div>
       </form>
-    </div>
+    </Modal>
   )
 }

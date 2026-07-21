@@ -10,16 +10,23 @@ import {
   Cloud,
   Folder,
   GitBranch,
+  Orbit,
   Pin,
   Plus,
+  Radar,
   RefreshCw,
+  Rocket,
+  Satellite,
   Search,
   Server,
   Settings2,
+  Sparkles,
   Star,
   Tag,
+  Telescope,
   Terminal,
-  X
+  X,
+  type LucideIcon
 } from 'lucide-react'
 import { useApp } from '../store/app'
 import { useFilter } from '../store/filter'
@@ -35,6 +42,9 @@ import type {
 import HostForm from './HostForm'
 import SnippetForm from './SnippetForm'
 import BugReportDialog from './BugReportDialog'
+import TagForm from './TagForm'
+import GroupForm from './GroupForm'
+import Modal from './Modal'
 import Chip, { intentForTag } from './Chip'
 import SidebarTipsWidget from './SidebarTipsWidget'
 
@@ -118,6 +128,8 @@ export default function Sidebar(): React.JSX.Element {
   const [editingSnippet, setEditingSnippet] = useState<Snippet | null | undefined>(undefined)
   const [confirmingSnippet, setConfirmingSnippet] = useState<Snippet | null>(null)
   const [bugDialogOpen, setBugDialogOpen] = useState(false)
+  const [tagDialogOpen, setTagDialogOpen] = useState(false)
+  const [groupDialogOpen, setGroupDialogOpen] = useState(false)
   const [hostSort, setHostSort] = useState<'default' | 'name' | 'recent'>('default')
   const [projectSort, setProjectSort] = useState<'recent' | 'name'>('recent')
   const [allCollapsed, setAllCollapsed] = useState(false)
@@ -310,6 +322,20 @@ export default function Sidebar(): React.JSX.Element {
     if (targetId) window.__termionInsertText?.(targetId, body)
   }
 
+  const onCreateTag = async (tag: string, hostIds: number[]): Promise<void> => {
+    await window.api.hosts.bulkSetTag(hostIds, tag, true)
+    setTagDialogOpen(false)
+    await refreshHosts()
+    setAllTags(await window.api.hosts.listTags())
+  }
+
+  const onCreateGroup = async (group: string, hostIds: number[]): Promise<void> => {
+    await window.api.hosts.bulkSetGroup(hostIds, group)
+    setGroupDialogOpen(false)
+    await refreshHosts()
+    setAllGroups(await window.api.hosts.listGroups())
+  }
+
   const insertSnippet = (s: Snippet): void => {
     if (s.confirmBeforeRun) {
       setConfirmingSnippet(s)
@@ -369,7 +395,7 @@ export default function Sidebar(): React.JSX.Element {
       <div className="sidebar2-scroll">
         {/* Pinned */}
         {pinned.length > 0 && (
-          <Section title="Pinned" count={pinned.length}>
+          <Section title="Pinned" count={pinned.length} icon={Star}>
             {pinned.map((h) => (
               <HostRow
                 key={h.id}
@@ -386,7 +412,7 @@ export default function Sidebar(): React.JSX.Element {
 
         {/* Recent */}
         {recent.length > 0 && (
-          <Section title="Recent" count={recent.length}>
+          <Section title="Recent" count={recent.length} icon={Orbit}>
             {recent.map((h) => (
               <HostRow
                 key={h.id}
@@ -406,6 +432,7 @@ export default function Sidebar(): React.JSX.Element {
         <Section
           title="Groups"
           count={allGroups.length}
+          icon={Satellite}
           right={
             <>
               <button
@@ -425,6 +452,16 @@ export default function Sidebar(): React.JSX.Element {
                   clear
                 </button>
               )}
+              <button
+                className="sidebar2-icon"
+                title="New group"
+                onClick={(e) => {
+                  e.stopPropagation()
+                  setGroupDialogOpen(true)
+                }}
+              >
+                <Plus size={13} />
+              </button>
             </>
           }
         >
@@ -464,18 +501,31 @@ export default function Sidebar(): React.JSX.Element {
         <Section
           title="Tags"
           count={allTags.length}
+          icon={Radar}
           right={
-            activeTags.length > 0 ? (
+            <>
+              {activeTags.length > 0 && (
+                <button
+                  className="sidebar2-link"
+                  onClick={() => {
+                    clearTags()
+                    setCombine('and')
+                  }}
+                >
+                  clear
+                </button>
+              )}
               <button
-                className="sidebar2-link"
-                onClick={() => {
-                  clearTags()
-                  setCombine('and')
+                className="sidebar2-icon"
+                title="New tag"
+                onClick={(e) => {
+                  e.stopPropagation()
+                  setTagDialogOpen(true)
                 }}
               >
-                clear
+                <Plus size={13} />
               </button>
-            ) : null
+            </>
           }
         >
           <div className="tag-rail">
@@ -532,6 +582,7 @@ export default function Sidebar(): React.JSX.Element {
         <Section
           title="Hosts"
           count={matched.length}
+          icon={Rocket}
           right={
             <>
               <button
@@ -597,7 +648,7 @@ export default function Sidebar(): React.JSX.Element {
         </Section>
 
         {/* Local terminal */}
-        <Section title="Local" count={0}>
+        <Section title="Local" count={0} icon={Terminal}>
           <button
             className="sidebar2-row sidebar2-row-action"
             onClick={() => openLocalTab()}
@@ -612,6 +663,7 @@ export default function Sidebar(): React.JSX.Element {
         <Section
           title="Kubernetes"
           count={awsProfiles.length}
+          icon={Orbit}
           right={
             <button
               className="sidebar2-icon"
@@ -659,6 +711,7 @@ export default function Sidebar(): React.JSX.Element {
         <Section
           title="Projects"
           count={projects.length}
+          icon={Telescope}
           right={
             <>
               <button
@@ -729,6 +782,7 @@ export default function Sidebar(): React.JSX.Element {
         <Section
           title="Snippets"
           count={snippets.length}
+          icon={Sparkles}
           right={
             <button
               className="sidebar2-icon"
@@ -831,6 +885,22 @@ export default function Sidebar(): React.JSX.Element {
         />
       )}
       {bugDialogOpen && <BugReportDialog onClose={() => setBugDialogOpen(false)} />}
+      {tagDialogOpen && (
+        <TagForm
+          hosts={hosts}
+          existingTags={allTags.map((t) => t.tag)}
+          onCancel={() => setTagDialogOpen(false)}
+          onSave={onCreateTag}
+        />
+      )}
+      {groupDialogOpen && (
+        <GroupForm
+          hosts={hosts}
+          existingGroups={allGroups.map((g) => g.group)}
+          onCancel={() => setGroupDialogOpen(false)}
+          onSave={onCreateGroup}
+        />
+      )}
     </aside>
   )
 }
@@ -844,20 +914,8 @@ function SnippetConfirm({
   onCancel: () => void
   onConfirm: () => void
 }): React.JSX.Element {
-  useEffect(() => {
-    const handler = (e: KeyboardEvent): void => {
-      if (e.key === 'Escape') onCancel()
-    }
-    document.addEventListener('keydown', handler)
-    return () => document.removeEventListener('keydown', handler)
-  }, [onCancel])
   return (
-    <div
-      className="dialog-backdrop"
-      onMouseDown={(e) => {
-        if (e.target === e.currentTarget) onCancel()
-      }}
-    >
+    <Modal onClose={onCancel}>
       <div className="dialog" style={{ minWidth: 420, maxWidth: 640 }}>
         <h2 style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           <span style={{ color: 'var(--warning, #d97706)' }}>⚠</span>
@@ -900,7 +958,7 @@ function SnippetConfirm({
           </button>
         </div>
       </div>
-    </div>
+    </Modal>
   )
 }
 
@@ -917,11 +975,13 @@ function Section({
   title,
   count,
   right,
+  icon: Icon,
   children
 }: {
   title: string
   count: number
   right?: React.ReactNode
+  icon?: LucideIcon
   children: React.ReactNode
 }): React.JSX.Element {
   const key = `sidebar.section.${title}`
@@ -959,6 +1019,7 @@ function Section({
   return (
     <div className="sidebar2-section">
       <div className="sidebar2-section-header" onClick={toggle}>
+        {Icon && <Icon size={11} strokeWidth={2} className="sidebar2-section-icon" />}
         <span className="sidebar2-section-title">{title}</span>
         <span className="sidebar2-section-count">{count}</span>
         <span className="sidebar2-section-actions" onClick={(e) => e.stopPropagation()}>

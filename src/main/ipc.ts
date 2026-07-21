@@ -26,6 +26,7 @@ import {
   listAllTags,
   listAllGroups,
   bulkSetTag,
+  bulkSetGroup,
   pinHost,
   touchHost
 } from './hosts'
@@ -155,6 +156,9 @@ export function registerIpcHandlers(): void {
   ipcMain.handle('hosts:listGroups', () => listAllGroups())
   ipcMain.handle('hosts:bulkSetTag', (_e, ids: number[], tag: string, add: boolean) =>
     bulkSetTag(ids, tag, add)
+  )
+  ipcMain.handle('hosts:bulkSetGroup', (_e, ids: number[], group: string | null) =>
+    bulkSetGroup(ids, group)
   )
   ipcMain.handle('hosts:pin', (_e, id: number, pinned: boolean) => pinHost(id, pinned))
   ipcMain.handle('hosts:touch', (_e, id: number) => touchHost(id))

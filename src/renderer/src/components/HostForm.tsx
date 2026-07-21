@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import type { Host, HostEnv, HostInput, HostRole } from '../../../shared/types'
+import Modal from './Modal'
 
 const ROLES: HostRole[] = ['app', 'admin', 'couchbase', 'misc']
 const ENVS: HostEnv[] = ['dev', 'test', 'prod', 'other']
@@ -110,10 +111,7 @@ export default function HostForm({
   }
 
   return (
-    <div
-      className="dialog-backdrop"
-      onMouseDown={(e) => e.target === e.currentTarget && onCancel()}
-    >
+    <Modal onClose={onCancel}>
       <form className="dialog" onSubmit={submit}>
         <h2>{initial ? 'Edit host' : 'New host'}</h2>
         <div className="col">
@@ -282,7 +280,7 @@ export default function HostForm({
             </div>
           )}
         </div>
-        <div className="row" style={{ justifyContent: 'flex-end', marginTop: 14 }}>
+        <div className="dialog-actions">
           {initial && onDelete && (
             <button
               type="button"
@@ -301,6 +299,6 @@ export default function HostForm({
           </button>
         </div>
       </form>
-    </div>
+    </Modal>
   )
 }

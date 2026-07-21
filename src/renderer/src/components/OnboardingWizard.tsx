@@ -69,7 +69,7 @@ export default function OnboardingWizard({ status, onFinish }: Props): React.JSX
     <div className="onboarding-backdrop">
       <div className="onboarding-modal" role="dialog" aria-modal="true">
         <div className="onboarding-header">
-          <span className="onboarding-title">Welcome to Termion</span>
+          <span className="onboarding-title">Welcome to Saterm</span>
           <StepDots current={step} total={4} />
         </div>
 
@@ -148,16 +148,16 @@ function StepWelcome(): React.JSX.Element {
     <section className="onboarding-section">
       <h2>Get set up in a minute</h2>
       <p>
-        Termion is a desktop terminal, SSH client, editor, and cloud console rolled into one.
+        Saterm is a desktop terminal, SSH client, editor, and cloud console rolled into one.
         The next three steps will:
       </p>
       <ul>
         <li>Pick a folder for your projects</li>
         <li>Optionally import hosts from <code>~/.ssh/config</code> and <code>known_hosts</code></li>
-        <li>Show what Termion found in your AWS / Kubernetes configuration</li>
+        <li>Show what Saterm found in your AWS / Kubernetes configuration</li>
       </ul>
       <p className="onboarding-note">
-        Nothing is uploaded — all data stays in Termion’s local database. You can rerun any
+        Nothing is uploaded — all data stays in Saterm’s local database. You can rerun any
         import later from the sidebar.
       </p>
     </section>
@@ -177,7 +177,7 @@ function StepProjects({
         <Folder size={14} strokeWidth={2} /> Projects folder
       </h2>
       <p>
-        Termion will list the immediate subfolders of this directory in the sidebar so you can
+        Saterm will list the immediate subfolders of this directory in the sidebar so you can
         open them quickly. Pick your usual code root — you can always add more projects one at
         a time later.
       </p>
@@ -222,7 +222,7 @@ function StepSsh({
         <Server size={14} strokeWidth={2} /> Import SSH hosts
       </h2>
       <p>
-        Termion can seed your host list from the two files most SSH users already have. Both
+        Saterm can seed your host list from the two files most SSH users already have. Both
         are opt-in and only read — nothing is written back to your <code>~/.ssh</code>.
       </p>
       <label className="onboarding-choice">
@@ -293,7 +293,7 @@ function StepAws({
       {detected.awsConfig || detected.awsCredentials ? (
         <>
           <p>
-            Termion found <strong>{detected.awsProfileNames.length}</strong> AWS{' '}
+            Saterm found <strong>{detected.awsProfileNames.length}</strong> AWS{' '}
             {detected.awsProfileNames.length === 1 ? 'profile' : 'profiles'} in your standard
             AWS config files:
           </p>
@@ -318,7 +318,7 @@ function StepAws({
       )}
       <p className="onboarding-note">
         Your AWS profiles appear under the <strong>Kubernetes</strong> sidebar section — expand
-        AWS, pick a profile, then a region to load its EKS clusters. Termion generates a fresh
+        AWS, pick a profile, then a region to load its EKS clusters. Saterm generates a fresh
         kubeconfig per cluster on demand and never modifies your{' '}
         <code>~/.kube/config</code>.
       </p>

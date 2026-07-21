@@ -173,7 +173,7 @@ export const TIPS: Tip[] = [
     id: 'auto-reconnect',
     category: 'terminal',
     title: 'Reconnects survive naps',
-    body: 'Close the lid, walk away — Termion re-establishes SSH sessions in the background when the network returns.'
+    body: 'Close the lid, walk away — Saterm re-establishes SSH sessions in the background when the network returns.'
   },
   {
     id: 'search-in-file',

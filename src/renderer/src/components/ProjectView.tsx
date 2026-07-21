@@ -128,6 +128,7 @@ export default function ProjectView({ tab, visible }: Props): React.JSX.Element 
   const [searching, setSearching] = useState(false)
   const [selection, setSelection] = useState<Selection | null>(null)
   const [copilotOpen, setCopilotOpen] = useState(false)
+  const [tabMenu, setTabMenu] = useState<{ key: string; x: number; y: number } | null>(null)
 
   // Resizable layout. Persist per-project so each tab remembers its sizes.
   const [treeWidth, setTreeWidth] = useState(240)
@@ -447,6 +448,33 @@ export default function ProjectView({ tab, visible }: Props): React.JSX.Element 
     })
   }, [])
 
+  const closeItems = useCallback((keep: (item: OpenItem) => boolean): void => {
+    setItems((arr) => {
+      const dirty = arr.filter((f) => !keep(f) && f.kind === 'file' && f.dirty)
+      if (dirty.length > 0) {
+        const names = dirty.map((f) => (f.kind === 'file' ? f.path : '')).join('\n')
+        if (!confirm(`Discard unsaved changes in ${dirty.length} file(s)?\n\n${names}`)) return arr
+      }
+      for (const f of arr) {
+        if (keep(f)) continue
+        if (f.kind === 'file') {
+          const ed = editorsRef.current.get(f.path)
+          if (ed) {
+            const state = ed.saveViewState()
+            if (state) viewStatesRef.current[f.path] = state
+          }
+          editorsRef.current.delete(f.path)
+        }
+      }
+      const next = arr.filter(keep)
+      setActiveKey((cur) => {
+        if (cur && next.some((f) => f.key === cur)) return cur
+        return next[next.length - 1]?.key ?? null
+      })
+      return next
+    })
+  }, [])
+
   useEffect(() => {
     if (!visible) return
     const onOpen = (e: Event): void => {
@@ -644,6 +672,16 @@ export default function ProjectView({ tab, visible }: Props): React.JSX.Element 
                   key={f.key}
                   className={`etab ${f.key === activeKey ? 'active' : ''}`}
                   onClick={() => setActiveKey(f.key)}
+                  onContextMenu={(e) => {
+                    e.preventDefault()
+                    setTabMenu({ key: f.key, x: e.clientX, y: e.clientY })
+                  }}
+                  onAuxClick={(e) => {
+                    if (e.button === 1) {
+                      e.preventDefault()
+                      closeItem(f.key)
+                    }
+                  }}
                   title={title}
                 >
                   {isDiff && (
@@ -982,6 +1020,54 @@ export default function ProjectView({ tab, visible }: Props): React.JSX.Element 
             onClose={() => setCopilotOpen(false)}
           />
         </div>
+      )}
+      {tabMenu && (
+        <>
+          <div
+            onClick={() => setTabMenu(null)}
+            onContextMenu={(e) => {
+              e.preventDefault()
+              setTabMenu(null)
+            }}
+            style={{
+              position: 'fixed',
+              inset: 0,
+              zIndex: 999
+            }}
+          />
+          <div
+            className="etab-menu"
+            style={{ left: tabMenu.x, top: tabMenu.y }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <button
+              onClick={() => {
+                closeItem(tabMenu.key)
+                setTabMenu(null)
+              }}
+            >
+              Close
+            </button>
+            <button
+              disabled={items.length <= 1}
+              onClick={() => {
+                closeItems((f) => f.key === tabMenu.key)
+                setTabMenu(null)
+              }}
+            >
+              Close others
+            </button>
+            <div className="sep" />
+            <button
+              onClick={() => {
+                closeItems(() => false)
+                setTabMenu(null)
+              }}
+            >
+              Close all
+            </button>
+          </div>
+        </>
       )}
     </div>
   )

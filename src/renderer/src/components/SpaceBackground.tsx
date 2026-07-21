@@ -17,6 +17,33 @@ function randomUfoParams(): UfoParams {
   return { yStart, yEnd, dir, duration, scale }
 }
 
+function randomScoutParams(): UfoParams {
+  // Scout: smaller, quicker, tends to fly higher in the sky.
+  const yStart = 4 + Math.random() * 40
+  const yEnd = yStart + (Math.random() * 14 - 7)
+  const dir: 'ltr' | 'rtl' = Math.random() < 0.5 ? 'ltr' : 'rtl'
+  const duration = 9 + Math.random() * 6
+  const scale = 0.45 + Math.random() * 0.25
+  return { yStart, yEnd, dir, duration, scale }
+}
+
+interface ShootingStarParams {
+  yStart: number // vh
+  xStart: number // vw — where trail begins
+  angle: number // deg, small tilt from horizontal
+  duration: number // s
+  length: number // px — trail length
+}
+
+function randomShootingStarParams(): ShootingStarParams {
+  const yStart = 4 + Math.random() * 55
+  const xStart = -10 + Math.random() * 30 // start off-screen or just barely on
+  const angle = 10 + Math.random() * 20 // gentle downward diagonal
+  const duration = 0.9 + Math.random() * 0.6
+  const length = 120 + Math.random() * 120
+  return { yStart, xStart, angle, duration, length }
+}
+
 type Star = {
   x: number // % across the sky
   y: number // % down the sky
@@ -113,6 +140,50 @@ export default function SpaceBackground(): React.JSX.Element {
     }
   }, [])
 
+  // Scout UFO — smaller, quicker sibling on its own cadence (18–34s) so the
+  // two ships never sync up.
+  const [scoutParams, setScoutParams] = useState<UfoParams>(() => randomScoutParams())
+  const [scoutKey, setScoutKey] = useState(0)
+  useEffect(() => {
+    let cancelled = false
+    const schedule = (): void => {
+      const t = 18000 + Math.random() * 16000
+      window.setTimeout(() => {
+        if (cancelled) return
+        setScoutParams(randomScoutParams())
+        setScoutKey((k) => k + 1)
+        schedule()
+      }, t)
+    }
+    // Offset the first launch so it doesn't overlap the main UFO's opening drift.
+    window.setTimeout(schedule, 6000)
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  // Shooting stars — brief streaks, roughly one every 8–15s.
+  const [shootParams, setShootParams] = useState<ShootingStarParams>(() =>
+    randomShootingStarParams()
+  )
+  const [shootKey, setShootKey] = useState(0)
+  useEffect(() => {
+    let cancelled = false
+    const schedule = (): void => {
+      const t = 8000 + Math.random() * 7000
+      window.setTimeout(() => {
+        if (cancelled) return
+        setShootParams(randomShootingStarParams())
+        setShootKey((k) => k + 1)
+        schedule()
+      }, t)
+    }
+    window.setTimeout(schedule, 4000)
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
   return (
     <div className="space-bg" ref={wrapRef} aria-hidden="true">
       {/* Deep gradient — the vacuum */}
@@ -121,6 +192,11 @@ export default function SpaceBackground(): React.JSX.Element {
       <div className="space-nebula space-nebula-a" />
       <div className="space-nebula space-nebula-b" />
       <div className="space-nebula space-nebula-c" />
+
+      {/* Distant planet — very slow parallax, tucked in bottom-right */}
+      <div className="space-planet">
+        <PlanetSvg />
+      </div>
 
       {/* Star layers — mounted once, animated by CSS */}
       <div className="space-stars space-stars-far">
@@ -184,6 +260,21 @@ export default function SpaceBackground(): React.JSX.Element {
         ))}
       </div>
 
+      {/* Shooting star — brief streak, remounts on each cycle */}
+      <div
+        key={`shoot-${shootKey}`}
+        className="shooting-star"
+        style={
+          {
+            top: `${shootParams.yStart}vh`,
+            left: `${shootParams.xStart}vw`,
+            width: `${shootParams.length}px`,
+            '--shoot-angle': `${shootParams.angle}deg`,
+            '--shoot-duration': `${shootParams.duration}s`
+          } as React.CSSProperties
+        }
+      />
+
       {/* Occasional UFO drift */}
       <div
         key={ufoKey}
@@ -199,6 +290,22 @@ export default function SpaceBackground(): React.JSX.Element {
       >
         <UfoSvg />
         <span className="ufo-beam" />
+      </div>
+
+      {/* Scout UFO — smaller, faster */}
+      <div
+        key={`scout-${scoutKey}`}
+        className={`ufo ufo-scout ${scoutParams.dir === 'ltr' ? 'ufo-ltr' : 'ufo-rtl'}`}
+        style={
+          {
+            '--ufo-y-start': `${scoutParams.yStart}vh`,
+            '--ufo-y-end': `${scoutParams.yEnd}vh`,
+            '--ufo-duration': `${scoutParams.duration}s`,
+            '--ufo-scale': scoutParams.scale
+          } as React.CSSProperties
+        }
+      >
+        <ScoutSvg />
       </div>
     </div>
   )
@@ -239,6 +346,84 @@ function UfoSvg(): React.JSX.Element {
       <circle cx="60" cy="24" r="1.4" fill="#ffb066">
         <animate attributeName="opacity" values="0.4;1;0.4" dur="1.3s" repeatCount="indefinite" />
       </circle>
+    </svg>
+  )
+}
+
+function ScoutSvg(): React.JSX.Element {
+  // Rounder, single-dome scout with two blinking lights.
+  return (
+    <svg viewBox="0 0 60 32" width="60" height="32" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <radialGradient id="scoutDome" cx="50%" cy="30%" r="55%">
+          <stop offset="0%" stopColor="#dff8ff" stopOpacity="0.95" />
+          <stop offset="80%" stopColor="#8fd0ee" stopOpacity="0.85" />
+          <stop offset="100%" stopColor="#2c5f8a" stopOpacity="0.95" />
+        </radialGradient>
+        <linearGradient id="scoutBody" x1="0%" y1="0%" x2="0%" y2="100%">
+          <stop offset="0%" stopColor="#9aa5c5" />
+          <stop offset="55%" stopColor="#d8dff0" />
+          <stop offset="100%" stopColor="#525c85" />
+        </linearGradient>
+      </defs>
+      {/* Dome */}
+      <ellipse cx="30" cy="13" rx="10" ry="7" fill="url(#scoutDome)" />
+      {/* Body — narrower saucer */}
+      <ellipse cx="30" cy="19" rx="24" ry="4.5" fill="url(#scoutBody)" />
+      {/* Two under-lights */}
+      <circle cx="22" cy="21" r="1.3" fill="#ffb066">
+        <animate attributeName="opacity" values="0.3;1;0.3" dur="0.9s" repeatCount="indefinite" />
+      </circle>
+      <circle cx="38" cy="21" r="1.3" fill="#c39aff">
+        <animate attributeName="opacity" values="1;0.3;1" dur="1.1s" repeatCount="indefinite" />
+      </circle>
+    </svg>
+  )
+}
+
+function PlanetSvg(): React.JSX.Element {
+  return (
+    <svg viewBox="0 0 160 160" width="140" height="140" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <radialGradient id="planetBody" cx="40%" cy="35%" r="70%">
+          <stop offset="0%" stopColor="#f5c48a" stopOpacity="1" />
+          <stop offset="55%" stopColor="#c0824a" stopOpacity="1" />
+          <stop offset="100%" stopColor="#3a2a1e" stopOpacity="1" />
+        </radialGradient>
+        <linearGradient id="planetRing" x1="0%" y1="0%" x2="100%" y2="0%">
+          <stop offset="0%" stopColor="#e6b884" stopOpacity="0" />
+          <stop offset="30%" stopColor="#e6b884" stopOpacity="0.85" />
+          <stop offset="70%" stopColor="#e6b884" stopOpacity="0.85" />
+          <stop offset="100%" stopColor="#e6b884" stopOpacity="0" />
+        </linearGradient>
+      </defs>
+      {/* Back half of ring */}
+      <ellipse
+        cx="80"
+        cy="80"
+        rx="70"
+        ry="14"
+        transform="rotate(-18 80 80)"
+        fill="none"
+        stroke="url(#planetRing)"
+        strokeWidth="3"
+        strokeDasharray="0 0"
+        opacity="0.7"
+      />
+      {/* Planet body */}
+      <circle cx="80" cy="80" r="42" fill="url(#planetBody)" />
+      {/* Banding — subtle */}
+      <ellipse cx="80" cy="76" rx="42" ry="6" fill="#e0a066" opacity="0.35" />
+      <ellipse cx="80" cy="86" rx="42" ry="5" fill="#c07038" opacity="0.35" />
+      {/* Front half of ring — draws over the planet */}
+      <path
+        d="M 12,88 A 70,14 0 0 0 148,72"
+        transform="rotate(-18 80 80)"
+        fill="none"
+        stroke="url(#planetRing)"
+        strokeWidth="3"
+        opacity="0.9"
+      />
     </svg>
   )
 }

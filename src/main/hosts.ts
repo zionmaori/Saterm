@@ -268,6 +268,18 @@ export function listAllTags(): TagCount[] {
   return rows
 }
 
+/** Set `group` on every host in `ids` atomically. Pass null to clear. */
+export function bulkSetGroup(ids: number[], group: string | null): void {
+  if (!ids.length) return
+  const g = group?.trim() || null
+  const db = getDb()
+  const upd = db.prepare('UPDATE hosts SET "group" = ? WHERE id = ?')
+  const tx = db.transaction(() => {
+    for (const id of ids) upd.run(g, id)
+  })
+  tx()
+}
+
 /** Add or remove `tag` on every host in `ids` atomically. */
 export function bulkSetTag(ids: number[], tag: string, add: boolean): void {
   if (!ids.length) return

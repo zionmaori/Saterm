@@ -14,6 +14,7 @@ import Titlebar, { type Theme } from './components/Titlebar'
 import HelpModal from './components/HelpModal'
 import OnboardingWizard from './components/OnboardingWizard'
 import SpaceBackground from './components/SpaceBackground'
+import SaturnLogo from './components/SaturnLogo'
 import TipOfTheDay from './components/TipOfTheDay'
 import type { AuthPromptEvent, OnboardingStatus } from '../../shared/types'
 
@@ -145,7 +146,13 @@ export default function App(): React.JSX.Element {
           <div className="pane">
             {tabs.length === 0 && (
               <div className="welcome">
-                <h1>Termion</h1>
+                <div className="welcome-orbit" aria-hidden="true">
+                  <SaturnLogo size={96} className="welcome-saturn" />
+                  <span className="welcome-orbit-dot welcome-orbit-dot-1" />
+                  <span className="welcome-orbit-dot welcome-orbit-dot-2" />
+                  <span className="welcome-orbit-dot welcome-orbit-dot-3" />
+                </div>
+                <h1>Saterm</h1>
                 <div>Pick a host or project from the sidebar, or press ⌘K.</div>
               </div>
             )}

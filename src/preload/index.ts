@@ -100,6 +100,8 @@ const api = {
     listGroups: (): Promise<GroupCount[]> => ipcRenderer.invoke('hosts:listGroups'),
     bulkSetTag: (ids: number[], tag: string, add: boolean): Promise<void> =>
       ipcRenderer.invoke('hosts:bulkSetTag', ids, tag, add),
+    bulkSetGroup: (ids: number[], group: string | null): Promise<void> =>
+      ipcRenderer.invoke('hosts:bulkSetGroup', ids, group),
     pin: (id: number, pinned: boolean): Promise<void> =>
       ipcRenderer.invoke('hosts:pin', id, pinned),
     touch: (id: number): Promise<void> => ipcRenderer.invoke('hosts:touch', id)

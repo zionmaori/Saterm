@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useApp } from '../store/app'
 import type { BugTabContext } from '../../../shared/types'
+import Modal from './Modal'
 
 interface Props {
   onClose: () => void
@@ -94,12 +95,7 @@ export default function BugReportDialog({ onClose }: Props): React.JSX.Element {
   }, [submit])
 
   return (
-    <div
-      className="dialog-backdrop"
-      onMouseDown={(e) => {
-        if (e.target === e.currentTarget) onClose()
-      }}
-    >
+    <Modal onClose={onClose} closeOnEsc={false}>
       <form
         className="dialog"
         style={{ minWidth: 460, maxWidth: 640 }}
@@ -185,6 +181,6 @@ export default function BugReportDialog({ onClose }: Props): React.JSX.Element {
           </button>
         </div>
       </form>
-    </div>
+    </Modal>
   )
 }

@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { HelpCircle, Monitor, Moon, PanelLeft, Search, Sun } from 'lucide-react'
+import SaturnLogo from './SaturnLogo'
 import TitlebarHint from './TitlebarHint'
 
 export type Theme = 'dark' | 'light' | 'system'
@@ -84,8 +85,9 @@ export default function Titlebar({
         <button type="button" className="titlebar-icon-btn" onClick={onHelp} title="Help & Guide">
           <HelpCircle size={13} strokeWidth={2} />
         </button>
-        <div className="titlebar-meta" title={version ? `Termion v${version}` : 'Termion'}>
-          <span className="titlebar-meta-name">Termion</span>
+        <div className="titlebar-meta" title={version ? `Saterm v${version}` : 'Saterm'}>
+          <SaturnLogo size={13} className="titlebar-meta-logo" />
+          <span className="titlebar-meta-name">Saterm</span>
           {version && <span className="titlebar-meta-version">v{version}</span>}
         </div>
       </div>

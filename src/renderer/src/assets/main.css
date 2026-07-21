@@ -194,14 +194,95 @@ html.theme-system .space-star {
   50% { margin-top: -6px; }
 }
 
+/* Scout UFO — smaller sibling, no beam, slightly faster bob */
+.ufo-scout {
+  filter: drop-shadow(0 0 8px rgba(195, 154, 255, 0.35));
+  animation: ufo-fly var(--ufo-duration, 12s) linear 2s 1 both,
+             ufo-scout-bob 2s ease-in-out infinite;
+}
+
+.ufo-scout.ufo-rtl {
+  animation: ufo-fly-rtl var(--ufo-duration, 12s) linear 2s 1 both,
+             ufo-scout-bob 2s ease-in-out infinite;
+}
+
+@keyframes ufo-scout-bob {
+  0%, 100% { margin-top: 0; }
+  50% { margin-top: -4px; }
+}
+
+/* Shooting star — brief diagonal streak */
+.shooting-star {
+  position: absolute;
+  height: 2px;
+  border-radius: 999px;
+  background: linear-gradient(90deg, transparent 0%, rgba(255, 255, 255, 0.85) 60%, #ffffff 100%);
+  filter: drop-shadow(0 0 6px rgba(196, 232, 255, 0.9));
+  transform-origin: right center;
+  transform: rotate(var(--shoot-angle, 15deg)) translateX(0);
+  opacity: 0;
+  animation: shoot var(--shoot-duration, 1.2s) ease-out 1 both;
+  pointer-events: none;
+}
+
+html.theme-light .shooting-star,
+html.theme-system .shooting-star {
+  background: linear-gradient(90deg, transparent 0%, rgba(30, 60, 120, 0.65) 60%, #1a3a80 100%);
+  filter: drop-shadow(0 0 4px rgba(30, 60, 120, 0.45));
+}
+
+@keyframes shoot {
+  0% {
+    opacity: 0;
+    transform: rotate(var(--shoot-angle, 15deg)) translateX(0);
+  }
+  10% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: rotate(var(--shoot-angle, 15deg)) translateX(110vw);
+  }
+}
+
+/* Distant ringed planet — slow parallax, sits behind stars in bottom-right */
+.space-planet {
+  position: absolute;
+  right: 6vw;
+  bottom: 10vh;
+  width: 140px;
+  height: 140px;
+  opacity: 0.18;
+  transform: translate3d(calc(var(--px, 0) * -2px), calc(var(--py, 0) * -2px), 0);
+  will-change: transform;
+  filter: drop-shadow(0 0 22px rgba(255, 176, 102, 0.15));
+  animation: planet-drift 40s ease-in-out infinite alternate;
+}
+
+html.theme-light .space-planet,
+html.theme-system .space-planet {
+  opacity: 0.25;
+  filter: drop-shadow(0 0 16px rgba(194, 98, 8, 0.18));
+}
+
+@keyframes planet-drift {
+  from { transform: translate3d(calc(var(--px, 0) * -2px), calc(var(--py, 0) * -2px), 0) rotate(0deg); }
+  to   { transform: translate3d(calc(var(--px, 0) * -2px), calc(var(--py, 0) * -2px), 0) rotate(3deg); }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .space-star,
   .space-nebula,
   .ufo,
-  .ufo-beam {
+  .ufo-beam,
+  .ufo-scout,
+  .shooting-star,
+  .space-planet {
     animation: none !important;
   }
-  .ufo { display: none; }
+  .ufo,
+  .ufo-scout,
+  .shooting-star { display: none; }
 }
 
 /* (Chrome-translucency overrides are appended near the end of the file so
@@ -281,6 +362,100 @@ html.theme-system .space-star {
   gap: 1px;
 }
 
+/* Rotating "tip" pill in the titlebar left area — restored + polished */
+.titlebar-hint {
+  -webkit-app-region: no-drag;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 22px;
+  padding: 0 4px 0 4px;
+  margin-left: 4px;
+  background: linear-gradient(
+    135deg,
+    color-mix(in srgb, var(--accent-soft) 60%, transparent) 0%,
+    color-mix(in srgb, var(--accent-2-soft) 55%, transparent) 100%
+  );
+  border: 1px solid color-mix(in srgb, var(--border-2) 70%, transparent);
+  border-radius: 999px;
+  color: var(--text-dim);
+  font-size: 10px;
+  letter-spacing: 0.02em;
+  max-width: 320px;
+  cursor: pointer;
+  transition:
+    opacity 220ms ease,
+    color 120ms ease,
+    border-color 120ms ease,
+    transform 180ms ease,
+    box-shadow 180ms ease;
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+.titlebar-hint:hover {
+  color: var(--text);
+  border-color: var(--border-strong);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 14px -6px rgba(109, 208, 255, 0.35);
+}
+
+.titlebar-hint-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--bg-2);
+  color: var(--accent);
+  flex-shrink: 0;
+  box-shadow: 0 0 6px rgba(109, 208, 255, 0.45);
+}
+
+.titlebar-hint-label {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  color: var(--accent-2);
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  flex-shrink: 0;
+}
+
+.titlebar-hint-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+
+.titlebar-hint-next {
+  display: inline-flex;
+  align-items: center;
+  color: var(--text-dimer);
+  opacity: 0;
+  transition: opacity 120ms ease, color 120ms ease, transform 120ms ease;
+  padding-right: 2px;
+}
+
+.titlebar-hint:hover .titlebar-hint-next {
+  opacity: 1;
+  color: var(--accent);
+  transform: translateX(1px);
+}
+
+.titlebar-hint.fade-in { opacity: 1; }
+.titlebar-hint.fade-out { opacity: 0; }
+
+html.theme-light .titlebar-hint,
+html.theme-system .titlebar-hint {
+  background: linear-gradient(
+    135deg,
+    color-mix(in srgb, var(--accent-soft) 40%, transparent) 0%,
+    color-mix(in srgb, var(--accent-2-soft) 40%, transparent) 100%
+  );
+}
+
 .titlebar-search {
   -webkit-app-region: no-drag;
   justify-self: center;
@@ -322,13 +497,24 @@ html.theme-system .space-star {
 
 .titlebar-meta {
   display: inline-flex;
-  align-items: baseline;
+  align-items: center;
   gap: 6px;
   font-weight: 500;
   color: var(--text-dimer);
   letter-spacing: 0.06em;
   text-transform: uppercase;
   font-size: 10px;
+}
+
+.titlebar-meta-logo {
+  color: var(--accent-2);
+  flex-shrink: 0;
+  filter: drop-shadow(0 0 4px rgba(255, 176, 102, 0.35));
+}
+
+html.theme-light .titlebar-meta-logo,
+html.theme-system .titlebar-meta-logo {
+  filter: none;
 }
 
 .titlebar-meta-version {
@@ -452,6 +638,17 @@ html.theme-system .space-star {
 
 .sidebar2-section-header:hover {
   color: var(--text-dim);
+}
+
+.sidebar2-section-icon {
+  color: var(--text-dimer);
+  flex-shrink: 0;
+  opacity: 0.85;
+}
+
+.sidebar2-section-header:hover .sidebar2-section-icon {
+  color: var(--accent);
+  opacity: 1;
 }
 
 .sidebar2-section-title {
@@ -1328,6 +1525,81 @@ html.theme-system .space-star {
   font-size: 22px;
   margin: 0;
   color: var(--text);
+  letter-spacing: 0.04em;
+}
+
+.welcome-orbit {
+  position: relative;
+  width: 180px;
+  height: 180px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 4px;
+}
+
+.welcome-saturn {
+  color: var(--accent-2);
+  filter: drop-shadow(0 0 18px rgba(255, 176, 102, 0.35));
+  animation: welcome-saturn-bob 6s ease-in-out infinite;
+}
+
+.welcome-orbit-dot {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: var(--accent);
+  box-shadow: 0 0 8px var(--accent);
+  transform-origin: 0 0;
+}
+
+.welcome-orbit-dot-1 {
+  animation: welcome-orbit-spin 6s linear infinite;
+}
+.welcome-orbit-dot-2 {
+  background: var(--accent-2);
+  box-shadow: 0 0 8px var(--accent-2);
+  animation: welcome-orbit-spin 9s linear infinite reverse;
+  animation-delay: -3s;
+}
+.welcome-orbit-dot-3 {
+  background: var(--magenta, #c39aff);
+  box-shadow: 0 0 8px var(--magenta, #c39aff);
+  animation: welcome-orbit-spin-wide 12s linear infinite;
+  animation-delay: -5s;
+}
+
+@keyframes welcome-orbit-spin {
+  from {
+    transform: rotate(0deg) translateX(80px) rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg) translateX(80px) rotate(-360deg);
+  }
+}
+
+@keyframes welcome-orbit-spin-wide {
+  from {
+    transform: rotate(0deg) translateX(90px) rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg) translateX(90px) rotate(-360deg);
+  }
+}
+
+@keyframes welcome-saturn-bob {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-4px); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .welcome-orbit-dot,
+  .welcome-saturn {
+    animation: none !important;
+  }
 }
 
 .project {
@@ -1871,12 +2143,23 @@ html.theme-system .space-star {
   cursor: pointer;
   align-self: end;
   height: 26px;
+  min-width: 90px;
+  max-width: 200px;
+  flex-shrink: 1;
   border-radius: var(--radius) var(--radius) 0 0;
   border: 1px solid transparent;
   border-bottom: none;
   transition:
     background-color 100ms ease,
     color 100ms ease;
+}
+
+.editor-tabs .etab > span:not(.dot) {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 1;
+  min-width: 0;
 }
 
 .editor-tabs .etab:hover {
@@ -1906,7 +2189,49 @@ html.theme-system .space-star {
   padding: 0 2px;
   opacity: 0;
   border-radius: 3px;
+  flex-shrink: 0;
   transition: opacity 100ms ease;
+}
+
+.etab-menu {
+  position: fixed;
+  z-index: 1000;
+  min-width: 180px;
+  background: var(--bg-1);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+  padding: 4px;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  font-size: var(--fs-sm);
+}
+
+.etab-menu button {
+  background: transparent;
+  border: none;
+  color: var(--text);
+  text-align: left;
+  padding: 6px 10px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  font-size: inherit;
+}
+
+.etab-menu button:hover:not(:disabled) {
+  background: var(--bg-2);
+}
+
+.etab-menu button:disabled {
+  color: var(--text-dimer);
+  cursor: default;
+}
+
+.etab-menu .sep {
+  height: 1px;
+  background: var(--border);
+  margin: 3px 4px;
 }
 
 .editor-tabs .etab:hover .close,
@@ -4348,48 +4673,6 @@ html.theme-system .space-star {
   filter: brightness(1.08);
   background: var(--accent, #22c55e);
 }
-
-/* ---- Titlebar rotating hint ---- */
-
-.titlebar-hint {
-  -webkit-app-region: no-drag;
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  background: color-mix(in srgb, var(--bg-2) 70%, transparent);
-  border: 1px solid var(--border);
-  border-radius: 999px;
-  padding: 2px 10px 2px 8px;
-  font-size: 10px;
-  color: var(--text-dim);
-  letter-spacing: 0.02em;
-  max-width: 260px;
-  cursor: pointer;
-  transition:
-    opacity 220ms ease,
-    color 120ms ease,
-    border-color 120ms ease;
-  overflow: hidden;
-}
-
-.titlebar-hint:hover {
-  color: var(--text);
-  border-color: var(--border-2);
-}
-
-.titlebar-hint svg {
-  color: var(--accent);
-  flex-shrink: 0;
-}
-
-.titlebar-hint-text {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.titlebar-hint.fade-in { opacity: 1; }
-.titlebar-hint.fade-out { opacity: 0; }
 
 /* ---- Sidebar tips widget ---- */
 
