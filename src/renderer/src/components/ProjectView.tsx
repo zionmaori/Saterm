@@ -1,10 +1,20 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
-import { ChevronDown, ChevronUp, PanelBottom, PanelTop } from 'lucide-react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import type { editor as monacoEditor } from 'monaco-editor'
+import {
+  ChevronDown,
+  ChevronUp,
+  GitCompare,
+  PanelBottom,
+  PanelTop,
+  Plus,
+  SplitSquareHorizontal,
+  X
+} from 'lucide-react'
 import type { ShellOption } from '../../../shared/types'
 import { useApp, type Tab } from '../store/app'
 import FileTree from './FileTree'
-import { CodeEditor, languageFor, type Selection } from './Editor'
-import GitPanel from './GitPanel'
+import { CodeEditor, DiffView, languageFor, type Selection } from './Editor'
+import GitPanel, { type ViewMode as GitViewMode } from './GitPanel'
 import SvnPanel from './SvnPanel'
 import ProjectNotesPanel from './ProjectNotesPanel'
 import TerraformPanel from './TerraformPanel'
@@ -20,17 +30,77 @@ interface Props {
   visible: boolean
 }
 
-interface OpenFile {
-  path: string
-  content: string
-  dirty: boolean
-}
+type OpenItem =
+  | { kind: 'file'; key: string; path: string; content: string; dirty: boolean }
+  | {
+      kind: 'diff'
+      key: string
+      path: string
+      staged: boolean
+      original: string
+      modified: string
+      loading?: boolean
+    }
 
 interface SearchHit {
   file: string
   line: number
   column: number
   text: string
+}
+
+interface TerminalDescriptor {
+  id: string
+  title: string
+  shell?: string
+}
+
+interface TerminalColumn {
+  id: string
+  width: number
+  tabs: TerminalDescriptor[]
+  activeTabId: string
+}
+
+interface LayoutBlob {
+  treeWidth?: number
+  vcsWidth?: number
+  termHeight?: number
+  termAtBottom?: boolean
+  notesHeight?: number
+  notesCollapsed?: boolean
+  openItems?: Array<
+    { kind: 'file'; path: string } | { kind: 'diff'; path: string; staged: boolean }
+  >
+  activeKey?: string | null
+  viewStates?: Record<string, unknown>
+  search?: { open: boolean; query: string }
+  gitView?: GitViewMode
+  terminals?: { columns: TerminalColumn[]; activeColumnId: string }
+}
+
+const fileKey = (path: string): string => `file:${path}`
+const diffKey = (path: string, staged: boolean): string => `diff:${staged ? 'idx' : 'wt'}:${path}`
+
+const MAX_COLUMNS = 3
+
+const initialTerminals = (): {
+  columns: TerminalColumn[]
+  activeColumnId: string
+} => {
+  const colId = uuid()
+  const tabId = uuid()
+  return {
+    columns: [
+      {
+        id: colId,
+        width: 1,
+        tabs: [{ id: tabId, title: 'terminal' }],
+        activeTabId: tabId
+      }
+    ],
+    activeColumnId: colId
+  }
 }
 
 export default function ProjectView({ tab, visible }: Props): React.JSX.Element {
@@ -42,9 +112,10 @@ export default function ProjectView({ tab, visible }: Props): React.JSX.Element 
   )
   const detectTerraform = useApp((s) => s.detectTerraform)
   const [rightView, setRightView] = useState<'vcs' | 'tf' | 'tasks'>('vcs')
+  const [gitView, setGitView] = useState<GitViewMode>('changes')
 
-  const [open, setOpen] = useState<OpenFile[]>([])
-  const [activePath, setActivePath] = useState<string | null>(null)
+  const [items, setItems] = useState<OpenItem[]>([])
+  const [activeKey, setActiveKey] = useState<string | null>(null)
   const [logTail, setLogTail] = useState<string>('')
   useEffect(() => {
     if (!logTail) return
@@ -55,7 +126,6 @@ export default function ProjectView({ tab, visible }: Props): React.JSX.Element 
   const [searchQuery, setSearchQuery] = useState('')
   const [searchHits, setSearchHits] = useState<SearchHit[]>([])
   const [searching, setSearching] = useState(false)
-  const [bottomTabId] = useState(() => uuid())
   const [selection, setSelection] = useState<Selection | null>(null)
   const [copilotOpen, setCopilotOpen] = useState(false)
 
@@ -67,48 +137,159 @@ export default function ProjectView({ tab, visible }: Props): React.JSX.Element 
   const [notesHeight, setNotesHeight] = useState(200)
   const [notesCollapsed, setNotesCollapsed] = useState(false)
   const [shells, setShells] = useState<ShellOption[]>([])
-  const [shell, setShell] = useState<string>('')
-  const [shellKey, setShellKey] = useState(0)
+
+  // Terminals — multiple columns, each with tabs.
+  const [terminals, setTerminals] = useState<{
+    columns: TerminalColumn[]
+    activeColumnId: string
+  }>(() => initialTerminals())
+
+  // Monaco per-file viewStates (cursor + scroll). Restored on remount.
+  const viewStatesRef = useRef<Record<string, monacoEditor.ICodeEditorViewState>>({})
+  const editorsRef = useRef<Map<string, monacoEditor.IStandaloneCodeEditor>>(new Map())
+  const restoredRef = useRef(false)
+
   const layoutKey = `project.layout:${project?.id ?? 'default'}`
 
+  // Restore persisted state (once).
   useEffect(() => {
     let cancelled = false
-    void window.api.kv
-      .getJSON<{
-        treeWidth?: number
-        vcsWidth?: number
-        termHeight?: number
-        termAtBottom?: boolean
-        notesHeight?: number
-        notesCollapsed?: boolean
-      }>(layoutKey)
-      .then((saved) => {
-        if (cancelled || !saved) return
-        if (typeof saved.treeWidth === 'number') setTreeWidth(saved.treeWidth)
-        if (typeof saved.vcsWidth === 'number') setVcsWidth(saved.vcsWidth)
-        if (typeof saved.termHeight === 'number') setTermHeight(saved.termHeight)
-        if (typeof saved.termAtBottom === 'boolean') setTermAtBottom(saved.termAtBottom)
-        if (typeof saved.notesHeight === 'number') setNotesHeight(saved.notesHeight)
-        if (typeof saved.notesCollapsed === 'boolean') setNotesCollapsed(saved.notesCollapsed)
-      })
+    void window.api.kv.getJSON<LayoutBlob>(layoutKey).then((saved) => {
+      if (cancelled || !saved) {
+        restoredRef.current = true
+        return
+      }
+      if (typeof saved.treeWidth === 'number') setTreeWidth(saved.treeWidth)
+      if (typeof saved.vcsWidth === 'number') setVcsWidth(saved.vcsWidth)
+      if (typeof saved.termHeight === 'number') setTermHeight(saved.termHeight)
+      if (typeof saved.termAtBottom === 'boolean') setTermAtBottom(saved.termAtBottom)
+      if (typeof saved.notesHeight === 'number') setNotesHeight(saved.notesHeight)
+      if (typeof saved.notesCollapsed === 'boolean') setNotesCollapsed(saved.notesCollapsed)
+      if (saved.search) {
+        setSearchQuery(saved.search.query ?? '')
+        setSearchOpen(!!saved.search.open)
+      }
+      if (saved.gitView === 'changes' || saved.gitView === 'history' || saved.gitView === 'tags') {
+        setGitView(saved.gitView)
+      }
+      if (saved.viewStates && typeof saved.viewStates === 'object') {
+        viewStatesRef.current = saved.viewStates as Record<
+          string,
+          monacoEditor.ICodeEditorViewState
+        >
+      }
+      if (saved.terminals && saved.terminals.columns.length > 0) {
+        // Reuse persisted layout but note tab ids won't map to any live pty — fresh sessions.
+        setTerminals(saved.terminals)
+      }
+      // Re-open persisted file/diff items after everything else settles so
+      // ipc calls run without blocking layout state.
+      void (async () => {
+        const restoredItems: OpenItem[] = []
+        for (const entry of saved.openItems ?? []) {
+          try {
+            if (entry.kind === 'file') {
+              const content = await window.api.fs.readText(entry.path)
+              restoredItems.push({
+                kind: 'file',
+                key: fileKey(entry.path),
+                path: entry.path,
+                content,
+                dirty: false
+              })
+            } else if (entry.kind === 'diff') {
+              const [head, second] = await Promise.all([
+                window.api.git.fileAtRef(repoPath, 'HEAD', entry.path) as Promise<string>,
+                entry.staged
+                  ? (window.api.git.fileAtRef(repoPath, ':', entry.path) as Promise<string>)
+                  : window.api.fs.readText(`${repoPath}/${entry.path}`).catch(() => '')
+              ])
+              restoredItems.push({
+                kind: 'diff',
+                key: diffKey(entry.path, entry.staged),
+                path: entry.path,
+                staged: entry.staged,
+                original: head ?? '',
+                modified: second ?? ''
+              })
+            }
+          } catch {
+            /* skip broken entries */
+          }
+        }
+        if (cancelled) return
+        if (restoredItems.length > 0) {
+          setItems(restoredItems)
+          const desired = saved.activeKey
+          if (desired && restoredItems.some((it) => it.key === desired)) {
+            setActiveKey(desired)
+          } else {
+            setActiveKey(restoredItems[restoredItems.length - 1].key)
+          }
+        }
+        restoredRef.current = true
+      })()
+    })
     return () => {
       cancelled = true
     }
-  }, [layoutKey])
+  }, [layoutKey, repoPath])
 
+  // Persist layout (debounced). Skipped until restore has run.
   useEffect(() => {
+    if (!restoredRef.current) return
+    const openItems = items.map((it) =>
+      it.kind === 'file'
+        ? ({ kind: 'file', path: it.path } as const)
+        : ({ kind: 'diff', path: it.path, staged: it.staged } as const)
+    )
     const t = setTimeout(() => {
-      void window.api.kv.setJSON(layoutKey, {
+      const blob: LayoutBlob = {
         treeWidth,
         vcsWidth,
         termHeight,
         termAtBottom,
         notesHeight,
-        notesCollapsed
-      })
+        notesCollapsed,
+        openItems,
+        activeKey,
+        viewStates: viewStatesRef.current,
+        search: { open: searchOpen, query: searchQuery },
+        gitView,
+        terminals
+      }
+      void window.api.kv.setJSON(layoutKey, blob)
     }, 300)
     return () => clearTimeout(t)
-  }, [layoutKey, treeWidth, vcsWidth, termHeight, termAtBottom, notesHeight, notesCollapsed])
+  }, [
+    layoutKey,
+    treeWidth,
+    vcsWidth,
+    termHeight,
+    termAtBottom,
+    notesHeight,
+    notesCollapsed,
+    items,
+    activeKey,
+    searchOpen,
+    searchQuery,
+    gitView,
+    terminals
+  ])
+
+  // Coarse viewState persistence while a file is active: snapshot every 2s.
+  useEffect(() => {
+    if (!activeKey) return
+    const active = items.find((i) => i.key === activeKey)
+    if (!active || active.kind !== 'file') return
+    const id = setInterval(() => {
+      const ed = editorsRef.current.get(active.path)
+      if (!ed) return
+      const state = ed.saveViewState()
+      if (state) viewStatesRef.current[active.path] = state
+    }, 2000)
+    return () => clearInterval(id)
+  }, [activeKey, items])
 
   useEffect(() => {
     void window.api.pty.shells().then(setShells)
@@ -119,67 +300,149 @@ export default function ProjectView({ tab, visible }: Props): React.JSX.Element 
     void detectTerraform(project.id, repoPath)
   }, [visible, project?.id, repoPath, detectTerraform, project])
 
-  const bottomTab = useMemo<Tab>(
-    () => ({
-      id: bottomTabId,
-      kind: 'local',
-      title: 'terminal',
-      cwd: repoPath,
-      shell: shell || undefined
-    }),
-    [bottomTabId, repoPath, shell]
-  )
-
-  // Publish the bottom-terminal tab so the global ⌘J handler can target it
-  // when the user has a project tab focused.
+  // Publish the active bottom-terminal Tab so ⌘J / Sidebar helpers work.
   useEffect(() => {
     const g = window as Window & { __termionProjectTerm?: Map<string, Tab> }
     if (!g.__termionProjectTerm) g.__termionProjectTerm = new Map()
-    g.__termionProjectTerm.set(tab.id, bottomTab)
+    const activeCol =
+      terminals.columns.find((c) => c.id === terminals.activeColumnId) ?? terminals.columns[0]
+    const activeDescriptor =
+      activeCol?.tabs.find((t) => t.id === activeCol.activeTabId) ?? activeCol?.tabs[0]
+    if (activeDescriptor) {
+      const activeTab: Tab = {
+        id: activeDescriptor.id,
+        kind: 'local',
+        title: activeDescriptor.title,
+        cwd: repoPath,
+        shell: activeDescriptor.shell
+      }
+      g.__termionProjectTerm.set(tab.id, activeTab)
+    }
     return () => {
       g.__termionProjectTerm?.delete(tab.id)
     }
-  }, [tab.id, bottomTab])
+  }, [tab.id, terminals, repoPath])
 
-  const activeFile = useMemo(
-    () => open.find((f) => f.path === activePath) ?? null,
-    [open, activePath]
+  const activeItem = useMemo(
+    () => items.find((f) => f.key === activeKey) ?? null,
+    [items, activeKey]
   )
+  const activeFile = activeItem?.kind === 'file' ? activeItem : null
 
   const openFile = useCallback(
     async (path: string): Promise<void> => {
-      const existing = open.find((f) => f.path === path)
+      const key = fileKey(path)
+      const existing = items.find((f) => f.key === key)
       if (existing) {
-        setActivePath(path)
+        setActiveKey(key)
         return
       }
       try {
         const content = await window.api.fs.readText(path)
-        setOpen((arr) => [...arr, { path, content, dirty: false }])
-        setActivePath(path)
+        setItems((arr) => [...arr, { kind: 'file', key, path, content, dirty: false }])
+        setActiveKey(key)
       } catch (e) {
         alert(`Open failed: ${(e as Error).message}`)
       }
     },
-    [open]
+    [items]
+  )
+
+  const fetchDiff = useCallback(
+    async (path: string, staged: boolean): Promise<{ original: string; modified: string }> => {
+      const head = (await window.api.git
+        .fileAtRef(repoPath, 'HEAD', path)
+        .catch(() => '')) as string
+      let modified: string
+      if (staged) {
+        modified = (await window.api.git.fileAtRef(repoPath, ':', path).catch(() => '')) as string
+      } else {
+        modified = await window.api.fs.readText(`${repoPath}/${path}`).catch(() => '')
+      }
+      return { original: head ?? '', modified: modified ?? '' }
+    },
+    [repoPath]
+  )
+
+  const openDiff = useCallback(
+    async (path: string, staged: boolean): Promise<void> => {
+      const key = diffKey(path, staged)
+      const existing = items.find((f) => f.key === key)
+      if (existing) {
+        setActiveKey(key)
+        // Refresh contents in the background.
+        void (async () => {
+          const { original, modified } = await fetchDiff(path, staged)
+          setItems((arr) =>
+            arr.map((it) =>
+              it.key === key && it.kind === 'diff' ? { ...it, original, modified } : it
+            )
+          )
+        })()
+        return
+      }
+      // Optimistic tab so user gets immediate feedback.
+      setItems((arr) => [
+        ...arr,
+        {
+          kind: 'diff',
+          key,
+          path,
+          staged,
+          original: '',
+          modified: '',
+          loading: true
+        }
+      ])
+      setActiveKey(key)
+      try {
+        const { original, modified } = await fetchDiff(path, staged)
+        setItems((arr) =>
+          arr.map((it) =>
+            it.key === key && it.kind === 'diff'
+              ? { ...it, original, modified, loading: false }
+              : it
+          )
+        )
+      } catch (e) {
+        alert(`Open diff failed: ${(e as Error).message}`)
+        setItems((arr) => arr.filter((it) => it.key !== key))
+      }
+    },
+    [items, fetchDiff]
   )
 
   const saveFile = useCallback(async (): Promise<void> => {
     if (!activeFile) return
     try {
       await window.api.fs.writeText(activeFile.path, activeFile.content)
-      setOpen((arr) => arr.map((f) => (f.path === activeFile.path ? { ...f, dirty: false } : f)))
+      setItems((arr) =>
+        arr.map((f) =>
+          f.kind === 'file' && f.path === activeFile.path ? { ...f, dirty: false } : f
+        )
+      )
     } catch (e) {
       alert(`Save failed: ${(e as Error).message}`)
     }
   }, [activeFile])
 
-  const closeFile = useCallback((path: string): void => {
-    setOpen((arr) => {
-      const target = arr.find((f) => f.path === path)
-      if (target?.dirty && !confirm(`Discard unsaved changes in ${path}?`)) return arr
-      const next = arr.filter((f) => f.path !== path)
-      setActivePath((cur) => (cur === path ? (next[next.length - 1]?.path ?? null) : cur))
+  const closeItem = useCallback((key: string): void => {
+    setItems((arr) => {
+      const target = arr.find((f) => f.key === key)
+      if (target?.kind === 'file' && target.dirty) {
+        if (!confirm(`Discard unsaved changes in ${target.path}?`)) return arr
+      }
+      // Snapshot final viewState for closed file so a later re-open still resumes.
+      if (target?.kind === 'file') {
+        const ed = editorsRef.current.get(target.path)
+        if (ed) {
+          const state = ed.saveViewState()
+          if (state) viewStatesRef.current[target.path] = state
+        }
+        editorsRef.current.delete(target.path)
+      }
+      const next = arr.filter((f) => f.key !== key)
+      setActiveKey((cur) => (cur === key ? (next[next.length - 1]?.key ?? null) : cur))
       return next
     })
   }, [])
@@ -231,6 +494,113 @@ export default function ProjectView({ tab, visible }: Props): React.JSX.Element 
     }
   }
 
+  // ----- Terminal columns/tabs helpers -----
+
+  const activeColumn = useMemo(
+    () => terminals.columns.find((c) => c.id === terminals.activeColumnId) ?? terminals.columns[0],
+    [terminals]
+  )
+
+  const addTerminalTab = (colId: string, shell?: string): void => {
+    const tabId = uuid()
+    setTerminals((t) => ({
+      ...t,
+      activeColumnId: colId,
+      columns: t.columns.map((c) =>
+        c.id === colId
+          ? {
+              ...c,
+              tabs: [
+                ...c.tabs,
+                { id: tabId, title: shell ? shell.split(/[\\/]/).pop()! : 'terminal', shell }
+              ],
+              activeTabId: tabId
+            }
+          : c
+      )
+    }))
+  }
+
+  const closeTerminalTab = (colId: string, tabId: string): void => {
+    // Kill pty.
+    void window.api.term.close(tabId)
+    setTerminals((t) => {
+      const columns = t.columns
+        .map((c) => {
+          if (c.id !== colId) return c
+          const tabs = c.tabs.filter((tt) => tt.id !== tabId)
+          const activeTabId =
+            c.activeTabId === tabId ? (tabs[tabs.length - 1]?.id ?? '') : c.activeTabId
+          return { ...c, tabs, activeTabId }
+        })
+        // Drop an empty column unless it's the last one — always keep at least one column with one tab.
+        .filter((c, _idx, all) => c.tabs.length > 0 || all.length === 1)
+      // Guarantee at least one column with one tab.
+      if (columns.length === 0 || columns.every((c) => c.tabs.length === 0)) {
+        const init = initialTerminals()
+        return init
+      }
+      let activeColumnId = t.activeColumnId
+      if (!columns.find((c) => c.id === activeColumnId)) {
+        activeColumnId = columns[0].id
+      }
+      return { columns, activeColumnId }
+    })
+  }
+
+  const setActiveTerminalTab = (colId: string, tabId: string): void => {
+    setTerminals((t) => ({
+      ...t,
+      activeColumnId: colId,
+      columns: t.columns.map((c) => (c.id === colId ? { ...c, activeTabId: tabId } : c))
+    }))
+  }
+
+  const focusColumn = (colId: string): void => {
+    setTerminals((t) => (t.activeColumnId === colId ? t : { ...t, activeColumnId: colId }))
+  }
+
+  const splitRight = (afterColId: string): void => {
+    setTerminals((t) => {
+      if (t.columns.length >= MAX_COLUMNS) return t
+      const idx = t.columns.findIndex((c) => c.id === afterColId)
+      if (idx < 0) return t
+      const newColId = uuid()
+      const newTabId = uuid()
+      const newCol: TerminalColumn = {
+        id: newColId,
+        width: 1,
+        tabs: [{ id: newTabId, title: 'terminal' }],
+        activeTabId: newTabId
+      }
+      const columns = [...t.columns]
+      columns.splice(idx + 1, 0, newCol)
+      // Normalize equal widths.
+      const share = 1
+      for (const c of columns) c.width = share
+      return { columns, activeColumnId: newColId }
+    })
+  }
+
+  const resizeColumn = (colId: string, deltaFraction: number): void => {
+    setTerminals((t) => {
+      const idx = t.columns.findIndex((c) => c.id === colId)
+      if (idx < 0 || idx === t.columns.length - 1) return t
+      const columns = t.columns.map((c) => ({ ...c }))
+      const left = columns[idx]
+      const right = columns[idx + 1]
+      const min = 0.15
+      const nextLeft = Math.max(
+        min,
+        Math.min(left.width + right.width - min, left.width + deltaFraction)
+      )
+      const nextRight = left.width + right.width - nextLeft
+      left.width = nextLeft
+      right.width = nextRight
+      return { ...t, columns }
+    })
+  }
+
   return (
     <div
       className="project-wrap"
@@ -250,7 +620,7 @@ export default function ProjectView({ tab, visible }: Props): React.JSX.Element 
           gridTemplateRows: termAtBottom ? `1fr 6px ${termHeight}px` : `${termHeight}px 6px 1fr`
         }}
       >
-        <FileTree root={repoPath} onOpenFile={openFile} selectedPath={activePath} />
+        <FileTree root={repoPath} onOpenFile={openFile} selectedPath={activeFile?.path ?? null} />
         <Splitter
           axis="horizontal"
           size={treeWidth}
@@ -262,22 +632,35 @@ export default function ProjectView({ tab, visible }: Props): React.JSX.Element 
 
         <div className="editor-wrap" style={termAtBottom ? { gridRow: 1 } : undefined}>
           <div className="editor-tabs">
-            {open.map((f) => {
+            {items.map((f) => {
               const name = f.path.split('/').pop() ?? f.path
+              const isDiff = f.kind === 'diff'
+              const title =
+                f.kind === 'file'
+                  ? f.path
+                  : `${f.path} — diff (${f.staged ? 'staged' : 'working tree'})`
               return (
                 <div
-                  key={f.path}
-                  className={`etab ${f.path === activePath ? 'active' : ''}`}
-                  onClick={() => setActivePath(f.path)}
-                  title={f.path}
+                  key={f.key}
+                  className={`etab ${f.key === activeKey ? 'active' : ''}`}
+                  onClick={() => setActiveKey(f.key)}
+                  title={title}
                 >
-                  {f.dirty && <span className="dot" />}
+                  {isDiff && (
+                    <GitCompare size={11} strokeWidth={2} style={{ opacity: 0.7, flexShrink: 0 }} />
+                  )}
+                  {f.kind === 'file' && f.dirty && <span className="dot" />}
                   <span>{name}</span>
+                  {isDiff && (
+                    <span style={{ opacity: 0.55, fontSize: 10 }}>
+                      {f.staged ? 'staged' : 'diff'}
+                    </span>
+                  )}
                   <button
                     className="close"
                     onClick={(e) => {
                       e.stopPropagation()
-                      closeFile(f.path)
+                      closeItem(f.key)
                     }}
                   >
                     ×
@@ -287,21 +670,44 @@ export default function ProjectView({ tab, visible }: Props): React.JSX.Element 
             })}
           </div>
           <div className="editor-host">
-            {activeFile ? (
+            {activeItem?.kind === 'file' ? (
               <CodeEditor
-                key={activeFile.path}
-                value={activeFile.content}
-                language={languageFor(activeFile.path)}
+                key={activeItem.key}
+                value={activeItem.content}
+                language={languageFor(activeItem.path)}
                 onChange={(v) =>
-                  setOpen((arr) =>
+                  setItems((arr) =>
                     arr.map((f) =>
-                      f.path === activeFile.path
+                      f.kind === 'file' && f.path === activeItem.path
                         ? { ...f, content: v, dirty: v !== f.content || f.dirty }
                         : f
                     )
                   )
                 }
                 onSelectionChange={setSelection}
+                onReady={(ed) => {
+                  editorsRef.current.set(activeItem.path, ed)
+                  const saved = viewStatesRef.current[activeItem.path]
+                  if (saved) {
+                    try {
+                      ed.restoreViewState(saved)
+                    } catch {
+                      /* stale viewState — ignore */
+                    }
+                  }
+                  // Snapshot on blur / change so we keep the latest position.
+                  ed.onDidBlurEditorText(() => {
+                    const s = ed.saveViewState()
+                    if (s) viewStatesRef.current[activeItem.path] = s
+                  })
+                }}
+              />
+            ) : activeItem?.kind === 'diff' ? (
+              <DiffView
+                key={activeItem.key}
+                original={activeItem.original}
+                modified={activeItem.modified}
+                language={languageFor(activeItem.path)}
               />
             ) : (
               <div className="empty">Open a file to start editing.</div>
@@ -407,7 +813,13 @@ export default function ProjectView({ tab, visible }: Props): React.JSX.Element 
                 visible={visible && rightView === 'tf'}
               />
             ) : vcs === 'git' ? (
-              <GitPanel repoPath={repoPath} onOpenLog={setLogTail} />
+              <GitPanel
+                repoPath={repoPath}
+                onOpenLog={setLogTail}
+                onOpenDiff={(p, staged) => void openDiff(p, staged)}
+                view={gitView}
+                onViewChange={setGitView}
+              />
             ) : vcs === 'svn' ? (
               <SvnPanel repoPath={repoPath} onOpenLog={setLogTail} />
             ) : (
@@ -457,43 +869,80 @@ export default function ProjectView({ tab, visible }: Props): React.JSX.Element 
         <div className="bottom-term" style={{ gridColumn: 3, gridRow: termAtBottom ? 3 : 1 }}>
           <div className="bottom-term-header">
             <span>Terminal</span>
-            {shells.length > 1 && (
-              <select
-                className="shell-select"
-                value={shell}
-                onChange={(e) => {
-                  setShell(e.target.value)
-                  setShellKey((k) => k + 1)
-                }}
-                title="Switch shell (restarts terminal)"
-              >
-                <option value="">Default</option>
-                {shells.map((s) => (
-                  <option key={s.path} value={s.path}>
-                    {s.label}
-                  </option>
-                ))}
-              </select>
-            )}
-            <button
-              className="bottom-term-flip"
-              onClick={() => setTermAtBottom((v) => !v)}
-              title={termAtBottom ? 'Move terminal to top' : 'Move terminal to bottom'}
-            >
-              {termAtBottom ? (
-                <PanelTop size={12} strokeWidth={2} />
-              ) : (
-                <PanelBottom size={12} strokeWidth={2} />
+            <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+              {shells.length > 1 && (
+                <select
+                  className="shell-select"
+                  value=""
+                  onChange={(e) => {
+                    if (!e.target.value) return
+                    addTerminalTab(activeColumn.id, e.target.value)
+                    e.currentTarget.value = ''
+                  }}
+                  title="Open a new terminal tab with this shell"
+                >
+                  <option value="">+ shell…</option>
+                  {shells.map((s) => (
+                    <option key={s.path} value={s.path}>
+                      {s.label}
+                    </option>
+                  ))}
+                </select>
               )}
-            </button>
+              <button
+                className="bottom-term-flip"
+                onClick={() => addTerminalTab(activeColumn.id)}
+                title="New terminal tab (in focused column)"
+              >
+                <Plus size={12} strokeWidth={2} />
+              </button>
+              <button
+                className="bottom-term-flip"
+                onClick={() => splitRight(activeColumn.id)}
+                disabled={terminals.columns.length >= MAX_COLUMNS}
+                title={
+                  terminals.columns.length >= MAX_COLUMNS
+                    ? `Max ${MAX_COLUMNS} columns`
+                    : 'Split right — add another terminal pane'
+                }
+              >
+                <SplitSquareHorizontal size={12} strokeWidth={2} />
+              </button>
+              <button
+                className="bottom-term-flip"
+                onClick={() => setTermAtBottom((v) => !v)}
+                title={termAtBottom ? 'Move terminal to top' : 'Move terminal to bottom'}
+              >
+                {termAtBottom ? (
+                  <PanelTop size={12} strokeWidth={2} />
+                ) : (
+                  <PanelBottom size={12} strokeWidth={2} />
+                )}
+              </button>
+            </div>
           </div>
-          <div style={{ flex: 1, minHeight: 0, display: 'flex' }}>
-            <TerminalPane
-              key={`${bottomTabId}-${shellKey}`}
-              tab={bottomTab}
-              visible={visible}
-              resizeKey={termAtBottom ? 1 : 0}
-            />
+          <div className="term-cols" style={{ flex: 1, minHeight: 0, display: 'flex' }}>
+            {terminals.columns.map((col, idx) => {
+              const isLast = idx === terminals.columns.length - 1
+              const flexBasis = `${(col.width / terminals.columns.reduce((s, c) => s + c.width, 0)) * 100}%`
+              return (
+                <TerminalColumnView
+                  key={col.id}
+                  column={col}
+                  focused={col.id === terminals.activeColumnId}
+                  repoPath={repoPath}
+                  visible={visible}
+                  termAtBottom={termAtBottom}
+                  flexBasis={flexBasis}
+                  hasResizer={!isLast}
+                  onResize={(deltaFraction) => resizeColumn(col.id, deltaFraction)}
+                  onFocus={() => focusColumn(col.id)}
+                  onAddTab={() => addTerminalTab(col.id)}
+                  onSelectTab={(tabId) => setActiveTerminalTab(col.id, tabId)}
+                  onCloseTab={(tabId) => closeTerminalTab(col.id, tabId)}
+                />
+              )
+            })}
           </div>
         </div>
         <div style={{ gridColumn: 3, gridRow: 2 }}>
@@ -513,19 +962,20 @@ export default function ProjectView({ tab, visible }: Props): React.JSX.Element 
           {logTail}
         </div>
       )}
-      {copilotOpen && (
+      {copilotOpen && activeFile && (
         <div className="editor-copilot-strip">
           <EditorCopilot
             projectRoot={repoPath}
-            filePath={activeFile?.path ?? null}
-            fileContent={activeFile?.content ?? ''}
+            filePath={activeFile.path}
+            fileContent={activeFile.content}
             selection={selection}
             onApply={async (newContent) => {
-              if (!activeFile) return
               await window.api.fs.writeText(activeFile.path, newContent)
-              setOpen((arr) =>
+              setItems((arr) =>
                 arr.map((f) =>
-                  f.path === activeFile.path ? { ...f, content: newContent, dirty: false } : f
+                  f.kind === 'file' && f.path === activeFile.path
+                    ? { ...f, content: newContent, dirty: false }
+                    : f
                 )
               )
             }}
@@ -534,5 +984,144 @@ export default function ProjectView({ tab, visible }: Props): React.JSX.Element 
         </div>
       )}
     </div>
+  )
+}
+
+interface TerminalColumnProps {
+  column: TerminalColumn
+  focused: boolean
+  repoPath: string
+  visible: boolean
+  termAtBottom: boolean
+  flexBasis: string
+  hasResizer: boolean
+  onResize: (deltaFraction: number) => void
+  onFocus: () => void
+  onAddTab: () => void
+  onSelectTab: (tabId: string) => void
+  onCloseTab: (tabId: string) => void
+}
+
+function TerminalColumnView({
+  column,
+  focused,
+  repoPath,
+  visible,
+  termAtBottom,
+  flexBasis,
+  hasResizer,
+  onResize,
+  onFocus,
+  onAddTab,
+  onSelectTab,
+  onCloseTab
+}: TerminalColumnProps): React.JSX.Element {
+  const hostRef = useRef<HTMLDivElement>(null)
+
+  const startResize = (e: React.PointerEvent): void => {
+    e.preventDefault()
+    const container = hostRef.current?.parentElement
+    if (!container) return
+    const totalWidth = container.getBoundingClientRect().width
+    const startX = e.clientX
+    const onMove = (ev: PointerEvent): void => {
+      const delta = (ev.clientX - startX) / totalWidth
+      onResize(delta)
+    }
+    const onUp = (): void => {
+      window.removeEventListener('pointermove', onMove)
+      window.removeEventListener('pointerup', onUp)
+      document.body.style.cursor = ''
+      document.body.style.userSelect = ''
+    }
+    document.body.style.cursor = 'col-resize'
+    document.body.style.userSelect = 'none'
+    window.addEventListener('pointermove', onMove)
+    window.addEventListener('pointerup', onUp)
+  }
+
+  return (
+    <>
+      <div
+        ref={hostRef}
+        className={`term-col ${focused ? 'focused' : ''}`}
+        style={{
+          flex: `1 1 ${flexBasis}`,
+          minWidth: 120,
+          display: 'flex',
+          flexDirection: 'column',
+          borderRight: hasResizer ? undefined : 'none'
+        }}
+        onMouseDown={onFocus}
+      >
+        <div className="term-col-tabs">
+          {column.tabs.map((t) => (
+            <div
+              key={t.id}
+              className={`term-col-tab ${t.id === column.activeTabId ? 'active' : ''}`}
+              onClick={(e) => {
+                e.stopPropagation()
+                onFocus()
+                onSelectTab(t.id)
+              }}
+              title={t.title}
+            >
+              <span>{t.title}</span>
+              <button
+                className="close"
+                onClick={(e) => {
+                  e.stopPropagation()
+                  onCloseTab(t.id)
+                }}
+                title="Close terminal"
+              >
+                <X size={10} strokeWidth={2} />
+              </button>
+            </div>
+          ))}
+          <button
+            className="term-col-newtab"
+            onClick={(e) => {
+              e.stopPropagation()
+              onAddTab()
+            }}
+            title="New terminal in this column"
+          >
+            <Plus size={11} strokeWidth={2} />
+          </button>
+        </div>
+        <div style={{ flex: 1, minHeight: 0, position: 'relative' }}>
+          {column.tabs.map((t) => {
+            const paneTab: Tab = {
+              id: t.id,
+              kind: 'local',
+              title: t.title,
+              cwd: repoPath,
+              shell: t.shell
+            }
+            const isActive = t.id === column.activeTabId
+            return (
+              <div
+                key={t.id}
+                style={{
+                  position: 'absolute',
+                  inset: 0,
+                  display: isActive ? 'flex' : 'none'
+                }}
+              >
+                <TerminalPane
+                  tab={paneTab}
+                  visible={visible && isActive}
+                  resizeKey={`${termAtBottom ? 'b' : 't'}:${flexBasis}`}
+                />
+              </div>
+            )
+          })}
+        </div>
+      </div>
+      {hasResizer && (
+        <div className="term-col-resizer" onPointerDown={startResize} title="Drag to resize" />
+      )}
+    </>
   )
 }

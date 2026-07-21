@@ -24,6 +24,12 @@ body,
   letter-spacing: -0.005em;
 }
 
+/* The .space-bg is position:fixed z-index:-1. Make the app root itself
+   transparent so the background reads through the app grid. */
+#root {
+  background: transparent;
+}
+
 button {
   font-family: inherit;
   font-size: var(--fs-sm);
@@ -48,13 +54,12 @@ button:hover:not(:disabled) {
 button.primary {
   background: var(--accent);
   border-color: var(--accent);
-  color: #06231a;
+  color: #051225;
   font-weight: 600;
 }
 
 button.primary:hover:not(:disabled) {
-  background: #9bedca;
-  border-color: #9bedca;
+  filter: brightness(1.12);
 }
 
 button.danger {

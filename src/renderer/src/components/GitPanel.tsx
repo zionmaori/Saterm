@@ -1,9 +1,11 @@
-import { useEffect, useState } from 'react'
-import { DiffView, languageFor } from './Editor'
+import { useCallback, useEffect, useRef, useState } from 'react'
 
 interface Props {
   repoPath: string
   onOpenLog: (log: string) => void
+  onOpenDiff: (path: string, staged: boolean) => void
+  view: ViewMode
+  onViewChange: (view: ViewMode) => void
 }
 
 interface GitStatus {
@@ -23,28 +25,31 @@ interface GitLogEntry {
   refs: string
 }
 
-type ViewMode = 'changes' | 'history' | 'tags'
+export type ViewMode = 'changes' | 'history' | 'tags'
 
-export default function GitPanel({ repoPath, onOpenLog }: Props): React.JSX.Element {
+export default function GitPanel({
+  repoPath,
+  onOpenLog,
+  onOpenDiff,
+  view,
+  onViewChange
+}: Props): React.JSX.Element {
   const [status, setStatus] = useState<GitStatus | null>(null)
   const [branches, setBranches] = useState<{ current: string; all: string[] }>({
     current: '',
     all: []
   })
-  const [selectedFile, setSelectedFile] = useState<string | null>(null)
-  const [selectedStaged, setSelectedStaged] = useState(false)
-  const [original, setOriginal] = useState('')
-  const [modified, setModified] = useState('')
   const [commitMsg, setCommitMsg] = useState('')
   const [amend, setAmend] = useState(false)
   const [busy, setBusy] = useState(false)
-  const [view, setView] = useState<ViewMode>('changes')
   const [log, setLog] = useState<GitLogEntry[]>([])
   const [tags, setTags] = useState<string[]>([])
   const [newTag, setNewTag] = useState('')
   const [tagMsg, setTagMsg] = useState('')
+  const historyLoadedRef = useRef(false)
+  const tagsLoadedRef = useRef(false)
 
-  const refresh = async (): Promise<void> => {
+  const refresh = useCallback(async (): Promise<void> => {
     try {
       const [s, b] = await Promise.all([
         window.api.git.status(repoPath),
@@ -55,60 +60,35 @@ export default function GitPanel({ repoPath, onOpenLog }: Props): React.JSX.Elem
     } catch (e) {
       console.error(e)
     }
-  }
+  }, [repoPath])
 
   useEffect(() => {
     void refresh()
     const id = setInterval(() => void refresh(), 5000)
     return () => clearInterval(id)
+  }, [refresh])
+
+  const openLog = useCallback(async (): Promise<void> => {
+    const entries = (await window.api.git.log(repoPath)) as GitLogEntry[]
+    setLog(entries)
   }, [repoPath])
 
-  // Refresh the diff only when the *selected file's* git state changes, not
-  // every time the background status poll returns a new object reference.
-  const fileStateKey = selectedFile
-    ? (() => {
-        const f = status?.files.find((x) => x.path === selectedFile)
-        return `${f?.index ?? ''}${f?.workingDir ?? ''}`
-      })()
-    : ''
+  const openTags = useCallback(async (): Promise<void> => {
+    const t = await window.api.git.listTags(repoPath)
+    setTags(t)
+  }, [repoPath])
 
+  // Lazy-load list data the first time each subtab is opened after mount.
   useEffect(() => {
-    if (!selectedFile) {
-      setOriginal('')
-      setModified('')
-      return
+    if (view === 'history' && !historyLoadedRef.current) {
+      historyLoadedRef.current = true
+      void openLog()
     }
-    let cancelled = false
-    void (async () => {
-      try {
-        if (selectedStaged) {
-          const head = (await window.api.git.fileAtRef(repoPath, 'HEAD', selectedFile)) as string
-          const idx = (await window.api.git.fileAtRef(repoPath, ':', selectedFile)) as string
-          if (cancelled) return
-          setOriginal(head)
-          setModified(idx)
-        } else {
-          const head = (await window.api.git.fileAtRef(repoPath, 'HEAD', selectedFile)) as string
-          let working = ''
-          try {
-            working = await window.api.fs.readText(`${repoPath}/${selectedFile}`)
-          } catch {
-            working = ''
-          }
-          if (cancelled) return
-          setOriginal(head)
-          setModified(working)
-        }
-      } catch {
-        if (cancelled) return
-        setOriginal('')
-        setModified('')
-      }
-    })()
-    return () => {
-      cancelled = true
+    if (view === 'tags' && !tagsLoadedRef.current) {
+      tagsLoadedRef.current = true
+      void openTags()
     }
-  }, [selectedFile, selectedStaged, repoPath, fileStateKey])
+  }, [view, openLog, openTags])
 
   if (!status) return <div className="empty">Loading…</div>
 
@@ -224,16 +204,13 @@ export default function GitPanel({ repoPath, onOpenLog }: Props): React.JSX.Elem
     }
   }
 
-  const openLog = async (): Promise<void> => {
-    const entries = (await window.api.git.log(repoPath)) as GitLogEntry[]
-    setLog(entries)
-    setView('history')
+  const goHistory = (): void => {
+    onViewChange('history')
+    void openLog()
   }
-
-  const openTags = async (): Promise<void> => {
-    const t = await window.api.git.listTags(repoPath)
-    setTags(t)
-    setView('tags')
+  const goTags = (): void => {
+    onViewChange('tags')
+    void openTags()
   }
 
   const createTag = async (): Promise<void> => {
@@ -284,14 +261,14 @@ export default function GitPanel({ repoPath, onOpenLog }: Props): React.JSX.Elem
       <div className="vcs-tabs">
         <div
           className={`vt ${view === 'changes' ? 'active' : ''}`}
-          onClick={() => setView('changes')}
+          onClick={() => onViewChange('changes')}
         >
           Changes
         </div>
-        <div className={`vt ${view === 'history' ? 'active' : ''}`} onClick={() => void openLog()}>
+        <div className={`vt ${view === 'history' ? 'active' : ''}`} onClick={goHistory}>
           History
         </div>
-        <div className={`vt ${view === 'tags' ? 'active' : ''}`} onClick={() => void openTags()}>
+        <div className={`vt ${view === 'tags' ? 'active' : ''}`} onClick={goTags}>
           Tags
         </div>
       </div>
@@ -351,14 +328,7 @@ export default function GitPanel({ repoPath, onOpenLog }: Props): React.JSX.Elem
               <>
                 <div className="vcs-section-title">Conflicts</div>
                 {status.conflicted.map((p) => (
-                  <div
-                    key={p}
-                    className="vcs-file"
-                    onClick={() => {
-                      setSelectedFile(p)
-                      setSelectedStaged(false)
-                    }}
-                  >
+                  <div key={p} className="vcs-file" onClick={() => onOpenDiff(p, false)}>
                     <span className="badge D">!</span>
                     <span className="name">{p}</span>
                   </div>
@@ -388,10 +358,8 @@ export default function GitPanel({ repoPath, onOpenLog }: Props): React.JSX.Elem
               <div
                 key={f.path}
                 className="vcs-file"
-                onClick={() => {
-                  setSelectedFile(f.path)
-                  setSelectedStaged(true)
-                }}
+                onClick={() => onOpenDiff(f.path, true)}
+                title="Open diff in editor"
               >
                 <span className={`badge ${fileBadge(f, true)}`}>{fileBadge(f, true)}</span>
                 <span className="name">{f.path}</span>
@@ -422,10 +390,8 @@ export default function GitPanel({ repoPath, onOpenLog }: Props): React.JSX.Elem
               <div
                 key={f.path}
                 className="vcs-file"
-                onClick={() => {
-                  setSelectedFile(f.path)
-                  setSelectedStaged(false)
-                }}
+                onClick={() => onOpenDiff(f.path, false)}
+                title="Open diff in editor"
               >
                 <span className={`badge ${fileBadge(f, false)}`}>{fileBadge(f, false)}</span>
                 <span className="name">{f.path}</span>
@@ -506,25 +472,10 @@ export default function GitPanel({ repoPath, onOpenLog }: Props): React.JSX.Elem
                 </div>
               )}
             </div>
-
-            {selectedFile && (
-              <>
-                <div className="vcs-section-title">
-                  Diff: {selectedFile} {selectedStaged ? '(staged)' : ''}
-                </div>
-                <div style={{ height: 300, border: '1px solid var(--border)' }}>
-                  <DiffView
-                    original={original}
-                    modified={modified}
-                    language={languageFor(selectedFile)}
-                  />
-                </div>
-              </>
-            )}
           </>
         ) : view === 'history' ? (
           <div>
-            <button onClick={() => setView('changes')} style={{ marginBottom: 8 }}>
+            <button onClick={() => onViewChange('changes')} style={{ marginBottom: 8 }}>
               ← Back to changes
             </button>
             {log.map((e) => (
@@ -550,7 +501,7 @@ export default function GitPanel({ repoPath, onOpenLog }: Props): React.JSX.Elem
           </div>
         ) : (
           <div style={{ padding: '8px 0' }}>
-            <button onClick={() => setView('changes')} style={{ marginBottom: 12 }}>
+            <button onClick={() => onViewChange('changes')} style={{ marginBottom: 12 }}>
               ← Back to changes
             </button>
 

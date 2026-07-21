@@ -15,6 +15,7 @@ interface Props {
   onChange?: (v: string) => void
   readOnly?: boolean
   onSelectionChange?: (sel: Selection | null) => void
+  onReady?: (editor: editor.IStandaloneCodeEditor) => void
 }
 
 export function CodeEditor({
@@ -22,7 +23,8 @@ export function CodeEditor({
   language,
   onChange,
   readOnly,
-  onSelectionChange
+  onSelectionChange,
+  onReady
 }: Props): React.JSX.Element {
   return (
     <Editor
@@ -31,23 +33,25 @@ export function CodeEditor({
       language={language}
       onChange={(v) => onChange?.(v ?? '')}
       onMount={(ed) => {
-        if (!onSelectionChange) return
-        ed.onDidChangeCursorSelection((e) => {
-          const sel = e.selection
-          if (sel.isEmpty()) {
-            onSelectionChange(null)
-            return
-          }
-          const model = ed.getModel()
-          const text = model ? model.getValueInRange(sel) : ''
-          onSelectionChange({
-            text,
-            startLine: sel.startLineNumber,
-            startCol: sel.startColumn,
-            endLine: sel.endLineNumber,
-            endCol: sel.endColumn
+        if (onSelectionChange) {
+          ed.onDidChangeCursorSelection((e) => {
+            const sel = e.selection
+            if (sel.isEmpty()) {
+              onSelectionChange(null)
+              return
+            }
+            const model = ed.getModel()
+            const text = model ? model.getValueInRange(sel) : ''
+            onSelectionChange({
+              text,
+              startLine: sel.startLineNumber,
+              startCol: sel.startColumn,
+              endLine: sel.endLineNumber,
+              endCol: sel.endColumn
+            })
           })
-        })
+        }
+        onReady?.(ed)
       }}
       options={
         {

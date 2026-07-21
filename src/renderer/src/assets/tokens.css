@@ -1,41 +1,45 @@
 /* Design tokens — single source of truth for colors, spacing, and typography.
- * Imported once from main.css before any other style. */
+ * Imported once from main.css before any other style.
+ *
+ * Palette: deep-space / Interstellar. Surfaces are near-black indigo, accents
+ * are cyan + amber (starlight + gas-giant glow). Kept as CSS custom properties
+ * so component code stays theme-agnostic. */
 
 :root {
   color-scheme: dark;
 
-  /* Surfaces */
-  --bg: #0a0c10;
-  --bg-1: #0f1318;
-  --bg-2: #161b22;
-  --bg-3: #1f262e;
-  --bg-elevated: #1c232c;
+  /* Surfaces — void / deep space / craft interior */
+  --bg: #06070d;
+  --bg-1: #0b0e1a;
+  --bg-2: #10152a;
+  --bg-3: #1a2144;
+  --bg-elevated: #1c2450;
 
-  /* Borders */
-  --border: #232a33;
-  --border-2: #2c333d;
-  --border-strong: #3b4350;
+  /* Borders — thin blueshift */
+  --border: #212a4d;
+  --border-2: #2c3663;
+  --border-strong: #46527d;
 
-  /* Text */
-  --text: #e6edf3;
-  --text-dim: #8b949e;
-  --text-dimer: #6e7681;
+  /* Text — starlight */
+  --text: #e8ecff;
+  --text-dim: #9aa3d1;
+  --text-dimer: #6d75a4;
 
-  /* Accents */
-  --accent: #7ee2b8; /* mint — primary action / focused state */
-  --accent-2: #58a6ff; /* secondary — selection */
-  --accent-soft: rgba(126, 226, 184, 0.12);
-  --accent-2-soft: rgba(88, 166, 255, 0.14);
+  /* Accents — cyan (nav ping) + amber (thruster) */
+  --accent: #6dd0ff; /* cyan — primary action / focused state */
+  --accent-2: #ffb066; /* amber — secondary */
+  --accent-soft: rgba(109, 208, 255, 0.14);
+  --accent-2-soft: rgba(255, 176, 102, 0.14);
 
   /* Semantic */
-  --danger: #f85149;
-  --danger-soft: rgba(248, 81, 73, 0.12);
-  --green: #3fb950;
-  --green-soft: rgba(63, 185, 80, 0.14);
-  --yellow: #d29922;
-  --yellow-soft: rgba(210, 153, 34, 0.14);
-  --magenta: #bc8cff;
-  --magenta-soft: rgba(188, 140, 255, 0.14);
+  --danger: #ff6b7a;
+  --danger-soft: rgba(255, 107, 122, 0.14);
+  --green: #7ee2b8;
+  --green-soft: rgba(126, 226, 184, 0.14);
+  --yellow: #f0c674;
+  --yellow-soft: rgba(240, 198, 116, 0.14);
+  --magenta: #c39aff;
+  --magenta-soft: rgba(195, 154, 255, 0.14);
 
   /* Radii */
   --radius-sm: 4px;
@@ -60,62 +64,73 @@
   --titlebar-height: 32px;
   --tabbar-height: 32px;
   --sidebar-width: 260px;
+
+  /* Space background — knobs for the SpaceBackground component */
+  --space-nebula-1: rgba(109, 208, 255, 0.10);
+  --space-nebula-2: rgba(195, 154, 255, 0.09);
+  --space-nebula-3: rgba(255, 176, 102, 0.05);
 }
 
-/* ---- Light theme ---- */
+/* ---- Light theme — "daytime sky", still Interstellar-inspired ---- */
 html.theme-light {
   color-scheme: light;
-  --bg: #ffffff;
-  --bg-1: #f6f8fa;
-  --bg-2: #eaeef2;
-  --bg-3: #d0d7de;
-  --bg-elevated: #f0f3f6;
-  --border: #d0d7de;
-  --border-2: #b8bfc8;
-  --border-strong: #9198a1;
-  --text: #1f2328;
-  --text-dim: #636c76;
-  --text-dimer: #9198a1;
-  --accent: #0969da;
-  --accent-2: #1a7f37;
-  --accent-soft: rgba(9, 105, 218, 0.1);
-  --accent-2-soft: rgba(26, 127, 55, 0.1);
-  --danger: #cf222e;
-  --danger-soft: rgba(207, 34, 46, 0.1);
+  --bg: #eef3fb;
+  --bg-1: #e3ebf7;
+  --bg-2: #d7e0f0;
+  --bg-3: #c3cee2;
+  --bg-elevated: #dfe6f4;
+  --border: #b5c1d9;
+  --border-2: #97a5c3;
+  --border-strong: #7986a5;
+  --text: #1a2140;
+  --text-dim: #4a5578;
+  --text-dimer: #6f7a9a;
+  --accent: #0a75d1;
+  --accent-2: #c26208;
+  --accent-soft: rgba(10, 117, 209, 0.10);
+  --accent-2-soft: rgba(194, 98, 8, 0.10);
+  --danger: #c62d3c;
+  --danger-soft: rgba(198, 45, 60, 0.10);
   --green: #1a7f37;
-  --green-soft: rgba(26, 127, 55, 0.1);
+  --green-soft: rgba(26, 127, 55, 0.10);
   --yellow: #9a6700;
-  --yellow-soft: rgba(154, 103, 0, 0.1);
-  --magenta: #8250df;
-  --magenta-soft: rgba(130, 80, 223, 0.1);
+  --yellow-soft: rgba(154, 103, 0, 0.10);
+  --magenta: #7a4bc9;
+  --magenta-soft: rgba(122, 75, 201, 0.10);
+  --space-nebula-1: rgba(10, 117, 209, 0.05);
+  --space-nebula-2: rgba(122, 75, 201, 0.05);
+  --space-nebula-3: rgba(194, 98, 8, 0.04);
 }
 
 /* ---- System theme (follows OS preference) ---- */
 @media (prefers-color-scheme: light) {
   html.theme-system {
     color-scheme: light;
-    --bg: #ffffff;
-    --bg-1: #f6f8fa;
-    --bg-2: #eaeef2;
-    --bg-3: #d0d7de;
-    --bg-elevated: #f0f3f6;
-    --border: #d0d7de;
-    --border-2: #b8bfc8;
-    --border-strong: #9198a1;
-    --text: #1f2328;
-    --text-dim: #636c76;
-    --text-dimer: #9198a1;
-    --accent: #0969da;
-    --accent-2: #1a7f37;
-    --accent-soft: rgba(9, 105, 218, 0.1);
-    --accent-2-soft: rgba(26, 127, 55, 0.1);
-    --danger: #cf222e;
-    --danger-soft: rgba(207, 34, 46, 0.1);
+    --bg: #eef3fb;
+    --bg-1: #e3ebf7;
+    --bg-2: #d7e0f0;
+    --bg-3: #c3cee2;
+    --bg-elevated: #dfe6f4;
+    --border: #b5c1d9;
+    --border-2: #97a5c3;
+    --border-strong: #7986a5;
+    --text: #1a2140;
+    --text-dim: #4a5578;
+    --text-dimer: #6f7a9a;
+    --accent: #0a75d1;
+    --accent-2: #c26208;
+    --accent-soft: rgba(10, 117, 209, 0.10);
+    --accent-2-soft: rgba(194, 98, 8, 0.10);
+    --danger: #c62d3c;
+    --danger-soft: rgba(198, 45, 60, 0.10);
     --green: #1a7f37;
-    --green-soft: rgba(26, 127, 55, 0.1);
+    --green-soft: rgba(26, 127, 55, 0.10);
     --yellow: #9a6700;
-    --yellow-soft: rgba(154, 103, 0, 0.1);
-    --magenta: #8250df;
-    --magenta-soft: rgba(130, 80, 223, 0.1);
+    --yellow-soft: rgba(154, 103, 0, 0.10);
+    --magenta: #7a4bc9;
+    --magenta-soft: rgba(122, 75, 201, 0.10);
+    --space-nebula-1: rgba(10, 117, 209, 0.05);
+    --space-nebula-2: rgba(122, 75, 201, 0.05);
+    --space-nebula-3: rgba(194, 98, 8, 0.04);
   }
 }

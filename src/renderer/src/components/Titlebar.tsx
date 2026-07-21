@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { HelpCircle, Monitor, Moon, PanelLeft, Search, Sun } from 'lucide-react'
+import TitlebarHint from './TitlebarHint'
 
 export type Theme = 'dark' | 'light' | 'system'
 
@@ -39,6 +40,7 @@ export default function Titlebar({
         >
           <PanelLeft size={14} strokeWidth={2} />
         </button>
+        <TitlebarHint />
       </div>
 
       <button

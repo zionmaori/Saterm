@@ -13,6 +13,8 @@ import TerminalCopilot from './components/TerminalCopilot'
 import Titlebar, { type Theme } from './components/Titlebar'
 import HelpModal from './components/HelpModal'
 import OnboardingWizard from './components/OnboardingWizard'
+import SpaceBackground from './components/SpaceBackground'
+import TipOfTheDay from './components/TipOfTheDay'
 import type { AuthPromptEvent, OnboardingStatus } from '../../shared/types'
 
 function readLS<T extends string>(key: string, fallback: T): T {
@@ -127,6 +129,7 @@ export default function App(): React.JSX.Element {
 
   return (
     <div className="app">
+      <SpaceBackground />
       <Titlebar
         onOpenPalette={() => setPaletteOpen(true)}
         sidebarOpen={sidebarOpen}
@@ -190,6 +193,8 @@ export default function App(): React.JSX.Element {
         />
       )}
       {authQueue[0] && <AuthPrompt event={authQueue[0]} onReply={onAuthReply} />}
+
+      <TipOfTheDay suppress={!!onboardingStatus || authQueue.length > 0} />
 
       <CommandPalette open={paletteOpen} mode="palette" onClose={() => setPaletteOpen(false)} />
       <CommandPalette

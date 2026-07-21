@@ -36,6 +36,7 @@ import HostForm from './HostForm'
 import SnippetForm from './SnippetForm'
 import BugReportDialog from './BugReportDialog'
 import Chip, { intentForTag } from './Chip'
+import SidebarTipsWidget from './SidebarTipsWidget'
 
 const COMMON_AWS_REGIONS = [
   'us-east-1',
@@ -786,6 +787,8 @@ export default function Sidebar(): React.JSX.Element {
           ))}
         </Section>
       </div>
+
+      <SidebarTipsWidget />
 
       <div className="sidebar2-footer" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
         <span style={{ flex: 1 }}>

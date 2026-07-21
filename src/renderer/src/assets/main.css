@@ -11,7 +11,201 @@
   display: grid;
   grid-template-rows: var(--titlebar-height) 1fr;
   height: 100vh;
+  position: relative;
+  isolation: isolate;
 }
+
+/* ===== Space background — sits behind everything in .app ===== */
+
+.space-bg {
+  position: fixed;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+  z-index: -1;
+  background: var(--bg);
+}
+
+.space-gradient {
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(ellipse at 30% 20%, rgba(60, 90, 160, 0.18), transparent 60%),
+    radial-gradient(ellipse at 80% 80%, rgba(90, 40, 140, 0.16), transparent 55%),
+    linear-gradient(180deg, #05070f 0%, #060812 40%, #04050b 100%);
+}
+
+html.theme-light .space-gradient,
+html.theme-system .space-gradient {
+  background:
+    radial-gradient(ellipse at 30% 20%, rgba(120, 160, 220, 0.35), transparent 55%),
+    radial-gradient(ellipse at 80% 80%, rgba(190, 170, 220, 0.30), transparent 60%),
+    linear-gradient(180deg, #dfe8f6 0%, #e6ecf6 60%, #d5dcea 100%);
+}
+
+.space-nebula {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(70px);
+  opacity: 0.65;
+  mix-blend-mode: screen;
+  will-change: transform;
+}
+
+html.theme-light .space-nebula,
+html.theme-system .space-nebula {
+  mix-blend-mode: multiply;
+  opacity: 0.55;
+}
+
+.space-nebula-a {
+  top: -12%;
+  left: -8%;
+  width: 55vw;
+  height: 55vw;
+  background: radial-gradient(circle, var(--space-nebula-1) 0%, transparent 70%);
+  animation: nebula-drift-a 60s ease-in-out infinite alternate;
+}
+
+.space-nebula-b {
+  bottom: -18%;
+  right: -12%;
+  width: 60vw;
+  height: 60vw;
+  background: radial-gradient(circle, var(--space-nebula-2) 0%, transparent 70%);
+  animation: nebula-drift-b 80s ease-in-out infinite alternate;
+}
+
+.space-nebula-c {
+  top: 30%;
+  left: 40%;
+  width: 40vw;
+  height: 40vw;
+  background: radial-gradient(circle, var(--space-nebula-3) 0%, transparent 70%);
+  animation: nebula-drift-c 100s ease-in-out infinite alternate;
+}
+
+@keyframes nebula-drift-a {
+  from { transform: translate3d(0, 0, 0) scale(1); }
+  to { transform: translate3d(4vw, 3vh, 0) scale(1.1); }
+}
+
+@keyframes nebula-drift-b {
+  from { transform: translate3d(0, 0, 0) scale(1.05); }
+  to { transform: translate3d(-3vw, -2vh, 0) scale(1); }
+}
+
+@keyframes nebula-drift-c {
+  from { transform: translate3d(0, 0, 0) scale(0.9); }
+  to { transform: translate3d(-5vw, 4vh, 0) scale(1.15); }
+}
+
+.space-stars {
+  position: absolute;
+  inset: 0;
+  will-change: transform;
+}
+
+.space-stars-far {
+  transform: translate3d(calc(var(--px, 0) * -4px), calc(var(--py, 0) * -4px), 0);
+}
+.space-stars-mid {
+  transform: translate3d(calc(var(--px, 0) * -10px), calc(var(--py, 0) * -10px), 0);
+}
+.space-stars-near {
+  transform: translate3d(calc(var(--px, 0) * -22px), calc(var(--py, 0) * -22px), 0);
+}
+
+.space-star {
+  position: absolute;
+  border-radius: 50%;
+  animation: star-twinkle 4s ease-in-out infinite;
+  will-change: opacity, transform;
+}
+
+html.theme-light .space-star,
+html.theme-system .space-star {
+  filter: brightness(0.4);
+  mix-blend-mode: multiply;
+}
+
+@keyframes star-twinkle {
+  0%, 100% { opacity: 0.3; transform: scale(1); }
+  50% { opacity: 1; transform: scale(1.35); }
+}
+
+/* UFO drift — one at a time, launched from off-screen */
+
+.ufo {
+  position: absolute;
+  top: var(--ufo-y-start, 20vh);
+  left: -140px;
+  transform: scale(var(--ufo-scale, 1));
+  filter: drop-shadow(0 0 12px rgba(109, 208, 255, 0.35));
+  animation: ufo-fly var(--ufo-duration, 24s) linear 3s 1 both,
+             ufo-bob 3s ease-in-out infinite;
+}
+
+.ufo-rtl {
+  left: auto;
+  right: -140px;
+  animation: ufo-fly-rtl var(--ufo-duration, 24s) linear 3s 1 both,
+             ufo-bob 3s ease-in-out infinite;
+}
+
+.ufo-beam {
+  position: absolute;
+  left: 50%;
+  top: 100%;
+  width: 30px;
+  height: 60px;
+  transform: translateX(-50%);
+  background: linear-gradient(180deg, rgba(255, 176, 102, 0.35) 0%, transparent 90%);
+  clip-path: polygon(30% 0%, 70% 0%, 100% 100%, 0% 100%);
+  opacity: 0.5;
+  animation: beam-pulse 1.8s ease-in-out infinite;
+}
+
+@keyframes beam-pulse {
+  0%, 100% { opacity: 0.35; }
+  50% { opacity: 0.75; }
+}
+
+@keyframes ufo-fly {
+  from {
+    transform: translate3d(0, 0, 0) scale(var(--ufo-scale, 1));
+  }
+  to {
+    transform: translate3d(calc(100vw + 200px), calc(var(--ufo-y-end, 20vh) - var(--ufo-y-start, 20vh)), 0) scale(var(--ufo-scale, 1));
+  }
+}
+
+@keyframes ufo-fly-rtl {
+  from {
+    transform: translate3d(0, 0, 0) scale(var(--ufo-scale, 1)) scaleX(-1);
+  }
+  to {
+    transform: translate3d(calc(-100vw - 200px), calc(var(--ufo-y-end, 20vh) - var(--ufo-y-start, 20vh)), 0) scale(var(--ufo-scale, 1)) scaleX(-1);
+  }
+}
+
+@keyframes ufo-bob {
+  0%, 100% { margin-top: 0; }
+  50% { margin-top: -6px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .space-star,
+  .space-nebula,
+  .ufo,
+  .ufo-beam {
+    animation: none !important;
+  }
+  .ufo { display: none; }
+}
+
+/* (Chrome-translucency overrides are appended near the end of the file so
+   they win over the individual component background declarations.) */
 
 /* Titlebar — 32px, drag-to-move, palette trigger centered. */
 .titlebar {
@@ -19,7 +213,7 @@
   background: var(--bg-1);
   border-bottom: 1px solid var(--border);
   display: grid;
-  grid-template-columns: 120px 1fr 120px;
+  grid-template-columns: 320px 1fr 220px;
   align-items: center;
   font-size: var(--fs-xs);
   color: var(--text-dim);
@@ -28,11 +222,11 @@
 }
 
 .titlebar.titlebar-mac {
-  grid-template-columns: 152px 1fr 120px;
+  grid-template-columns: 360px 1fr 220px;
 }
 
 .titlebar.titlebar-non-mac {
-  grid-template-columns: 80px 1fr 120px;
+  grid-template-columns: 280px 1fr 220px;
 }
 
 .titlebar-left,
@@ -4153,4 +4347,522 @@
 .onboarding-btn.primary:hover:not(:disabled) {
   filter: brightness(1.08);
   background: var(--accent, #22c55e);
+}
+
+/* ---- Titlebar rotating hint ---- */
+
+.titlebar-hint {
+  -webkit-app-region: no-drag;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  background: color-mix(in srgb, var(--bg-2) 70%, transparent);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 2px 10px 2px 8px;
+  font-size: 10px;
+  color: var(--text-dim);
+  letter-spacing: 0.02em;
+  max-width: 260px;
+  cursor: pointer;
+  transition:
+    opacity 220ms ease,
+    color 120ms ease,
+    border-color 120ms ease;
+  overflow: hidden;
+}
+
+.titlebar-hint:hover {
+  color: var(--text);
+  border-color: var(--border-2);
+}
+
+.titlebar-hint svg {
+  color: var(--accent);
+  flex-shrink: 0;
+}
+
+.titlebar-hint-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.titlebar-hint.fade-in { opacity: 1; }
+.titlebar-hint.fade-out { opacity: 0; }
+
+/* ---- Sidebar tips widget ---- */
+
+.tips-widget {
+  flex-shrink: 0;
+  border-top: 1px solid var(--border);
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--accent) 6%, transparent),
+    color-mix(in srgb, var(--bg-1) 90%, transparent)
+  );
+  position: relative;
+  overflow: hidden;
+}
+
+.tips-widget::before {
+  /* Faint corner glow to sell the "screen" vibe. */
+  content: '';
+  position: absolute;
+  top: -30px;
+  left: -30px;
+  width: 90px;
+  height: 90px;
+  background: radial-gradient(circle, var(--accent-soft) 0%, transparent 70%);
+  pointer-events: none;
+}
+
+.tips-widget-collapsed {
+  background: transparent;
+}
+
+.tips-widget-toggle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  padding: 6px 12px;
+  background: transparent;
+  border: none;
+  color: var(--text-dim);
+  font-size: 11px;
+  cursor: pointer;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.tips-widget-toggle:hover {
+  color: var(--text);
+}
+
+.tips-widget-toggle svg {
+  color: var(--accent);
+}
+
+.tips-widget-chev {
+  margin-left: auto;
+  opacity: 0.6;
+}
+
+.tips-widget-header {
+  display: flex;
+  align-items: center;
+  padding: 6px 10px 4px 12px;
+}
+
+.tips-widget-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.tips-widget-title svg {
+  color: var(--accent);
+}
+
+.tips-widget-actions {
+  margin-left: auto;
+  display: flex;
+  gap: 2px;
+}
+
+.tips-widget-icon {
+  background: transparent;
+  border: none;
+  color: var(--text-dimer);
+  padding: 2px 4px;
+  border-radius: 3px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  line-height: 1;
+}
+
+.tips-widget-icon:hover {
+  color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
+}
+
+.tips-widget-chev-down {
+  display: inline-block;
+  font-size: 14px;
+  line-height: 0.8;
+}
+
+.tips-widget-body {
+  padding: 0 12px 10px;
+  position: relative;
+  z-index: 1;
+}
+
+.tips-widget-cat {
+  font-size: 9px;
+  color: var(--text-dimer);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  margin-bottom: 3px;
+}
+
+.tips-widget-headline {
+  color: var(--text);
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  line-height: 1.35;
+  margin-bottom: 4px;
+}
+
+.tips-widget-text {
+  color: var(--text-dim);
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+/* ---- Tip of the day modal ---- */
+
+.tip-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(4, 6, 14, 0.7);
+  -webkit-backdrop-filter: blur(6px);
+  backdrop-filter: blur(6px);
+  z-index: 9600;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  animation: tip-fade-in 220ms ease-out;
+}
+
+@keyframes tip-fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.tip-modal {
+  position: relative;
+  width: 460px;
+  max-width: 92vw;
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--accent) 8%, transparent), transparent 30%),
+    var(--bg-1);
+  border: 1px solid color-mix(in srgb, var(--accent) 35%, var(--border));
+  border-radius: var(--radius-lg);
+  box-shadow:
+    0 24px 64px rgba(0, 0, 0, 0.55),
+    0 0 0 1px color-mix(in srgb, var(--accent) 12%, transparent),
+    0 0 40px color-mix(in srgb, var(--accent) 18%, transparent);
+  overflow: hidden;
+  animation: tip-pop 320ms cubic-bezier(0.2, 0.9, 0.3, 1.2);
+}
+
+@keyframes tip-pop {
+  from { opacity: 0; transform: translateY(8px) scale(0.96); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+.tip-modal-orbit {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  overflow: hidden;
+}
+
+.tip-orbit-star {
+  position: absolute;
+  width: 3px;
+  height: 3px;
+  border-radius: 50%;
+  background: var(--accent);
+  box-shadow: 0 0 8px var(--accent);
+  opacity: 0.7;
+  animation: orbit-drift 6s ease-in-out infinite;
+}
+
+.tip-orbit-star-1 { top: 12%; left: 8%; animation-delay: -1s; }
+.tip-orbit-star-2 { top: 78%; left: 90%; animation-delay: -3s; background: var(--accent-2); box-shadow: 0 0 8px var(--accent-2); }
+.tip-orbit-star-3 { top: 40%; left: 95%; animation-delay: -5s; }
+
+@keyframes orbit-drift {
+  0%, 100% { transform: translate3d(0, 0, 0); opacity: 0.3; }
+  50% { transform: translate3d(-6px, -8px, 0); opacity: 1; }
+}
+
+.tip-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 18px 4px;
+  position: relative;
+  z-index: 1;
+}
+
+.tip-modal-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 10px 3px 8px;
+  background: color-mix(in srgb, var(--accent) 15%, transparent);
+  border: 1px solid color-mix(in srgb, var(--accent) 40%, transparent);
+  border-radius: 999px;
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.tip-modal-close {
+  background: transparent;
+  border: none;
+  color: var(--text-dimer);
+  cursor: pointer;
+  padding: 4px;
+  border-radius: var(--radius-sm);
+  display: inline-flex;
+  align-items: center;
+}
+
+.tip-modal-close:hover {
+  color: var(--text);
+  background: var(--bg-3);
+}
+
+.tip-modal-body {
+  padding: 12px 22px 20px;
+  position: relative;
+  z-index: 1;
+}
+
+.tip-modal-eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 10px;
+  color: var(--text-dimer);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  margin-bottom: 8px;
+}
+
+.tip-modal-eyebrow svg {
+  color: var(--accent-2);
+}
+
+.tip-modal-title {
+  margin: 0 0 8px;
+  font-size: 22px;
+  font-weight: 700;
+  letter-spacing: -0.015em;
+  color: var(--text);
+  line-height: 1.2;
+}
+
+.tip-modal-text {
+  margin: 0;
+  color: var(--text-dim);
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.tip-modal-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 20px;
+  border-top: 1px solid var(--border);
+  background: color-mix(in srgb, var(--bg) 60%, transparent);
+  position: relative;
+  z-index: 1;
+}
+
+.tip-modal-check {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--text-dim);
+  font-size: 11px;
+  cursor: pointer;
+  user-select: none;
+}
+
+.tip-modal-check input {
+  width: 12px;
+  height: 12px;
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+
+.tip-modal-cta {
+  background: var(--accent);
+  border: 1px solid var(--accent);
+  color: #051225;
+  font-weight: 600;
+  font-size: 12px;
+  padding: 5px 16px;
+  border-radius: var(--radius);
+  cursor: pointer;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  box-shadow: 0 0 20px color-mix(in srgb, var(--accent) 40%, transparent);
+  transition: filter 120ms ease, transform 120ms ease;
+}
+
+.tip-modal-cta:hover {
+  filter: brightness(1.1);
+  transform: translateY(-1px);
+}
+
+/* ---- Multi-terminal columns ---- */
+.term-cols {
+  overflow: hidden;
+}
+
+.term-col {
+  border-right: 1px solid var(--border);
+  position: relative;
+}
+
+.term-col:last-of-type {
+  border-right: none;
+}
+
+.term-col.focused .term-col-tabs {
+  box-shadow: inset 0 -1px 0 var(--accent);
+}
+
+.term-col-tabs {
+  display: flex;
+  align-items: center;
+  height: 24px;
+  background: var(--bg-2);
+  border-bottom: 1px solid var(--border);
+  padding: 0 4px;
+  gap: 2px;
+  overflow-x: auto;
+  flex-shrink: 0;
+}
+
+.term-col-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0 6px;
+  font-size: 10px;
+  color: var(--text-dim);
+  height: 20px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  border: 1px solid transparent;
+  white-space: nowrap;
+}
+
+.term-col-tab:hover {
+  background: var(--bg-3);
+  color: var(--text);
+}
+
+.term-col-tab.active {
+  background: var(--bg);
+  color: var(--text);
+  border-color: var(--border);
+}
+
+.term-col-tab .close {
+  background: transparent;
+  border: none;
+  color: inherit;
+  opacity: 0;
+  padding: 0 2px;
+  border-radius: 3px;
+  display: inline-flex;
+  align-items: center;
+}
+
+.term-col-tab:hover .close,
+.term-col-tab.active .close {
+  opacity: 0.6;
+}
+
+.term-col-tab .close:hover {
+  opacity: 1;
+  color: var(--danger);
+  background: var(--danger-soft);
+}
+
+.term-col-newtab {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  background: transparent;
+  color: var(--text-dimer);
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  padding: 0;
+}
+
+.term-col-newtab:hover {
+  background: var(--bg-3);
+  color: var(--text);
+}
+
+.term-col-resizer {
+  flex: 0 0 4px;
+  width: 4px;
+  cursor: col-resize;
+  background: transparent;
+  z-index: 5;
+}
+
+.term-col-resizer:hover,
+.term-col-resizer:active {
+  background: var(--accent);
+}
+
+/* ===== Space-theme chrome translucency (must be last so it wins over the
+   individual component background declarations above). ===== */
+
+.titlebar,
+.tabbar,
+.content {
+  background-color: color-mix(in srgb, var(--bg-1) 82%, transparent);
+}
+
+.sidebar,
+.sidebar2 {
+  background-color: color-mix(in srgb, var(--bg-1) 90%, transparent);
+  -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: blur(8px);
+}
+
+.pane {
+  background-color: color-mix(in srgb, var(--bg) 88%, transparent);
+}
+
+/* Terraform / VCS / notes panels use --bg-2 — keep them readable but
+   slightly translucent too so the space bg reads through subtly. */
+.vcs-panel,
+.tf-panel,
+.tf-header,
+.tf-section-header,
+.vcs-toptabs,
+.notes-scope,
+.notes-header,
+.bottom-term-header,
+.local-term-header,
+.vcs-notes-header {
+  background-color: color-mix(in srgb, var(--bg-2) 88%, transparent);
 }
