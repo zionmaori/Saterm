@@ -1,5 +1,5 @@
-appId: com.termion.app
-productName: termion
+appId: com.saterm.app
+productName: Saterm
 copyright: Copyright (c) 2026 Zion Maor. All rights reserved.
 directories:
   buildResources: build
@@ -15,8 +15,65 @@ extraResources:
   - NOTICE.md
 asarUnpack:
   - resources/**
+fileAssociations:
+  - ext: html
+    name: HTML Document
+    description: HTML Document
+    role: Viewer
+  - ext: htm
+    name: HTML Document
+    description: HTML Document
+    role: Viewer
+  - ext: md
+    name: Markdown Document
+    description: Markdown Document
+    role: Editor
+  - ext: txt
+    name: Plain Text
+    description: Plain Text
+    role: Editor
+  - ext: json
+    name: JSON Document
+    description: JSON Document
+    role: Editor
+  - ext: log
+    name: Log File
+    description: Log File
+    role: Viewer
+  - ext: yaml
+    name: YAML Document
+    description: YAML Document
+    role: Editor
+  - ext: yml
+    name: YAML Document
+    description: YAML Document
+    role: Editor
+  - ext: ts
+    name: TypeScript Source
+    description: TypeScript Source
+    role: Editor
+  - ext: tsx
+    name: TypeScript React Source
+    description: TypeScript React Source
+    role: Editor
+  - ext: js
+    name: JavaScript Source
+    description: JavaScript Source
+    role: Editor
+  - ext: jsx
+    name: JavaScript React Source
+    description: JavaScript React Source
+    role: Editor
+  - ext: py
+    name: Python Source
+    description: Python Source
+    role: Editor
+  - ext: sh
+    name: Shell Script
+    description: Shell Script
+    role: Editor
 win:
-  executableName: termion
+  executableName: saterm
   icon: build/icon.ico
   target:
     - nsis

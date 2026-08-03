@@ -5,12 +5,12 @@ const IS_WIN = process.platform === 'win32'
 
 function kubectlInstallHint(): string {
   if (IS_WIN) {
-    return 'kubectl not found on PATH. Install with `winget install Kubernetes.kubectl` (or `choco install kubernetes-cli`) and reopen Termion.'
+    return 'kubectl not found on PATH. Install with `winget install Kubernetes.kubectl` (or `choco install kubernetes-cli`) and reopen Saterm.'
   }
   if (process.platform === 'linux') {
-    return 'kubectl not found on PATH. Install via your package manager (e.g. `apt install kubectl`) and reopen Termion.'
+    return 'kubectl not found on PATH. Install via your package manager (e.g. `apt install kubectl`) and reopen Saterm.'
   }
-  return 'kubectl not found on PATH. Install with `brew install kubectl` and reopen Termion.'
+  return 'kubectl not found on PATH. Install with `brew install kubectl` and reopen Saterm.'
 }
 
 function shellQuote(a: string): string {

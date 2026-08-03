@@ -55,6 +55,12 @@ const api = {
     version: (): Promise<string> => ipcRenderer.invoke('app:version'),
     platform: (): Promise<NodeJS.Platform> => ipcRenderer.invoke('app:platform')
   },
+  shell: {
+    showItem: (path: string): Promise<void> => ipcRenderer.invoke('shell:showItem', path)
+  },
+  files: {
+    onOpen: (fn: Listener<{ paths: string[] }>) => on('files:open', fn)
+  },
   kv: {
     get: (key: string): Promise<string | null> => ipcRenderer.invoke('kv:get', key),
     set: (key: string, value: string): Promise<void> => ipcRenderer.invoke('kv:set', key, value),
@@ -135,6 +141,7 @@ const api = {
     readDir: (path: string): Promise<{ name: string; path: string; isDir: boolean }[]> =>
       ipcRenderer.invoke('fs:readDir', path),
     readText: (path: string): Promise<string> => ipcRenderer.invoke('fs:readText', path),
+    readBinary: (path: string): Promise<Uint8Array> => ipcRenderer.invoke('fs:readBinary', path),
     writeText: (path: string, content: string): Promise<void> =>
       ipcRenderer.invoke('fs:writeText', path, content),
     newFile: (path: string): Promise<void> => ipcRenderer.invoke('fs:newFile', path),

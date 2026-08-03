@@ -1,5 +1,5 @@
 import { app, shell, BrowserWindow } from 'electron'
-import { join } from 'path'
+import { join, isAbsolute, resolve } from 'path'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import icon from '../../resources/icon.png?asset'
 import { existsSync, readdirSync, statSync } from 'fs'
@@ -11,6 +11,43 @@ import { recategorizeAll, dedupHostsByEndpoint } from './hosts'
 import { addProject, refreshAllProjectVcs } from './projects'
 import { initAi, reinitAi } from './ai'
 import { getProjectsRoot } from './settings'
+
+let mainWindowRef: BrowserWindow | null = null
+let rendererReady = false
+const pendingOpenFiles: string[] = []
+
+function collectFilePathsFromArgv(argv: readonly string[]): string[] {
+  // argv[0] is the exe; in packaged builds, further entries can be flags
+  // (starting with '-') or file paths. Only keep entries that resolve to an
+  // existing regular file.
+  const out: string[] = []
+  for (let i = 1; i < argv.length; i++) {
+    const a = argv[i]
+    if (!a || a.startsWith('-')) continue
+    if (a === '.') continue
+    try {
+      const abs = isAbsolute(a) ? a : resolve(process.cwd(), a)
+      const st = statSync(abs)
+      if (st.isFile()) out.push(abs)
+    } catch {
+      /* ignore non-file argv */
+    }
+  }
+  return out
+}
+
+function queueOpenFiles(paths: string[]): void {
+  for (const p of paths) if (p && !pendingOpenFiles.includes(p)) pendingOpenFiles.push(p)
+  flushOpenFiles()
+}
+
+function flushOpenFiles(): void {
+  if (!rendererReady) return
+  if (!mainWindowRef || mainWindowRef.isDestroyed()) return
+  if (pendingOpenFiles.length === 0) return
+  const paths = pendingOpenFiles.splice(0, pendingOpenFiles.length)
+  mainWindowRef.webContents.send('files:open', { paths })
+}
 
 function createWindow(): void {
   const boundsRaw = kvGet('window.bounds')
@@ -37,6 +74,17 @@ function createWindow(): void {
   })
 
   mainWindow.on('ready-to-show', () => mainWindow.show())
+  mainWindow.webContents.on('did-finish-load', () => {
+    rendererReady = true
+    flushOpenFiles()
+  })
+  mainWindow.on('closed', () => {
+    if (mainWindowRef === mainWindow) {
+      mainWindowRef = null
+      rendererReady = false
+    }
+  })
+  mainWindowRef = mainWindow
 
   mainWindow.webContents.setWindowOpenHandler((details) => {
     shell.openExternal(details.url)
@@ -118,12 +166,38 @@ function dedupHostsOnce(): void {
   if (n) console.log(`[dedup] merged ${n} duplicate hosts`)
 }
 
+// macOS delivers Finder double-clicks / drag-onto-dock via 'open-file', which
+// can fire BEFORE the BrowserWindow exists. Register early so we don't miss
+// the first delivery.
+app.on('open-file', (event, path) => {
+  event.preventDefault()
+  queueOpenFiles([path])
+})
+
+// Single-instance: forward any subsequent-launch argv (e.g. right-click "Open
+// with Saterm" while the app is already running on Windows/Linux) to the
+// primary instance and quit the secondary.
+const gotLock = app.requestSingleInstanceLock()
+if (!gotLock) {
+  app.quit()
+} else {
+  app.on('second-instance', (_e, argv) => {
+    queueOpenFiles(collectFilePathsFromArgv(argv))
+    if (mainWindowRef) {
+      if (mainWindowRef.isMinimized()) mainWindowRef.restore()
+      mainWindowRef.focus()
+    }
+  })
+}
+
 app.whenReady().then(async () => {
-  electronApp.setAppUserModelId('com.termion.app')
-  // Native "About Termion" dialog (macOS: app menu; Linux: some DEs).
+  // Seed with any files passed on the initial launch's argv.
+  queueOpenFiles(collectFilePathsFromArgv(process.argv))
+  electronApp.setAppUserModelId('com.saterm.app')
+  // Native "About Saterm" dialog (macOS: app menu; Linux: some DEs).
   // Windows uses the LegalCopyright field from electron-builder.yml instead.
   app.setAboutPanelOptions({
-    applicationName: 'Termion',
+    applicationName: 'Saterm',
     applicationVersion: app.getVersion(),
     version: app.getVersion(),
     copyright: 'Copyright (c) 2026 Zion Maor. All rights reserved.',

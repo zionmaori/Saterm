@@ -1,4 +1,5 @@
 import simpleGit, { type SimpleGit } from 'simple-git'
+import { getShellEnv } from './shellEnv'
 
 export interface GitStatusFile {
   path: string
@@ -15,7 +16,17 @@ export interface GitStatus {
   conflicted: string[]
 }
 
-const g = (repoPath: string): SimpleGit => simpleGit({ baseDir: repoPath })
+// simple-git's default env is `process.env` at the time each git process
+// spawns. When Termion is launched from Finder/Dock on macOS, that env is
+// nearly bare — no SSH_AUTH_SOCK (push over SSH hangs waiting on a socket
+// that isn't there), no GPG_TTY, and a minimal PATH that misses brew's `gpg`
+// (signed commits fail). We inject the login-shell env so git can reach
+// ssh-agent, gpg, and any hook interpreters the repo relies on.
+const g = (repoPath: string): SimpleGit => {
+  const git = simpleGit({ baseDir: repoPath })
+  for (const [k, v] of Object.entries(getShellEnv())) git.env(k, v)
+  return git
+}
 
 export async function gitStatus(repoPath: string): Promise<GitStatus> {
   const s = await g(repoPath).status()

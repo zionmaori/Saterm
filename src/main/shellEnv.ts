@@ -97,6 +97,27 @@ export function readEnv(name: string): string | null {
 }
 
 /**
+ * Merged env for spawning external CLIs: live `process.env` with the user's
+ * login-shell env layered on top (login-shell wins on conflict, since the
+ * Finder/Dock-launched Electron env is nearly empty on macOS). PATH is
+ * additionally normalized via getPath() so brew / user-installed binaries
+ * are always resolvable. This is what git/ssh/gpg need to find ssh-agent
+ * (SSH_AUTH_SOCK), a GPG signer, and any hook interpreters on PATH.
+ */
+export function getShellEnv(): Record<string, string> {
+  const shell = loadShellEnv()
+  const merged: Record<string, string> = {}
+  for (const [k, v] of Object.entries(process.env)) {
+    if (typeof v === 'string') merged[k] = v
+  }
+  for (const [k, v] of Object.entries(shell)) {
+    if (v) merged[k] = v
+  }
+  merged.PATH = getPath()
+  return merged
+}
+
+/**
  * Standard install locations for CLIs that ship outside the system default
  * PATH. When the login-shell probe fails (timeout, non-zero exit from a
  * noisy .zshrc, unusual shell config) we fall back to these so `aws`,

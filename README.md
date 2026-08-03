@@ -1,4 +1,4 @@
-# Termion
+# Saterm
 
 A personal macOS hub for SSH connections, terminal sessions, and Git/SVN projects.
 
@@ -47,10 +47,10 @@ npx electron-builder install-app-deps
 ### macOS
 
 ```bash
-npm run build:mac           # produces dist/termion-<version>.dmg
+npm run build:mac           # produces dist/saterm-<version>.dmg
 ```
 The DMG is unsigned (personal use). Drag to /Applications. If macOS
-quarantines it, run `xattr -d com.apple.quarantine /Applications/termion.app`.
+quarantines it, run `xattr -d com.apple.quarantine /Applications/Saterm.app`.
 
 ### Windows
 
@@ -60,7 +60,7 @@ Build on a Windows machine (Windows 10 1809+ or Windows 11):
 git clone https://github.com/zionmaori/Termion C:\Projects\termion
 cd C:\Projects\termion
 npm install                 # postinstall rebuilds native modules
-npm run build:win           # produces dist\termion-<version>-setup.exe
+npm run build:win           # produces dist\saterm-<version>-setup.exe
 ```
 
 Prerequisites:
@@ -79,7 +79,7 @@ installer is named uniquely. SmartScreen will warn on first launch — click
 
 AI copilots: set `ANTHROPIC_API_KEY` (or `ANTHROPIC_AUTH_TOKEN` + the gateway
 env vars) in your PowerShell `$PROFILE` *or* in System Properties → Environment
-Variables. Termion reads from both on launch.
+Variables. Saterm reads from both on launch.
 
 ## Releasing
 
@@ -97,8 +97,8 @@ git tag "v$(node -p \"require('./package.json').version\")"
 git push && git push --tags
 ```
 
-A few minutes later: GitHub → Releases → draft `Termion vX.Y.Z` with
-`termion-X.Y.Z.dmg` attached and auto-generated release notes. Review and
+A few minutes later: GitHub → Releases → draft `Saterm vX.Y.Z` with
+`saterm-X.Y.Z.dmg` attached and auto-generated release notes. Review and
 click **Publish release**. Existing `dist/*.dmg` files on your laptop are
 unrelated — feel free to delete them.
 
@@ -109,8 +109,8 @@ To delete a release you regret: `Releases → … → Delete release`, then
 
 | | macOS | Windows |
 |---|---|---|
-| DB | `~/Library/Application Support/Termion/termion.db` | `%APPDATA%\Termion\termion.db` |
-| Secrets | macOS Keychain (service `Termion`) | Windows Credential Manager (target `Termion`) |
+| DB | `~/Library/Application Support/Saterm/termion.db` | `%APPDATA%\Saterm\termion.db` |
+| Secrets | macOS Keychain (service `Saterm`) | Windows Credential Manager (target `Saterm`) |
 | SSH keys | `~/.ssh/*` | `%USERPROFILE%\.ssh\*` |
 | SSH agent | `$SSH_AUTH_SOCK` | OpenSSH named pipe (`\\.\pipe\openssh-ssh-agent`) |
 
@@ -130,7 +130,7 @@ Built with electron-vite, React 19, xterm.js, Monaco, simple-git.
 
 ## License
 
-Termion is proprietary software.
+Saterm is proprietary software.
 Copyright (c) 2026 Zion Maor. All rights reserved.
 
 See [LICENSE](./LICENSE) for the full terms. The author's copyright notice

@@ -12,12 +12,12 @@ const IS_WIN = process.platform === 'win32'
 
 function awsInstallHint(): string {
   if (IS_WIN) {
-    return 'AWS CLI not found on PATH. Install with `winget install Amazon.AWSCLI` (or `choco install awscli`) and reopen Termion.'
+    return 'AWS CLI not found on PATH. Install with `winget install Amazon.AWSCLI` (or `choco install awscli`) and reopen Saterm.'
   }
   if (process.platform === 'linux') {
-    return 'AWS CLI not found on PATH. Install via your package manager (e.g. `apt install awscli`) and reopen Termion.'
+    return 'AWS CLI not found on PATH. Install via your package manager (e.g. `apt install awscli`) and reopen Saterm.'
   }
-  return 'AWS CLI not found on PATH. Install with `brew install awscli` and reopen Termion.'
+  return 'AWS CLI not found on PATH. Install with `brew install awscli` and reopen Saterm.'
 }
 
 // cmd.exe quoting for spawn({ shell: true }) on Windows. Node passes the

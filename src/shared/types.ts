@@ -125,7 +125,9 @@ export interface Project {
   lastOpenedAt: number
 }
 
-export type TabKind = 'ssh' | 'local' | 'project' | 'eks'
+export type TabKind = 'ssh' | 'local' | 'project' | 'eks' | 'file'
+
+export type FileTabContent = 'html' | 'text'
 
 export interface PersistedTab {
   id: SessionId
@@ -134,6 +136,10 @@ export interface PersistedTab {
   hostId?: HostId
   projectId?: ProjectId
   cwd?: string
+  /** Absolute path to the file (only for kind === 'file'). */
+  filePath?: string
+  /** Rendering hint for file tabs. */
+  fileContent?: FileTabContent
 }
 
 export interface PersistedLayout {

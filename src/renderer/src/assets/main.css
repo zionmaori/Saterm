@@ -1398,7 +1398,7 @@ html.theme-system .titlebar-meta-logo {
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 0 10px 0 12px;
+  padding: 0 8px 0 10px;
   cursor: pointer;
   font-size: var(--fs-sm);
   color: var(--text-dim);
@@ -1413,7 +1413,10 @@ html.theme-system .titlebar-meta-logo {
   transition:
     background-color 100ms ease,
     color 100ms ease,
-    border-color 100ms ease;
+    border-color 100ms ease,
+    opacity 100ms ease;
+  -webkit-user-select: none;
+  user-select: none;
 }
 
 .tab:hover {
@@ -1429,6 +1432,31 @@ html.theme-system .titlebar-meta-logo {
   box-shadow: inset 0 1px 0 var(--accent);
 }
 
+.tab.active .tab-icon {
+  color: var(--accent);
+}
+
+.tab.dragging {
+  opacity: 0.45;
+}
+
+/* Drop-indicator lines around a tab during drag-reorder. */
+.tab.drop-before::before,
+.tab.drop-after::after {
+  content: '';
+  position: absolute;
+  top: 4px;
+  bottom: 4px;
+  width: 2px;
+  background: var(--accent);
+  border-radius: 2px;
+  box-shadow: 0 0 6px var(--accent);
+  pointer-events: none;
+}
+
+.tab.drop-before::before { left: -2px; }
+.tab.drop-after::after   { right: -2px; }
+
 .tab .title {
   overflow: hidden;
   text-overflow: ellipsis;
@@ -1440,17 +1468,22 @@ html.theme-system .titlebar-meta-logo {
   background: transparent;
   border: none;
   color: inherit;
-  padding: 0 2px;
-  font-size: 14px;
+  padding: 0;
+  width: 16px;
+  height: 16px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
   line-height: 1;
   opacity: 0;
   border-radius: 3px;
-  transition: opacity 100ms ease;
+  transition: opacity 100ms ease, background-color 100ms ease, color 100ms ease;
 }
 
 .tab:hover .close,
 .tab.active .close {
-  opacity: 0.6;
+  opacity: 0.55;
 }
 
 .tab .close:hover {
@@ -1459,34 +1492,94 @@ html.theme-system .titlebar-meta-logo {
   background: var(--danger-soft);
 }
 
-.tab .kind {
-  font-family: var(--font-mono);
-  font-size: 9px;
-  letter-spacing: 0.05em;
-  background: var(--bg-3);
+.tab-icon {
+  flex: 0 0 auto;
   color: var(--text-dimer);
-  padding: 1px 5px;
-  border-radius: 3px;
-  text-transform: uppercase;
+  transition: color 100ms ease;
+}
+
+.tab:hover .tab-icon {
+  color: var(--text-dim);
 }
 
 .tabbar .new {
-  display: flex;
+  display: inline-flex;
   align-items: center;
-  padding: 0 10px;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  margin-left: 2px;
+  padding: 0;
   background: transparent;
   border: none;
   color: var(--text-dim);
   cursor: pointer;
-  font-size: 16px;
-  line-height: 1;
   border-radius: var(--radius-sm);
   align-self: center;
+  transition: background-color 100ms ease, color 100ms ease;
 }
 
 .tabbar .new:hover {
   color: var(--text);
   background: var(--bg-2);
+}
+
+/* Right-click menu on a tab. Fixed-positioned so it can float above other panes. */
+.tab-ctx-menu {
+  position: fixed;
+  z-index: 200;
+  min-width: 200px;
+  padding: 4px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4);
+  font-size: var(--fs-sm);
+  color: var(--text);
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.tab-ctx-menu button {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+  padding: 6px 10px;
+  background: transparent;
+  border: none;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+  border-radius: var(--radius-sm);
+  font: inherit;
+}
+
+.tab-ctx-menu button:hover:not(:disabled) {
+  background: var(--accent-soft);
+  color: var(--text);
+}
+
+.tab-ctx-menu button:disabled {
+  color: var(--text-dimer);
+  cursor: default;
+}
+
+.tab-ctx-kbd {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--text-dimer);
+  background: var(--bg-2);
+  padding: 1px 5px;
+  border-radius: 3px;
+}
+
+.tab-ctx-sep {
+  height: 1px;
+  background: var(--border);
+  margin: 4px 2px;
 }
 
 .pane {
@@ -1509,6 +1602,144 @@ html.theme-system .titlebar-meta-logo {
 .terminal-host .xterm-screen {
   width: 100% !important;
   height: 100% !important;
+}
+
+.file-view {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg);
+}
+
+.file-view-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--border);
+  background: var(--panel);
+  font-size: 12px;
+  color: var(--text-dim);
+  min-height: 34px;
+}
+
+.file-view-title {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  overflow: hidden;
+}
+
+.file-view-name {
+  color: var(--text);
+  font-weight: 500;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  overflow: hidden;
+}
+
+.file-view-path {
+  color: var(--text-dim);
+  font-size: 11px;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  overflow: hidden;
+  direction: rtl;
+  text-align: left;
+}
+
+.file-view-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.file-view-mode {
+  display: inline-flex;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.file-view-mode button {
+  background: transparent;
+  border: none;
+  border-right: 1px solid var(--border);
+  color: var(--text-dim);
+  padding: 4px 8px;
+  font-size: 11px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  cursor: pointer;
+}
+
+.file-view-mode button:last-child {
+  border-right: none;
+}
+
+.file-view-mode button.active {
+  background: var(--panel-2, rgba(255, 255, 255, 0.06));
+  color: var(--text);
+}
+
+.file-view-actions > button {
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--text-dim);
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 11px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  cursor: pointer;
+}
+
+.file-view-actions > button:hover:not(:disabled) {
+  color: var(--text);
+  background: var(--panel-2, rgba(255, 255, 255, 0.06));
+}
+
+.file-view-actions > button:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
+.file-view-actions > button.primary {
+  color: var(--text);
+  border-color: var(--accent, #6ea8ff);
+}
+
+.file-view-body {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  position: relative;
+}
+
+.file-view-status {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-dim);
+  font-size: 13px;
+}
+
+.file-view-status.error {
+  color: #ff6b6b;
+}
+
+.file-view-preview {
+  flex: 1;
+  width: 100%;
+  height: 100%;
+  border: none;
+  background: #ffffff;
 }
 
 .welcome {

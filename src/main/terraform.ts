@@ -8,12 +8,12 @@ const IS_WIN = process.platform === 'win32'
 
 function terraformInstallHint(): string {
   if (IS_WIN) {
-    return 'Terraform CLI not found on PATH. Install with `winget install HashiCorp.Terraform` (or `choco install terraform`) and reopen Termion.'
+    return 'Terraform CLI not found on PATH. Install with `winget install HashiCorp.Terraform` (or `choco install terraform`) and reopen Saterm.'
   }
   if (process.platform === 'linux') {
-    return 'Terraform CLI not found on PATH. Install via your package manager (e.g. `apt install terraform`) and reopen Termion.'
+    return 'Terraform CLI not found on PATH. Install via your package manager (e.g. `apt install terraform`) and reopen Saterm.'
   }
-  return 'Terraform CLI not found on PATH. Install with `brew install terraform` and reopen Termion.'
+  return 'Terraform CLI not found on PATH. Install with `brew install terraform` and reopen Saterm.'
 }
 
 function shellQuote(a: string): string {

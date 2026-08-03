@@ -1,4 +1,4 @@
-import { app, dialog, ipcMain } from 'electron'
+import { app, dialog, ipcMain, shell } from 'electron'
 import { homedir } from 'os'
 import { join } from 'path'
 import { existsSync, readdirSync, statSync } from 'fs'
@@ -44,6 +44,7 @@ import {
   detectVcs,
   readDir,
   readTextFile,
+  readBinaryFile,
   writeTextFile,
   createFile,
   createDirectory,
@@ -222,9 +223,13 @@ export function registerIpcHandlers(): void {
   // FS
   ipcMain.handle('fs:readDir', (_e, path: string) => readDir(path))
   ipcMain.handle('fs:readText', (_e, path: string) => readTextFile(path))
+  ipcMain.handle('fs:readBinary', (_e, path: string) => readBinaryFile(path))
   ipcMain.handle('fs:writeText', (_e, path: string, content: string) =>
     writeTextFile(path, content)
   )
+  ipcMain.handle('shell:showItem', (_e, path: string) => {
+    shell.showItemInFolder(path)
+  })
   ipcMain.handle('fs:newFile', (_e, path: string) => createFile(path))
   ipcMain.handle('fs:newDir', (_e, path: string) => createDirectory(path))
   ipcMain.handle('fs:rename', (_e, from: string, to: string) => renameEntry(from, to))

@@ -43,7 +43,7 @@ function formatEntry(input: BugReportInput, reportedAt: string): string {
   return `${heading}\n${meta.join('\n')}\n\n${input.description.trim()}\n\n---\n\n`
 }
 
-const HEADER = '# Termion bug reports\n\n<!-- newest first -->\n\n'
+const HEADER = '# Saterm bug reports\n\n<!-- newest first -->\n\n'
 
 export function reportBug(input: BugReportInput): { reportedAt: string; path: string } {
   const path = bugsFilePath()
@@ -73,7 +73,11 @@ async function writeMemoryPointer(dataPath: string): Promise<void> {
     const projectsDir = join(homedir(), '.claude', 'projects')
     if (!existsSync(projectsDir)) return
     const matches = readdirSync(projectsDir, { withFileTypes: true })
-      .filter((e) => e.isDirectory() && e.name.toLowerCase().includes('termion'))
+      .filter((e) => {
+        if (!e.isDirectory()) return false
+        const lower = e.name.toLowerCase()
+        return lower.includes('saterm') || lower.includes('termion')
+      })
       .map((e) => e.name)
     if (matches.length !== 1) {
       // 0 → can't infer where to write. multiple → ambiguous, don't guess.
@@ -86,15 +90,15 @@ async function writeMemoryPointer(dataPath: string): Promise<void> {
     const count = countEntries(dataPath)
     const pointer =
       `---\n` +
-      `name: termion-bug-reports\n` +
-      `description: Bug reports captured via Termion's in-app "Report a bug" dialog. Read the data file for the full list.\n` +
+      `name: saterm-bug-reports\n` +
+      `description: Bug reports captured via Saterm's in-app "Report a bug" dialog. Read the data file for the full list.\n` +
       `metadata:\n` +
       `  type: reference\n` +
       `---\n\n` +
-      `Termion writes user-reported bugs to its userData dir.\n\n` +
+      `Saterm writes user-reported bugs to its userData dir.\n\n` +
       `Path on this machine: \`${dataPath}\`\n\n` +
       `Count: ${count}. Last reported: ${new Date().toISOString()}.\n\n` +
-      `Read that file directly (most recent at top) when discussing termion bugs.\n`
+      `Read that file directly (most recent at top) when discussing Saterm bugs.\n`
     atomicWrite(pointerPath, pointer)
     updateMemoryIndex(memDir)
   } catch (err) {
@@ -108,7 +112,7 @@ function countEntries(dataPath: string): number {
   return (content.match(/^## /gm) || []).length
 }
 
-const MEMORY_INDEX_LINE = "- [Bug reports](bugs.md) — pointer to Termion's userData bug log"
+const MEMORY_INDEX_LINE = "- [Bug reports](bugs.md) — pointer to Saterm's userData bug log"
 
 function updateMemoryIndex(memDir: string): void {
   const indexPath = join(memDir, 'MEMORY.md')

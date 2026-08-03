@@ -7,6 +7,7 @@ import TerminalPane from './components/TerminalPane'
 import LocalTerminalView from './components/LocalTerminalView'
 import ProjectView from './components/ProjectView'
 import EksDashboard from './components/EksDashboard'
+import FileView from './components/FileView'
 import AuthPrompt from './components/AuthPrompt'
 import CommandPalette from './components/CommandPalette'
 import TerminalCopilot from './components/TerminalCopilot'
@@ -35,6 +36,9 @@ export default function App(): React.JSX.Element {
   const refreshProjects = useApp((s) => s.refreshProjects)
   const refreshHosts = useApp((s) => s.refreshHosts)
   const refreshAwsProfiles = useApp((s) => s.refreshAwsProfiles)
+  const closeTab = useApp((s) => s.closeTab)
+  const setActiveTab = useApp((s) => s.setActiveTab)
+  const openFileTab = useApp((s) => s.openFileTab)
 
   const [authQueue, setAuthQueue] = useState<AuthPromptEvent[]>([])
   const [paletteOpen, setPaletteOpen] = useState(false)
@@ -90,6 +94,16 @@ export default function App(): React.JSX.Element {
     return off
   }, [])
 
+  // OS-level "Open with Saterm" — the main process forwards resolved file
+  // paths via 'files:open'. Each path becomes a file tab; existing ones are
+  // deduped and re-activated.
+  useEffect(() => {
+    const off = window.api.files.onOpen(({ paths }) => {
+      for (const p of paths) openFileTab(p)
+    })
+    return off
+  }, [openFileTab])
+
   useEffect(() => {
     const handler = (e: KeyboardEvent): void => {
       const meta = e.metaKey || e.ctrlKey
@@ -105,6 +119,30 @@ export default function App(): React.JSX.Element {
       } else if (meta && e.key.toLowerCase() === 'b') {
         e.preventDefault()
         setSidebarOpen((v) => !v)
+      } else if (meta && e.key.toLowerCase() === 'w') {
+        // Close the active tab. Only handle when we actually have one, so we
+        // don't swallow the shortcut elsewhere.
+        const { tabs: cur, activeTabId: cid } = useApp.getState()
+        if (cid && cur.some((t) => t.id === cid)) {
+          e.preventDefault()
+          closeTab(cid)
+        }
+      } else if (meta && e.shiftKey && (e.key === '[' || e.key === '{')) {
+        const { tabs: cur, activeTabId: cid } = useApp.getState()
+        if (cur.length > 1) {
+          e.preventDefault()
+          const idx = cur.findIndex((t) => t.id === cid)
+          const next = cur[(idx - 1 + cur.length) % cur.length]
+          if (next) setActiveTab(next.id)
+        }
+      } else if (meta && e.shiftKey && (e.key === ']' || e.key === '}')) {
+        const { tabs: cur, activeTabId: cid } = useApp.getState()
+        if (cur.length > 1) {
+          e.preventDefault()
+          const idx = cur.findIndex((t) => t.id === cid)
+          const next = cur[(idx + 1) % cur.length]
+          if (next) setActiveTab(next.id)
+        }
       } else if (e.key === 'Escape') {
         setPaletteOpen(false)
         setQuickOpenOpen(false)
@@ -112,7 +150,7 @@ export default function App(): React.JSX.Element {
     }
     document.addEventListener('keydown', handler)
     return () => document.removeEventListener('keydown', handler)
-  }, [])
+  }, [closeTab, setActiveTab])
 
   const activeTab = tabs.find((t) => t.id === activeTabId) ?? null
   const activeProjectTab = activeTab?.kind === 'project' ? activeTab : null
@@ -160,6 +198,7 @@ export default function App(): React.JSX.Element {
               const visible = t.id === activeTabId
               if (t.kind === 'project') return <ProjectView key={t.id} tab={t} visible={visible} />
               if (t.kind === 'eks') return <EksDashboard key={t.id} tab={t} visible={visible} />
+              if (t.kind === 'file') return <FileView key={t.id} tab={t} visible={visible} />
               if (t.kind === 'local')
                 return <LocalTerminalView key={t.id} tab={t} visible={visible} />
               return <TerminalPane key={t.id} tab={t} visible={visible} />

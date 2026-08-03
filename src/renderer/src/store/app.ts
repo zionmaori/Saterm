@@ -3,6 +3,7 @@ import { v4 as uuid } from 'uuid'
 import type {
   AwsProfile,
   EksCluster,
+  FileTabContent,
   Host,
   PersistedLayout,
   PersistedTab,
@@ -33,6 +34,10 @@ export interface Tab {
     region: string
     cluster: string
   }
+  /** Absolute path to the file (only for kind === 'file'). */
+  filePath?: string
+  /** How to render the file (only for kind === 'file'). */
+  fileContent?: FileTabContent
 }
 
 interface AppState {
@@ -65,6 +70,7 @@ interface AppState {
   openSshTab: (host: Host) => Tab
   openLocalTab: (cwd?: string, shell?: string, initialCommand?: string) => Tab
   openProjectTab: (project: Project) => Tab
+  openFileTab: (filePath: string) => Tab
   closeTab: (id: SessionId) => void
   setActiveTab: (id: SessionId) => void
   renameTab: (id: SessionId, title: string) => void
@@ -163,6 +169,27 @@ export const useApp = create<AppState>((set, get) => ({
     return tab
   },
 
+  openFileTab: (filePath) => {
+    const existing = get().tabs.find((t) => t.kind === 'file' && t.filePath === filePath)
+    if (existing) {
+      set({ activeTabId: existing.id })
+      return existing
+    }
+    const title = filePath.split(/[\\/]/).pop() || filePath
+    const ext = title.toLowerCase().split('.').pop() ?? ''
+    const fileContent: FileTabContent = ext === 'html' || ext === 'htm' ? 'html' : 'text'
+    const tab: Tab = {
+      id: uuid(),
+      kind: 'file',
+      title,
+      filePath,
+      fileContent
+    }
+    set((s) => ({ tabs: [...s.tabs, tab], activeTabId: tab.id }))
+    void get().persistLayout()
+    return tab
+  },
+
   closeTab: (id) => {
     const closing = get().tabs.find((t) => t.id === id)
     if (closing?.kubeconfigPath) {
@@ -210,7 +237,9 @@ export const useApp = create<AppState>((set, get) => ({
         title: t.title,
         hostId: t.hostId,
         projectId: t.projectId,
-        cwd: t.cwd
+        cwd: t.cwd,
+        filePath: t.filePath,
+        fileContent: t.fileContent
       })),
       activeTabId
     }
@@ -234,7 +263,9 @@ export const useApp = create<AppState>((set, get) => ({
         title: t.title,
         hostId: t.hostId,
         projectId: t.projectId,
-        cwd: t.cwd
+        cwd: t.cwd,
+        filePath: t.filePath,
+        fileContent: t.fileContent
       }))
     const awsRegions: Record<string, string | null> = {}
     for (const p of awsProfiles) awsRegions[p.name] = p.region

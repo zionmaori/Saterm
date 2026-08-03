@@ -1,6 +1,6 @@
 import { app } from 'electron'
 import Database from 'better-sqlite3'
-import { join } from 'path'
+import { join, dirname } from 'path'
 import { copyFileSync, existsSync, mkdirSync, readdirSync, statSync, unlinkSync } from 'fs'
 
 let dbInstance: Database.Database | null = null
@@ -12,6 +12,9 @@ export function getDb(): Database.Database {
   const dir = app.getPath('userData')
   mkdirSync(dir, { recursive: true })
   const path = join(dir, 'termion.db')
+  // Termion → Saterm rebrand: adopt data from the old userData dir if it
+  // exists and the new one is empty. This runs once per install.
+  migrateLegacyUserData(dir, path)
   const dbExists = existsSync(path)
   const db = new Database(path)
   db.pragma('journal_mode = WAL')
@@ -39,6 +42,42 @@ export function getDb(): Database.Database {
 
   dbInstance = db
   return db
+}
+
+/** Adopt data from the pre-rebrand userData directory. Electron computes
+ *  userData from the app's productName (macOS + Linux) or via app.getName()
+ *  (Windows via LocalAppData\<name>). When productName changes from "termion"
+ *  to "Saterm", we get a fresh, empty directory — this restores the user's
+ *  DB and settings by copying from the legacy location on first launch. */
+function migrateLegacyUserData(newDir: string, newDbPath: string): void {
+  if (existsSync(newDbPath)) return
+  // Guess the parent directory (e.g. "~/Library/Application Support") and
+  // look for a sibling folder named termion / Termion.
+  const parent = dirname(newDir)
+  const candidates = ['termion', 'Termion']
+  for (const name of candidates) {
+    const legacyDir = join(parent, name)
+    if (legacyDir === newDir) continue
+    if (!existsSync(legacyDir)) continue
+    try {
+      if (!statSync(legacyDir).isDirectory()) continue
+    } catch {
+      continue
+    }
+    const legacyDb = join(legacyDir, 'termion.db')
+    if (!existsSync(legacyDb)) continue
+    try {
+      copyFileSync(legacyDb, newDbPath)
+      const walSrc = legacyDb + '-wal'
+      const shmSrc = legacyDb + '-shm'
+      if (existsSync(walSrc)) copyFileSync(walSrc, newDbPath + '-wal')
+      if (existsSync(shmSrc)) copyFileSync(shmSrc, newDbPath + '-shm')
+      console.log(`[migrate] adopted DB from legacy userData at ${legacyDir}`)
+      return
+    } catch (err) {
+      console.error('[migrate] legacy userData copy failed', err)
+    }
+  }
 }
 
 function readSchemaVersion(db: Database.Database): number {

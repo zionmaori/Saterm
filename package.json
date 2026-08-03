@@ -1,7 +1,7 @@
 {
-  "name": "termion",
-  "version": "1.0.57",
-  "description": "Termion — desktop terminal, SSH client, editor, and AI assistant.",
+  "name": "saterm",
+  "version": "1.0.61",
+  "description": "Saterm — desktop terminal, SSH client, editor, and AI assistant.",
   "main": "./out/main/index.js",
   "author": {
     "name": "Zion Maor",

@@ -126,6 +126,12 @@ export async function readTextFile(path: string): Promise<string> {
   return readFile(path, 'utf8')
 }
 
+export async function readBinaryFile(path: string): Promise<Uint8Array> {
+  const buf = await readFile(path)
+  // Wrap into a plain Uint8Array so it serializes cleanly through IPC.
+  return new Uint8Array(buf.buffer, buf.byteOffset, buf.byteLength)
+}
+
 export async function writeTextFile(path: string, content: string): Promise<void> {
   await writeFile(path, content, 'utf8')
 }

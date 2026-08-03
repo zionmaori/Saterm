@@ -1,100 +1,151 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
   <defs>
-    <radialGradient id="bg" cx="50%" cy="38%" r="65%">
+    <!-- Deep-space background -->
+    <radialGradient id="bg" cx="50%" cy="38%" r="70%">
       <stop offset="0%" stop-color="#1f2937"/>
       <stop offset="55%" stop-color="#0d1117"/>
       <stop offset="100%" stop-color="#06080d"/>
     </radialGradient>
-    <radialGradient id="dome" cx="42%" cy="35%" r="60%">
-      <stop offset="0%" stop-color="#9ad8ff" stop-opacity="1"/>
-      <stop offset="55%" stop-color="#58a6ff" stop-opacity="0.95"/>
-      <stop offset="100%" stop-color="#1e4d80" stop-opacity="0.9"/>
+
+    <!-- Saturn body: warm gas-giant palette -->
+    <radialGradient id="planet" cx="38%" cy="34%" r="70%">
+      <stop offset="0%"  stop-color="#ffe7b3"/>
+      <stop offset="35%" stop-color="#f6c26b"/>
+      <stop offset="70%" stop-color="#c9843a"/>
+      <stop offset="100%" stop-color="#5b3714"/>
     </radialGradient>
-    <linearGradient id="hull" x1="0%" y1="0%" x2="0%" y2="100%">
-      <stop offset="0%" stop-color="#b9c4d0"/>
-      <stop offset="45%" stop-color="#5a6573"/>
-      <stop offset="100%" stop-color="#2a3340"/>
+
+    <!-- Subtle atmospheric bands overlay -->
+    <linearGradient id="bands" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%"  stop-color="#ffffff" stop-opacity="0"/>
+      <stop offset="18%" stop-color="#ffffff" stop-opacity="0.10"/>
+      <stop offset="22%" stop-color="#000000" stop-opacity="0.10"/>
+      <stop offset="38%" stop-color="#ffffff" stop-opacity="0"/>
+      <stop offset="52%" stop-color="#ffffff" stop-opacity="0.08"/>
+      <stop offset="58%" stop-color="#000000" stop-opacity="0.12"/>
+      <stop offset="74%" stop-color="#ffffff" stop-opacity="0"/>
+      <stop offset="82%" stop-color="#000000" stop-opacity="0.14"/>
+      <stop offset="100%" stop-color="#000000" stop-opacity="0.25"/>
     </linearGradient>
-    <linearGradient id="hullRim" x1="0%" y1="0%" x2="0%" y2="100%">
-      <stop offset="0%" stop-color="#e6edf3" stop-opacity="0.7"/>
-      <stop offset="100%" stop-color="#e6edf3" stop-opacity="0"/>
-    </linearGradient>
-    <radialGradient id="beam" cx="50%" cy="0%" r="100%">
-      <stop offset="0%" stop-color="#56d364" stop-opacity="0.65"/>
-      <stop offset="60%" stop-color="#3fb950" stop-opacity="0.2"/>
-      <stop offset="100%" stop-color="#3fb950" stop-opacity="0"/>
-    </radialGradient>
-    <radialGradient id="lightOn" cx="50%" cy="50%" r="50%">
-      <stop offset="0%" stop-color="#ffe28a"/>
-      <stop offset="60%" stop-color="#d29922"/>
-      <stop offset="100%" stop-color="#d29922" stop-opacity="0"/>
-    </radialGradient>
-    <radialGradient id="domeShine" cx="35%" cy="30%" r="35%">
-      <stop offset="0%" stop-color="#ffffff" stop-opacity="0.9"/>
+
+    <!-- Glossy highlight on the planet -->
+    <radialGradient id="planetShine" cx="30%" cy="26%" r="30%">
+      <stop offset="0%"  stop-color="#ffffff" stop-opacity="0.75"/>
       <stop offset="100%" stop-color="#ffffff" stop-opacity="0"/>
     </radialGradient>
-    <filter id="glow" x="-20%" y="-20%" width="140%" height="140%">
-      <feGaussianBlur stdDeviation="14" result="b"/>
-      <feMerge>
-        <feMergeNode in="b"/>
-        <feMergeNode in="SourceGraphic"/>
-      </feMerge>
+
+    <!-- Ring gradient (front/back share the same look) -->
+    <linearGradient id="ring" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%"  stop-color="#e6d4a8" stop-opacity="0.20"/>
+      <stop offset="15%" stop-color="#f2dfae" stop-opacity="0.95"/>
+      <stop offset="50%" stop-color="#fff2c7" stop-opacity="1.00"/>
+      <stop offset="85%" stop-color="#e0c98a" stop-opacity="0.95"/>
+      <stop offset="100%" stop-color="#8a6b2e" stop-opacity="0.20"/>
+    </linearGradient>
+
+    <!-- Soft glow around the planet -->
+    <radialGradient id="halo" cx="50%" cy="50%" r="50%">
+      <stop offset="0%"  stop-color="#ffd68a" stop-opacity="0.35"/>
+      <stop offset="60%" stop-color="#ffd68a" stop-opacity="0.08"/>
+      <stop offset="100%" stop-color="#ffd68a" stop-opacity="0"/>
+    </radialGradient>
+
+    <!-- Star sparkle mask filter -->
+    <filter id="starGlow" x="-100%" y="-100%" width="300%" height="300%">
+      <feGaussianBlur stdDeviation="1.4"/>
     </filter>
+
+    <!-- Clip so the front half of the ring hides only what's in front of the planet -->
+    <clipPath id="planetClip">
+      <circle cx="512" cy="500" r="220"/>
+    </clipPath>
+    <clipPath id="ringLower">
+      <!-- Everything below the planet's equator: this is where the FRONT of the ring lives -->
+      <rect x="0" y="500" width="1024" height="524"/>
+    </clipPath>
+    <clipPath id="ringUpper">
+      <!-- Everything above the equator: BACK of the ring, drawn behind the planet -->
+      <rect x="0" y="0" width="1024" height="500"/>
+    </clipPath>
   </defs>
 
-  <!-- Background: dark squircle, matches the app's window background -->
+  <!-- Background: dark squircle -->
   <rect x="0" y="0" width="1024" height="1024" rx="224" ry="224" fill="url(#bg)"/>
 
-  <!-- Tiny stars -->
-  <g fill="#e6edf3" opacity="0.55">
-    <circle cx="140" cy="170" r="3"/>
-    <circle cx="260" cy="110" r="2"/>
-    <circle cx="380" cy="180" r="2.5"/>
-    <circle cx="710" cy="120" r="2"/>
-    <circle cx="860" cy="180" r="3"/>
-    <circle cx="900" cy="290" r="2"/>
-    <circle cx="180" cy="320" r="2"/>
-    <circle cx="940" cy="450" r="2"/>
-    <circle cx="100" cy="500" r="2.5"/>
+  <!-- Scattered stars -->
+  <g fill="#e6edf3">
+    <circle cx="120" cy="160" r="2.5" opacity="0.7"/>
+    <circle cx="220" cy="110" r="1.8" opacity="0.55"/>
+    <circle cx="340" cy="180" r="2.2" opacity="0.65"/>
+    <circle cx="700" cy="130" r="1.8" opacity="0.55"/>
+    <circle cx="860" cy="180" r="2.5" opacity="0.7"/>
+    <circle cx="910" cy="300" r="1.8" opacity="0.5"/>
+    <circle cx="160" cy="320" r="1.8" opacity="0.55"/>
+    <circle cx="940" cy="470" r="1.8" opacity="0.55"/>
+    <circle cx="90"  cy="500" r="2.2" opacity="0.6"/>
+    <circle cx="140" cy="720" r="1.8" opacity="0.5"/>
+    <circle cx="880" cy="700" r="2.0" opacity="0.6"/>
+    <circle cx="80"  cy="380" r="1.6" opacity="0.5"/>
   </g>
 
-  <!-- Tractor beam, sitting beneath the saucer -->
-  <path d="M 360 540 L 664 540 L 760 880 L 264 880 Z" fill="url(#beam)" opacity="0.85" filter="url(#glow)"/>
+  <!-- Sparkle stars with faint glow -->
+  <g filter="url(#starGlow)" fill="#ffffff" opacity="0.9">
+    <circle cx="820" cy="240" r="2.8"/>
+    <circle cx="250" cy="260" r="2.4"/>
+    <circle cx="180" cy="620" r="2.4"/>
+    <circle cx="820" cy="580" r="2.6"/>
+  </g>
 
-  <!-- Saucer hull (ellipse, slightly squashed) -->
-  <ellipse cx="512" cy="540" rx="312" ry="78" fill="url(#hull)"/>
+  <!-- Soft halo behind Saturn -->
+  <circle cx="512" cy="500" r="360" fill="url(#halo)"/>
 
-  <!-- Top highlight strip on the hull -->
-  <ellipse cx="512" cy="520" rx="304" ry="52" fill="url(#hullRim)"/>
+  <!--
+    Ring construction: an ellipse centered on the planet, tilted.
+    We draw it in three layers so it correctly weaves around the planet:
+      1) BACK half of the ring (above equator) — behind the planet
+      2) The planet itself
+      3) FRONT half of the ring (below equator) — in front of the planet
+  -->
+  <g transform="translate(512 500) rotate(-18)">
+    <!-- Back half of the ring (behind planet) -->
+    <g clip-path="url(#ringUpper)" transform="translate(-512 -500)">
+      <g transform="translate(512 500) rotate(-18)">
+        <!-- Outer ring band -->
+        <ellipse cx="0" cy="0" rx="360" ry="70" fill="none" stroke="url(#ring)" stroke-width="18"/>
+        <!-- Cassini division (gap) -->
+        <ellipse cx="0" cy="0" rx="330" ry="60" fill="none" stroke="#06080d" stroke-width="6" opacity="0.75"/>
+        <!-- Inner ring band -->
+        <ellipse cx="0" cy="0" rx="300" ry="50" fill="none" stroke="url(#ring)" stroke-width="12" opacity="0.9"/>
+      </g>
+    </g>
+  </g>
 
-  <!-- Dome -->
-  <path d="M 322 510
-           a 190 170 0 0 1 380 0 Z" fill="url(#dome)"/>
-  <!-- Dome glossy reflection -->
-  <ellipse cx="442" cy="430" rx="84" ry="42" fill="url(#domeShine)"/>
-
-  <!-- Hull underside shadow -->
-  <ellipse cx="512" cy="572" rx="288" ry="38" fill="#000" opacity="0.35"/>
-
-  <!-- Running lights along the rim -->
+  <!-- The planet -->
   <g>
-    <circle cx="280" cy="550" r="13" fill="url(#lightOn)"/>
-    <circle cx="350" cy="566" r="13" fill="url(#lightOn)"/>
-    <circle cx="420" cy="574" r="13" fill="url(#lightOn)"/>
-    <circle cx="512" cy="578" r="13" fill="url(#lightOn)"/>
-    <circle cx="604" cy="574" r="13" fill="url(#lightOn)"/>
-    <circle cx="674" cy="566" r="13" fill="url(#lightOn)"/>
-    <circle cx="744" cy="550" r="13" fill="url(#lightOn)"/>
+    <circle cx="512" cy="500" r="220" fill="url(#planet)"/>
+    <!-- Atmospheric bands, clipped to planet -->
+    <g clip-path="url(#planetClip)">
+      <rect x="292" y="280" width="440" height="440" fill="url(#bands)"/>
+    </g>
+    <!-- Terminator shading on the far side -->
+    <circle cx="512" cy="500" r="220" fill="#000" opacity="0.18"
+            style="mix-blend-mode:multiply"/>
+    <!-- Glossy highlight -->
+    <ellipse cx="440" cy="410" rx="90" ry="52" fill="url(#planetShine)"/>
   </g>
 
-  <!-- Antenna with blip on top of the dome -->
-  <line x1="512" y1="356" x2="512" y2="296" stroke="#e6edf3" stroke-width="6" stroke-linecap="round"/>
-  <circle cx="512" cy="290" r="14" fill="#ff7b72"/>
-  <circle cx="512" cy="290" r="24" fill="#ff7b72" opacity="0.25"/>
+  <!-- Front half of the ring (in front of planet) -->
+  <g clip-path="url(#ringLower)">
+    <g transform="translate(512 500) rotate(-18)">
+      <ellipse cx="0" cy="0" rx="360" ry="70" fill="none" stroke="url(#ring)" stroke-width="18"/>
+      <ellipse cx="0" cy="0" rx="330" ry="60" fill="none" stroke="#06080d" stroke-width="6" opacity="0.75"/>
+      <ellipse cx="0" cy="0" rx="300" ry="50" fill="none" stroke="url(#ring)" stroke-width="12" opacity="0.9"/>
+    </g>
+  </g>
 
   <!-- Wordmark -->
   <g font-family="-apple-system, 'SF Pro Display', 'Helvetica Neue', Arial, sans-serif" text-anchor="middle">
-    <text x="512" y="838" font-size="170" font-weight="800" letter-spacing="6" fill="#e6edf3">termion</text>
+    <text x="512" y="890" font-size="170" font-weight="800" letter-spacing="8" fill="#e6edf3">Saterm</text>
   </g>
 </svg>
