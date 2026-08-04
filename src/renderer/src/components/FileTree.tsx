@@ -1,6 +1,13 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { ChevronDown, ChevronRight, File, Folder, FolderOpen } from 'lucide-react'
 
+const revealLabel = ((): string => {
+  const p = navigator.platform || navigator.userAgent
+  if (/Mac|iPhone|iPad/i.test(p)) return 'Reveal in Finder'
+  if (/Win/i.test(p)) return 'Show in Explorer'
+  return 'Show in file manager'
+})()
+
 interface Node {
   path: string
   name: string
@@ -280,6 +287,7 @@ export default function FileTree({ root, onOpenFile, selectedPath }: Props): Rea
                 ? t.path
                 : t.path.slice(0, t.path.length - t.name.length - 1)
               : root
+            const revealPath = t ? t.path : root
             const close = (): void => setMenu(null)
             return (
               <>
@@ -298,6 +306,15 @@ export default function FileTree({ root, onOpenFile, selectedPath }: Props): Rea
                   }}
                 >
                   New folder
+                </button>
+                <div className="tree-menu-sep" />
+                <button
+                  onClick={() => {
+                    close()
+                    void window.api.shell.showItem(revealPath)
+                  }}
+                >
+                  {revealLabel}
                 </button>
                 {t && t.path !== root && (
                   <>
