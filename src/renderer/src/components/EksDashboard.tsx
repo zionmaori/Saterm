@@ -85,6 +85,7 @@ const GATEWAY_RESOURCES: Array<{
 
 export default function EksDashboard({ tab, visible }: Props): React.JSX.Element {
   const openEksTab = useApp((s) => s.openEksTab)
+  const openEksK9sTab = useApp((s) => s.openEksK9sTab)
   const env: KubeEnv | null = useMemo(() => {
     if (!tab.eks || !tab.kubeconfigPath) return null
     return {
@@ -333,6 +334,20 @@ export default function EksDashboard({ tab, visible }: Props): React.JSX.Element
             title="Open kubectl terminal"
           >
             <TerminalIcon size={13} />
+          </button>
+          <button
+            className="sidebar2-icon eks-k9s-btn"
+            onClick={() => {
+              if (!tab.eks) return
+              void openEksK9sTab({
+                name: tab.eks.cluster,
+                profile: tab.eks.profile,
+                region: tab.eks.region
+              })
+            }}
+            title="Open k9s terminal"
+          >
+            <span className="eks-k9s-label">k9s</span>
           </button>
         </div>
 

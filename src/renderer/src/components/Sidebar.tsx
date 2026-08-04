@@ -106,6 +106,7 @@ export default function Sidebar(): React.JSX.Element {
   const setAwsRegion = useApp((s) => s.setAwsRegion)
   const openEksTab = useApp((s) => s.openEksTab)
   const openEksDashboardTab = useApp((s) => s.openEksDashboardTab)
+  const openEksK9sTab = useApp((s) => s.openEksK9sTab)
 
   const query = useFilter((s) => s.query)
   const activeTags = useFilter((s) => s.activeTags)
@@ -702,6 +703,7 @@ export default function Sidebar(): React.JSX.Element {
                 onSetRegion={(region) => void setAwsRegion(p.name, region)}
                 onOpenCluster={(c) => void openEksDashboardTab(c)}
                 onOpenClusterTerminal={(c) => void openEksTab(c)}
+                onOpenClusterK9s={(c) => void openEksK9sTab(c)}
               />
             ))}
           </K8sSourceGroup>
@@ -1096,7 +1098,8 @@ function AwsProfileRow({
   onExpand,
   onSetRegion,
   onOpenCluster,
-  onOpenClusterTerminal
+  onOpenClusterTerminal,
+  onOpenClusterK9s
 }: {
   profile: AwsProfile
   effectiveRegion: string | null
@@ -1107,6 +1110,7 @@ function AwsProfileRow({
   onSetRegion: (region: string) => void
   onOpenCluster: (c: EksCluster) => void
   onOpenClusterTerminal: (c: EksCluster) => void
+  onOpenClusterK9s: (c: EksCluster) => void
 }): React.JSX.Element {
   const storageKey = `sidebar.aws.${profile.name}`
   const [open, setOpen] = useState(() => {
@@ -1204,6 +1208,16 @@ function AwsProfileRow({
                       title={`Open kubectl terminal for ${c.name}`}
                     >
                       <Terminal size={11} strokeWidth={2} />
+                    </button>
+                    <button
+                      className="sidebar2-icon aws-cluster-k9s"
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        onOpenClusterK9s(c)
+                      }}
+                      title={`Open k9s for ${c.name}`}
+                    >
+                      <span className="aws-cluster-k9s-label">k9s</span>
                     </button>
                   </div>
                 ))}

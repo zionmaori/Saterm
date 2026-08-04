@@ -83,6 +83,7 @@ interface AppState {
   setAwsRegion: (profile: string, region: string) => Promise<void>
   openEksTab: (cluster: EksCluster) => Promise<Tab | null>
   openEksDashboardTab: (cluster: EksCluster) => Promise<Tab | null>
+  openEksK9sTab: (cluster: EksCluster) => Promise<Tab | null>
 
   detectTerraform: (projectId: number, root: string) => Promise<boolean>
   analyzeTerraform: (projectId: number, root: string) => Promise<void>
@@ -341,6 +342,35 @@ export const useApp = create<AppState>((set, get) => ({
       return tab
     } catch (e) {
       alert(`Could not open cluster: ${(e as Error).message}`)
+      return null
+    }
+  },
+
+  openEksK9sTab: async (cluster) => {
+    try {
+      const { kubeconfigPath } = await window.api.aws.prepareKubeconfig({
+        profile: cluster.profile,
+        region: cluster.region,
+        cluster: cluster.name
+      })
+      const tab: Tab = {
+        id: uuid(),
+        kind: 'local',
+        title: `k9s: ${cluster.name}`,
+        env: {
+          AWS_PROFILE: cluster.profile,
+          AWS_REGION: cluster.region,
+          AWS_DEFAULT_REGION: cluster.region,
+          KUBECONFIG: kubeconfigPath
+        },
+        kubeconfigPath,
+        initialCommand: 'k9s'
+      }
+      set((s) => ({ tabs: [...s.tabs, tab], activeTabId: tab.id }))
+      void get().persistLayout()
+      return tab
+    } catch (e) {
+      alert(`Could not open k9s: ${(e as Error).message}`)
       return null
     }
   },
