@@ -11,6 +11,7 @@ import { recategorizeAll, dedupHostsByEndpoint } from './hosts'
 import { addProject, refreshAllProjectVcs } from './projects'
 import { initAi, reinitAi } from './ai'
 import { getProjectsRoot } from './settings'
+import { closeAllPtys } from './pty'
 
 let mainWindowRef: BrowserWindow | null = null
 let rendererReady = false
@@ -245,4 +246,15 @@ app.whenReady().then(async () => {
 
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') app.quit()
+})
+
+// Kill every pty and wait for their exit callbacks before Electron tears the
+// Node env down. Without this, a pty child dying mid-teardown fires its
+// napi ThreadSafeFunction into a half-destroyed env and aborts the process.
+let quitting = false
+app.on('before-quit', (event) => {
+  if (quitting) return
+  quitting = true
+  event.preventDefault()
+  closeAllPtys().finally(() => app.exit(0))
 })

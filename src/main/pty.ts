@@ -181,3 +181,39 @@ export function closePty(sessionId: SessionId): void {
 export function isPtySession(sessionId: SessionId): boolean {
   return sessions.has(sessionId)
 }
+
+// Kill every live pty and wait for their exit callbacks to fire (or a short
+// deadline). Must run before Electron begins tearing down the Node env —
+// otherwise node-pty's ThreadSafeFunction fires into a half-destroyed napi
+// env, ThrowAsJavaScriptException escapes through noexcept, and the process
+// aborts. See crash trace: pty.node → Napi::Error::ThrowAsJavaScriptException
+// → __cxa_throw → abort during node::Environment::RunCleanup.
+export async function closeAllPtys(timeoutMs = 1500): Promise<void> {
+  const entries = Array.from(sessions.entries())
+  if (entries.length === 0) return
+  const waits = entries.map(
+    ([id, s]) =>
+      new Promise<void>((resolveWait) => {
+        let done = false
+        const finish = (): void => {
+          if (done) return
+          done = true
+          sessions.delete(id)
+          resolveWait()
+        }
+        try {
+          s.pty.onExit(finish)
+        } catch {
+          finish()
+          return
+        }
+        try {
+          s.pty.kill()
+        } catch {
+          finish()
+        }
+      })
+  )
+  const deadline = new Promise<void>((r) => setTimeout(r, timeoutMs))
+  await Promise.race([Promise.all(waits), deadline])
+}
