@@ -1,8 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { editor as monacoEditor } from 'monaco-editor'
 import {
-  ChevronDown,
-  ChevronUp,
   GitCompare,
   PanelBottom,
   PanelTop,
@@ -16,7 +14,6 @@ import FileTree from './FileTree'
 import { CodeEditor, DiffView, languageFor, type Selection } from './Editor'
 import GitPanel, { type ViewMode as GitViewMode } from './GitPanel'
 import SvnPanel from './SvnPanel'
-import ProjectNotesPanel from './ProjectNotesPanel'
 import TerraformPanel from './TerraformPanel'
 import TasksPanel from './TasksPanel'
 import TerminalPane from './TerminalPane'
@@ -67,8 +64,6 @@ interface LayoutBlob {
   vcsWidth?: number
   termHeight?: number
   termAtBottom?: boolean
-  notesHeight?: number
-  notesCollapsed?: boolean
   openItems?: Array<
     { kind: 'file'; path: string } | { kind: 'diff'; path: string; staged: boolean }
   >
@@ -135,8 +130,6 @@ export default function ProjectView({ tab, visible }: Props): React.JSX.Element 
   const [vcsWidth, setVcsWidth] = useState(320)
   const [termHeight, setTermHeight] = useState(220)
   const [termAtBottom, setTermAtBottom] = useState(false)
-  const [notesHeight, setNotesHeight] = useState(200)
-  const [notesCollapsed, setNotesCollapsed] = useState(false)
   const [shells, setShells] = useState<ShellOption[]>([])
 
   // Terminals — multiple columns, each with tabs.
@@ -164,8 +157,6 @@ export default function ProjectView({ tab, visible }: Props): React.JSX.Element 
       if (typeof saved.vcsWidth === 'number') setVcsWidth(saved.vcsWidth)
       if (typeof saved.termHeight === 'number') setTermHeight(saved.termHeight)
       if (typeof saved.termAtBottom === 'boolean') setTermAtBottom(saved.termAtBottom)
-      if (typeof saved.notesHeight === 'number') setNotesHeight(saved.notesHeight)
-      if (typeof saved.notesCollapsed === 'boolean') setNotesCollapsed(saved.notesCollapsed)
       if (saved.search) {
         setSearchQuery(saved.search.query ?? '')
         setSearchOpen(!!saved.search.open)
@@ -250,8 +241,6 @@ export default function ProjectView({ tab, visible }: Props): React.JSX.Element 
         vcsWidth,
         termHeight,
         termAtBottom,
-        notesHeight,
-        notesCollapsed,
         openItems,
         activeKey,
         viewStates: viewStatesRef.current,
@@ -268,8 +257,6 @@ export default function ProjectView({ tab, visible }: Props): React.JSX.Element 
     vcsWidth,
     termHeight,
     termAtBottom,
-    notesHeight,
-    notesCollapsed,
     items,
     activeKey,
     searchOpen,
@@ -867,40 +854,6 @@ export default function ProjectView({ tab, visible }: Props): React.JSX.Element 
                 <small>(no .git or .svn)</small>
               </div>
             )}
-          </div>
-          {!notesCollapsed && (
-            <Splitter
-              axis="vertical"
-              size={notesHeight}
-              onSize={setNotesHeight}
-              min={80}
-              max={1200}
-              inverse
-              ariaLabel="Resize notes"
-            />
-          )}
-          <div
-            className="vcs-pane vcs-pane-notes"
-            style={{
-              flex: notesCollapsed ? '0 0 auto' : `0 0 ${notesHeight}px`,
-              minHeight: notesCollapsed ? 0 : 80
-            }}
-          >
-            <div className="vcs-notes-header">
-              <span>Notes</span>
-              <button
-                className="bottom-term-flip"
-                onClick={() => setNotesCollapsed((v) => !v)}
-                title={notesCollapsed ? 'Show notes' : 'Hide notes (expand panel above)'}
-              >
-                {notesCollapsed ? (
-                  <ChevronUp size={12} strokeWidth={2} />
-                ) : (
-                  <ChevronDown size={12} strokeWidth={2} />
-                )}
-              </button>
-            </div>
-            {!notesCollapsed && <ProjectNotesPanel projectId={project?.id} />}
           </div>
         </div>
 

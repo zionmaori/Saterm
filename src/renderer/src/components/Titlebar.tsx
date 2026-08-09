@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { HelpCircle, Monitor, Moon, PanelLeft, Search, Sun } from 'lucide-react'
+import { HelpCircle, Monitor, Moon, NotebookPen, PanelLeft, Search, Sun } from 'lucide-react'
 import SaturnLogo from './SaturnLogo'
 import TitlebarHint from './TitlebarHint'
 
@@ -12,6 +12,7 @@ interface Props {
   theme: Theme
   onTheme: (t: Theme) => void
   onHelp: () => void
+  onOpenNotes: () => void
 }
 
 export default function Titlebar({
@@ -20,7 +21,8 @@ export default function Titlebar({
   onToggleSidebar,
   theme,
   onTheme,
-  onHelp
+  onHelp,
+  onOpenNotes
 }: Props): React.JSX.Element {
   const [version, setVersion] = useState<string | null>(null)
   const [platform, setPlatform] = useState<NodeJS.Platform | null>(null)
@@ -82,6 +84,14 @@ export default function Titlebar({
             <Moon size={13} strokeWidth={2} />
           </button>
         </div>
+        <button
+          type="button"
+          className="titlebar-icon-btn"
+          onClick={onOpenNotes}
+          title="Notes (project & global)"
+        >
+          <NotebookPen size={13} strokeWidth={2} />
+        </button>
         <button type="button" className="titlebar-icon-btn" onClick={onHelp} title="Help & Guide">
           <HelpCircle size={13} strokeWidth={2} />
         </button>

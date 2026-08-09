@@ -1949,19 +1949,6 @@ html.theme-system .titlebar-meta-logo {
   flex: 1 1 auto;
 }
 
-/* .vcs-pane-notes needs no border — the .splitter-vertical below is a 1px
-   hairline that visually separates Git from Notes without adding a 6px gap. */
-.project .vcs-panel > .splitter-vertical {
-  flex: 0 0 1px;
-  height: 1px;
-  background: var(--border);
-}
-
-.project .vcs-panel > .splitter-vertical:hover,
-.project .vcs-panel > .splitter-vertical:active {
-  background: var(--accent);
-}
-
 /* Tabstrip at the top of the right panel — swaps between Git/SVN and Terraform. */
 .vcs-toptabs {
   display: flex;
@@ -2141,20 +2128,6 @@ html.theme-system .titlebar-meta-logo {
 .tf-markdown ul, .tf-markdown ol {
   padding-left: 18px;
   margin: 4px 0;
-}
-
-.project .vcs-notes-header {
-  padding: 4px 6px 4px 10px;
-  font-size: 11px;
-  color: var(--text-dim);
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  flex-shrink: 0;
-  background: var(--bg-2);
-  border-bottom: 1px solid var(--border);
 }
 
 .notes-scope {
@@ -2705,6 +2678,138 @@ html.theme-system .titlebar-meta-logo {
 .help-footer-version {
   font-weight: 600;
   letter-spacing: 0.04em;
+}
+
+/* ---- Notes Modal ---- */
+
+.notes-modal {
+  background: var(--bg-1);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  width: 720px;
+  max-width: 92vw;
+  height: 640px;
+  max-height: 86vh;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.5);
+  overflow: hidden;
+}
+
+.notes-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg-2);
+  flex-shrink: 0;
+}
+
+.notes-modal-title {
+  font-size: var(--fs);
+  font-weight: 600;
+  color: var(--text);
+  letter-spacing: -0.01em;
+}
+
+.notes-modal-header-controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.notes-modal-header .notes-scope {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+  background: var(--bg-1);
+  border-bottom: 1px solid var(--border);
+}
+
+.notes-modal-header .notes-scope-btn {
+  flex: 0 0 auto;
+  padding: 4px 10px;
+}
+
+.notes-modal-header .notes-mode-toggle {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+  background: var(--bg-1);
+}
+
+.notes-modal-header .notes-mode-btn {
+  padding: 4px 8px;
+}
+
+.notes-modal-close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-dimer);
+  cursor: pointer;
+  padding: 0;
+}
+
+.notes-modal-close:hover {
+  background: var(--bg-3);
+  color: var(--text);
+}
+
+.notes-modal-body {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.notes-modal-textarea {
+  flex: 1;
+  min-height: 0;
+  width: 100%;
+  resize: none;
+  background: transparent;
+  color: var(--text);
+  border: none;
+  outline: none;
+  padding: 14px 18px;
+  font-family: var(--mono, monospace);
+  font-size: 12.5px;
+  line-height: 1.55;
+}
+
+.notes-modal-body .notes-preview {
+  padding: 14px 20px;
+}
+
+.notes-modal-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 14px;
+  border-top: 1px solid var(--border);
+  font-size: 11px;
+  color: var(--text-dimer);
+  background: var(--bg-2);
+  flex-shrink: 0;
+}
+
+.notes-modal-hint {
+  opacity: 0.85;
+}
+
+.notes-modal-status {
+  font-variant-numeric: tabular-nums;
+  min-width: 60px;
+  text-align: right;
 }
 
 .vcs-toast {
@@ -5402,7 +5507,6 @@ html.theme-system .titlebar-meta-logo {
 .notes-scope,
 .notes-header,
 .bottom-term-header,
-.local-term-header,
-.vcs-notes-header {
+.local-term-header {
   background-color: color-mix(in srgb, var(--bg-2) 88%, transparent);
 }

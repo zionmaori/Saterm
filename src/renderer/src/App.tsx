@@ -13,6 +13,7 @@ import CommandPalette from './components/CommandPalette'
 import TerminalCopilot from './components/TerminalCopilot'
 import Titlebar, { type Theme } from './components/Titlebar'
 import HelpModal from './components/HelpModal'
+import NotesModal from './components/NotesModal'
 import OnboardingWizard from './components/OnboardingWizard'
 import SpaceBackground from './components/SpaceBackground'
 import SaturnLogo from './components/SaturnLogo'
@@ -49,6 +50,7 @@ export default function App(): React.JSX.Element {
   )
   const [theme, setTheme] = useState<Theme>(() => readLS<Theme>('theme', 'dark'))
   const [helpOpen, setHelpOpen] = useState(false)
+  const [notesOpen, setNotesOpen] = useState(false)
   const [onboardingStatus, setOnboardingStatus] = useState<OnboardingStatus | null>(null)
 
   const installAiListeners = useAi((s) => s.installListeners)
@@ -176,6 +178,7 @@ export default function App(): React.JSX.Element {
         theme={theme}
         onTheme={setTheme}
         onHelp={() => setHelpOpen(true)}
+        onOpenNotes={() => setNotesOpen(true)}
       />
       <div className={`main${sidebarOpen ? '' : ' sidebar-hidden'}`}>
         <Sidebar />
@@ -227,6 +230,9 @@ export default function App(): React.JSX.Element {
         })()}
 
       {helpOpen && <HelpModal onClose={() => setHelpOpen(false)} />}
+      {notesOpen && (
+        <NotesModal projectId={activeProject?.id} onClose={() => setNotesOpen(false)} />
+      )}
       {onboardingStatus && (
         <OnboardingWizard
           status={onboardingStatus}

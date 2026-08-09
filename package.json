@@ -1,6 +1,6 @@
 {
   "name": "saterm",
-  "version": "1.0.65",
+  "version": "1.0.67",
   "description": "Saterm — desktop terminal, SSH client, editor, and AI assistant.",
   "main": "./out/main/index.js",
   "author": {

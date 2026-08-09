@@ -147,8 +147,8 @@ export const TIPS: Tip[] = [
   {
     id: 'notes',
     category: 'editor',
-    title: 'Notes travel with you',
-    body: 'Every project has a Notes panel — plain markdown, saved with the repo. Great for host runbooks and TODOs.',
+    title: 'Notes are one click away',
+    body: 'Open the Notes popup from the titlebar. Toggle between Global notes and This project — plain markdown, autosaved.',
     when: (c) => c.hasProjects
   },
   {
