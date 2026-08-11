@@ -11,6 +11,7 @@ import type {
   AuthPromptEvent,
   AwsProfile,
   BugReportInput,
+  CliRunEvent,
   EksCluster,
   EksOpenArgs,
   EksOpenResult,
@@ -88,6 +89,12 @@ const api = {
   files: {
     onOpen: (fn: Listener<{ paths: string[] }>) => on('files:open', fn)
   },
+  cli: {
+    onRun: (fn: Listener<CliRunEvent>) => on('cli:run', fn),
+    install: (): Promise<{ path: string; onPath: boolean }> => ipcRenderer.invoke('cli:install'),
+    status: (): Promise<{ installed: boolean; path: string | null; current: boolean }> =>
+      ipcRenderer.invoke('cli:status')
+  },
   kv: {
     get: (key: string): Promise<string | null> => ipcRenderer.invoke('kv:get', key),
     set: (key: string, value: string): Promise<void> => ipcRenderer.invoke('kv:set', key, value),
@@ -144,6 +151,12 @@ const api = {
     authReply: (sessionId: SessionId, secret: string | null, remember: boolean): Promise<void> =>
       ipcRenderer.invoke('ssh:authReply', sessionId, secret, remember),
     onAuthPrompt: (fn: Listener<AuthPromptEvent>) => on('ssh:auth-prompt', fn)
+  },
+  sftp: {
+    readText: (hostId: number, path: string): Promise<string> =>
+      ipcRenderer.invoke('sftp:readFile', hostId, path),
+    writeText: (hostId: number, path: string, content: string): Promise<void> =>
+      ipcRenderer.invoke('sftp:writeFile', hostId, path, content)
   },
   pty: {
     shells: (): Promise<ShellOption[]> => ipcRenderer.invoke('pty:shells'),
@@ -227,6 +240,7 @@ const api = {
     signOut: (): Promise<AiStatus> => ipcRenderer.invoke('ai:signOut'),
     stream: (args: AiStreamArgs): Promise<void> => ipcRenderer.invoke('ai:stream', args),
     cancel: (streamId: string): Promise<void> => ipcRenderer.invoke('ai:cancel', streamId),
+    resetSession: (key: string): Promise<void> => ipcRenderer.invoke('ai:resetSession', key),
     onStart: (fn: Listener<AiStartEvent>) => on('ai:start', fn),
     onDelta: (fn: Listener<AiDeltaEvent>) => on('ai:delta', fn),
     onToolUse: (fn: Listener<AiToolUseEvent>) => on('ai:tool_use', fn),

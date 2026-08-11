@@ -136,10 +136,6 @@ export default function Sidebar(): React.JSX.Element {
   const [allCollapsed, setAllCollapsed] = useState(false)
   const searchInputRef = useRef<HTMLInputElement>(null)
 
-  const activeTabId = useApp((s) => s.activeTabId)
-  const tabs = useApp((s) => s.tabs)
-  const activeTab = tabs.find((t) => t.id === activeTabId) ?? null
-
   // ⌘F focuses the search box.
   useEffect(() => {
     const handler = (e: KeyboardEvent): void => {
@@ -313,13 +309,18 @@ export default function Sidebar(): React.JSX.Element {
   }
 
   const insertSnippetBody = (body: string): void => {
-    if (!activeTab) return
+    // Read fresh rather than off the `activeTab` closure so a tab opened
+    // moments earlier in the same synchronous call (e.g. by the CLI's
+    // `saterm snippet` handler below) is already visible here.
+    const { tabs: curTabs, activeTabId: curActiveId } = useApp.getState()
+    const tab = curTabs.find((t) => t.id === curActiveId) ?? null
+    if (!tab) return
     const targetId =
-      activeTab.kind === 'project'
+      tab.kind === 'project'
         ? ((
             window as Window & { __termionProjectTerm?: Map<string, import('../store/app').Tab> }
-          ).__termionProjectTerm?.get(activeTab.id)?.id ?? null)
-        : activeTab.id
+          ).__termionProjectTerm?.get(tab.id)?.id ?? null)
+        : tab.id
     if (targetId) window.__termionInsertText?.(targetId, body)
   }
 
@@ -344,6 +345,33 @@ export default function Sidebar(): React.JSX.Element {
     }
     insertSnippetBody(s.body)
   }
+
+  // `saterm snippet <title>` — dispatched from cliCommands.ts. Handled here
+  // rather than there since Sidebar already owns the snippets list and the
+  // confirm-before-run dialog.
+  useEffect(() => {
+    const handler = (e: Event): void => {
+      const title = (e as CustomEvent<{ title: string }>).detail?.title ?? ''
+      const q = title.trim().toLowerCase()
+      if (!q) return
+      const match =
+        snippets.find((sn) => sn.title.toLowerCase() === q) ??
+        snippets.find((sn) => sn.title.toLowerCase().includes(q))
+      if (!match) {
+        alert(`saterm snippet: no snippet matching "${title}"`)
+        return
+      }
+      const { tabs: curTabs, activeTabId: curActiveId } = useApp.getState()
+      const hasTerminalTab = curTabs.some(
+        (t) =>
+          t.id === curActiveId && (t.kind === 'local' || t.kind === 'ssh' || t.kind === 'project')
+      )
+      if (!hasTerminalTab) openLocalTab()
+      insertSnippet(match)
+    }
+    document.addEventListener('saterm:run-snippet', handler)
+    return () => document.removeEventListener('saterm:run-snippet', handler)
+  }, [snippets, openLocalTab, insertSnippet])
 
   const pickProject = async (): Promise<void> => {
     const p = await window.api.projects.pick()
@@ -682,9 +710,7 @@ export default function Sidebar(): React.JSX.Element {
             id="aws"
             label="AWS"
             count={awsProfiles.length}
-            empty={
-              awsProfiles.length === 0 ? 'No AWS profiles found in ~/.aws/config.' : undefined
-            }
+            empty={awsProfiles.length === 0 ? 'No AWS profiles found in ~/.aws/config.' : undefined}
           >
             {awsProfiles.map((p) => (
               <AwsProfileRow

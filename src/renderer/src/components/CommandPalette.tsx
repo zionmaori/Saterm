@@ -124,6 +124,24 @@ export default function CommandPalette({
           }
           onClose()
         }
+      },
+      {
+        id: 'cmd:install-cli',
+        label: "Install 'saterm' command in PATH",
+        meta: 'cli',
+        run: async () => {
+          try {
+            const r = await window.api.cli.install()
+            alert(
+              r.onPath
+                ? `Installed to ${r.path}. Open a new terminal and try "saterm".`
+                : `Installed to ${r.path}, but that directory isn't on your $PATH — add it, then open a new terminal and try "saterm".`
+            )
+          } catch (e) {
+            alert((e as Error).message)
+          }
+          onClose()
+        }
       }
     ]
     for (const h of hosts) {

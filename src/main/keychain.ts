@@ -122,3 +122,15 @@ export async function getActiveProvider(): Promise<string | null> {
 export async function saveActiveProvider(provider: AiProvider): Promise<void> {
   await keytar.setPassword(SERVICE, 'ai:provider', provider)
 }
+
+// ----- Anthropic auth mode: 'cli' (spawns the claude CLI) vs 'key' (direct API) -----
+
+export async function getAnthropicMode(): Promise<'cli' | 'key' | null> {
+  await migrateLegacyKeychain()
+  const v = await keytar.getPassword(SERVICE, 'ai:anthropicMode')
+  return v === 'cli' || v === 'key' ? v : null
+}
+
+export async function setAnthropicMode(mode: 'cli' | 'key'): Promise<void> {
+  await keytar.setPassword(SERVICE, 'ai:anthropicMode', mode)
+}

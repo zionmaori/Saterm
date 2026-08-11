@@ -110,6 +110,7 @@ export const useAi = create<AiState>((set, get) => ({
     try {
       await window.api.ai.stream({
         streamId,
+        key,
         kind,
         context,
         history: sess.history, // do NOT include the new userMsg — context+text are sent server-side
@@ -145,6 +146,7 @@ export const useAi = create<AiState>((set, get) => ({
     set((state) => ({
       sessions: { ...state.sessions, [key]: blankSession() }
     }))
+    void window.api.ai.resetSession(key)
   },
 
   installListeners: () => {

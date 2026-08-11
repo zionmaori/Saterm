@@ -18,6 +18,7 @@ import OnboardingWizard from './components/OnboardingWizard'
 import SpaceBackground from './components/SpaceBackground'
 import SaturnLogo from './components/SaturnLogo'
 import TipOfTheDay from './components/TipOfTheDay'
+import { runCliCommand } from './lib/cliCommands'
 import type { AuthPromptEvent, OnboardingStatus } from '../../shared/types'
 
 function readLS<T extends string>(key: string, fallback: T): T {
@@ -107,6 +108,13 @@ export default function App(): React.JSX.Element {
     })
     return off
   }, [openFileTab])
+
+  // `saterm <cmd>` from a terminal — forwarded by main via the same
+  // second-instance/argv pipe files:open uses (see cli.ts).
+  useEffect(() => {
+    const off = window.api.cli.onRun(runCliCommand)
+    return off
+  }, [])
 
   // Multi-window tab tear-off (TabBar.tsx drag-out / drag-between-windows).
   useEffect(() => {

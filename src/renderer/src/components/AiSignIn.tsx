@@ -125,7 +125,8 @@ export default function AiSignIn({ reason, currentProvider }: Props): React.JSX.
             {busy ? 'Connecting…' : 'Continue with Claude Code'}
           </button>
           <p className="ai-signin-blurb">
-            Uses your existing Claude Code subscription — no API credits needed.
+            Runs the Claude Code CLI directly, using your existing subscription — proposals only,
+            nothing executes automatically.
           </p>
           <div className="ai-signin-divider">
             <span>or use an API key</span>

@@ -35,6 +35,8 @@ import { importKnownHosts, parseKnownHosts } from './knownhosts'
 import { getProjectsRoot, setProjectsRoot } from './settings'
 import { clearHostSecrets, getSshSecret, setSshSecret, deleteSshSecret } from './keychain'
 import { connectSsh, writeSsh, resizeSsh, closeSsh, isSshSession, resolveAuthPrompt } from './ssh'
+import { readRemoteFile, writeRemoteFile } from './sftp'
+import { installCli, cliStatus } from './cliInstall'
 import { spawnPty, writePty, resizePty, closePty, isPtySession, detectShells } from './pty'
 import { getMainWindow, windowById, createSecondaryWindow, confirmWindowClose } from './windows'
 import {
@@ -92,6 +94,7 @@ import {
   aiStatus,
   startStream,
   cancelStream,
+  resetAiSession,
   signInWithApiKey,
   signInWithClaudeCode,
   signInWithProvider,
@@ -138,6 +141,10 @@ export function registerIpcHandlers(): void {
   // App metadata
   ipcMain.handle('app:version', () => app.getVersion())
   ipcMain.handle('app:platform', () => process.platform)
+
+  // `saterm` CLI installation
+  ipcMain.handle('cli:install', () => installCli())
+  ipcMain.handle('cli:status', () => cliStatus())
 
   // Windows — multi-window tab tear-off (TabBar.tsx drag out / drag between
   // windows). `window:info` is answered synchronously so it's available
@@ -212,6 +219,14 @@ export function registerIpcHandlers(): void {
     'ssh:authReply',
     (_e, sessionId: SessionId, secret: string | null, remember: boolean) =>
       resolveAuthPrompt(sessionId, secret, remember)
+  )
+
+  // Remote file editing (SFTP, over the same auth/proxy-jump path as ssh:connect)
+  ipcMain.handle('sftp:readFile', (_e, hostId: number, path: string) =>
+    readRemoteFile(hostId, path)
+  )
+  ipcMain.handle('sftp:writeFile', (_e, hostId: number, path: string, content: string) =>
+    writeRemoteFile(hostId, path, content)
   )
 
   // Terminal — local
@@ -409,6 +424,7 @@ export function registerIpcHandlers(): void {
     void startStream(args)
   })
   ipcMain.handle('ai:cancel', (_e, streamId: string) => cancelStream(streamId))
+  ipcMain.handle('ai:resetSession', (_e, key: string) => resetAiSession(key))
 
   // AWS / EKS
   ipcMain.handle('aws:listProfiles', () => listAwsProfiles())

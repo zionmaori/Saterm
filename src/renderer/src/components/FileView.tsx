@@ -12,7 +12,10 @@ type HtmlMode = 'preview' | 'source'
 
 export default function FileView({ tab, visible }: Props): React.JSX.Element {
   const filePath = tab.filePath ?? ''
-  const isHtml = tab.fileContent === 'html'
+  const isRemote = !!tab.remote
+  // Remote files are always edited as plain text — there's no SFTP binary
+  // read path, so HTML preview (which needs the raw bytes) isn't available.
+  const isHtml = tab.fileContent === 'html' && !isRemote
 
   const [text, setText] = useState<string>('')
   const [originalText, setOriginalText] = useState<string>('')
@@ -33,7 +36,11 @@ export default function FileView({ tab, visible }: Props): React.JSX.Element {
     setLoading(true)
     setError(null)
     try {
-      if (isHtml) {
+      if (isRemote) {
+        const s = await window.api.sftp.readText(tab.hostId!, filePath)
+        setText(s)
+        setOriginalText(s)
+      } else if (isHtml) {
         // Read binary for the iframe (Blob URL preserves relative-asset
         // resolution against the file's own origin). Also decode a UTF-8
         // text view for the source toggle + potential editing.
@@ -77,7 +84,8 @@ export default function FileView({ tab, visible }: Props): React.JSX.Element {
     if (!filePath || !dirty) return
     setSaving(true)
     try {
-      await window.api.fs.writeText(filePath, text)
+      if (isRemote) await window.api.sftp.writeText(tab.hostId!, filePath, text)
+      else await window.api.fs.writeText(filePath, text)
       setOriginalText(text)
       // For HTML files we also need to refresh the preview Blob URL so the
       // iframe re-renders the edited contents.
@@ -146,12 +154,17 @@ export default function FileView({ tab, visible }: Props): React.JSX.Element {
               </button>
             </div>
           )}
-          <button onClick={() => void load()} title="Reload from disk">
+          <button
+            onClick={() => void load()}
+            title={isRemote ? 'Reload from host' : 'Reload from disk'}
+          >
             <RefreshCw size={12} strokeWidth={2} /> Reload
           </button>
-          <button onClick={reveal} title="Reveal in file manager">
-            <FolderOpen size={12} strokeWidth={2} /> Reveal
-          </button>
+          {!isRemote && (
+            <button onClick={reveal} title="Reveal in file manager">
+              <FolderOpen size={12} strokeWidth={2} /> Reveal
+            </button>
+          )}
           <button
             onClick={() => void save()}
             disabled={!dirty || saving}

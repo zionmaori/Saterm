@@ -140,6 +140,9 @@ export interface PersistedTab {
   filePath?: string
   /** Rendering hint for file tabs. */
   fileContent?: FileTabContent
+  /** When true, filePath is a path on hostId (kind === 'file'), read/written
+   *  over SFTP instead of the local filesystem. */
+  remote?: boolean
   /** Command auto-run in the shell on open (e.g. 'claude', 'k9s'). */
   initialCommand?: string
 }
@@ -266,6 +269,16 @@ export interface ImportSshConfigResult {
   total: number
 }
 
+// ---- CLI --------------------------------------------------------------
+
+/** Payload forwarded from a `saterm <cmd>` shell invocation to the renderer. */
+export interface CliRunEvent {
+  /** cwd of the shell that invoked the CLI — used to resolve relative paths. */
+  cwd: string
+  /** e.g. ['ssh', 'prod-db1'] or [] for a bare `saterm`. */
+  tokens: string[]
+}
+
 // ---- AI -------------------------------------------------------------------
 
 export type AiProvider = 'anthropic' | 'openai' | 'gemini'
@@ -323,6 +336,9 @@ export type AiTier = 'opus' | 'sonnet' | 'haiku'
 
 export interface AiStreamArgs {
   streamId: string
+  /** Session key (terminal tab id or file path) — used by CLI-backed streaming to
+   *  maintain per-conversation continuity (claude --resume). */
+  key: string
   kind: AiKind
   context: AiContext
   history: AiMessage[]

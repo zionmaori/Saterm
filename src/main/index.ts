@@ -4,6 +4,7 @@ import { electronApp, optimizer } from '@electron-toolkit/utils'
 import { existsSync, readdirSync, statSync } from 'fs'
 import { getDb, kvGet, kvSet } from './db'
 import { registerIpcHandlers } from './ipc'
+import { parseCliArgv } from './cli'
 import { importSshConfig } from './sshconfig'
 import { importKnownHosts } from './knownhosts'
 import { recategorizeAll, dedupHostsByEndpoint } from './hosts'
@@ -11,6 +12,7 @@ import { addProject, refreshAllProjectVcs } from './projects'
 import { initAi, reinitAi } from './ai'
 import { getProjectsRoot } from './settings'
 import { closeAllPtys } from './pty'
+import { closeAllSftp } from './sftp'
 import {
   baseWindowOptions,
   loadApp,
@@ -23,6 +25,7 @@ import {
 let mainWindowRef: BrowserWindow | null = null
 let rendererReady = false
 const pendingOpenFiles: string[] = []
+let pendingCliCommand: { cwd: string; tokens: string[] } | null = null
 
 function collectFilePathsFromArgv(argv: readonly string[]): string[] {
   // argv[0] is the exe; in packaged builds, further entries can be flags
@@ -57,6 +60,20 @@ function flushOpenFiles(): void {
   mainWindowRef.webContents.send('files:open', { paths })
 }
 
+function queueCliCommand(cmd: { cwd: string; tokens: string[] }): void {
+  pendingCliCommand = cmd
+  flushCliCommand()
+}
+
+function flushCliCommand(): void {
+  if (!rendererReady) return
+  if (!mainWindowRef || mainWindowRef.isDestroyed()) return
+  if (!pendingCliCommand) return
+  const cmd = pendingCliCommand
+  pendingCliCommand = null
+  mainWindowRef.webContents.send('cli:run', cmd)
+}
+
 function createWindow(): void {
   const boundsRaw = kvGet('window.bounds')
   const bounds = boundsRaw
@@ -74,6 +91,7 @@ function createWindow(): void {
   mainWindow.webContents.on('did-finish-load', () => {
     rendererReady = true
     flushOpenFiles()
+    flushCliCommand()
   })
   mainWindow.on('closed', () => {
     if (mainWindowRef === mainWindow) {
@@ -177,7 +195,9 @@ if (!gotLock) {
   app.quit()
 } else {
   app.on('second-instance', (_e, argv) => {
-    queueOpenFiles(collectFilePathsFromArgv(argv))
+    const cli = parseCliArgv(argv)
+    if (cli) queueCliCommand(cli)
+    else queueOpenFiles(collectFilePathsFromArgv(argv))
     if (mainWindowRef) {
       if (mainWindowRef.isMinimized()) mainWindowRef.restore()
       mainWindowRef.focus()
@@ -186,8 +206,11 @@ if (!gotLock) {
 }
 
 app.whenReady().then(async () => {
-  // Seed with any files passed on the initial launch's argv.
-  queueOpenFiles(collectFilePathsFromArgv(process.argv))
+  // Seed with any files (or a `saterm` CLI command) passed on the initial
+  // launch's argv.
+  const initialCli = parseCliArgv(process.argv)
+  if (initialCli) queueCliCommand(initialCli)
+  else queueOpenFiles(collectFilePathsFromArgv(process.argv))
   electronApp.setAppUserModelId('com.saterm.app')
   // Native "About Saterm" dialog (macOS: app menu; Linux: some DEs).
   // Windows uses the LegalCopyright field from electron-builder.yml instead.
@@ -249,5 +272,6 @@ app.on('before-quit', (event) => {
   if (isAppQuitting()) return
   markAppQuitting()
   event.preventDefault()
+  closeAllSftp()
   closeAllPtys().finally(() => app.exit(0))
 })

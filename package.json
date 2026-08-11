@@ -1,6 +1,6 @@
 {
   "name": "saterm",
-  "version": "1.0.71",
+  "version": "1.0.72",
   "description": "Saterm — desktop terminal, SSH client, editor, and AI assistant.",
   "main": "./out/main/index.js",
   "author": {
@@ -39,6 +39,7 @@
     "@fontsource/inter": "^5.2.8",
     "@fontsource/jetbrains-mono": "^5.2.8",
     "@google/genai": "^2.10.0",
+    "@modelcontextprotocol/sdk": "^1.30.0",
     "@monaco-editor/react": "^4.7.0",
     "@xterm/addon-fit": "^0.11.0",
     "@xterm/addon-search": "^0.16.0",

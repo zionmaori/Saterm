@@ -38,6 +38,8 @@ export interface Tab {
   filePath?: string
   /** How to render the file (only for kind === 'file'). */
   fileContent?: FileTabContent
+  /** When true, filePath lives on hostId and is read/written over SFTP. */
+  remote?: boolean
 }
 
 interface AppState {
@@ -71,6 +73,7 @@ interface AppState {
   openLocalTab: (cwd?: string, shell?: string, initialCommand?: string) => Tab
   openProjectTab: (project: Project) => Tab
   openFileTab: (filePath: string) => Tab
+  openRemoteFileTab: (hostId: number, remotePath: string) => Tab
   closeTab: (id: SessionId) => void
   /** Removes a tab from this window's list without closing its underlying
    *  session — used when the tab is being handed off to another window
@@ -198,6 +201,31 @@ export const useApp = create<AppState>((set, get) => ({
     return tab
   },
 
+  openRemoteFileTab: (hostId, remotePath) => {
+    const existing = get().tabs.find(
+      (t) => t.kind === 'file' && t.remote && t.hostId === hostId && t.filePath === remotePath
+    )
+    if (existing) {
+      set({ activeTabId: existing.id })
+      return existing
+    }
+    const title = remotePath.split('/').pop() || remotePath
+    const ext = title.toLowerCase().split('.').pop() ?? ''
+    const fileContent: FileTabContent = ext === 'html' || ext === 'htm' ? 'html' : 'text'
+    const tab: Tab = {
+      id: uuid(),
+      kind: 'file',
+      title,
+      filePath: remotePath,
+      fileContent,
+      hostId,
+      remote: true
+    }
+    set((s) => ({ tabs: [...s.tabs, tab], activeTabId: tab.id }))
+    void get().persistLayout()
+    return tab
+  },
+
   closeTab: (id) => {
     const closing = get().tabs.find((t) => t.id === id)
     if (closing?.kubeconfigPath) {
@@ -273,6 +301,7 @@ export const useApp = create<AppState>((set, get) => ({
         cwd: t.cwd,
         filePath: t.filePath,
         fileContent: t.fileContent,
+        remote: t.remote,
         initialCommand: t.initialCommand
       })),
       activeTabId
@@ -300,6 +329,7 @@ export const useApp = create<AppState>((set, get) => ({
         cwd: t.cwd,
         filePath: t.filePath,
         fileContent: t.fileContent,
+        remote: t.remote,
         initialCommand: t.initialCommand
       }))
     const awsRegions: Record<string, string | null> = {}

@@ -8,6 +8,7 @@ import { getHost } from './hosts'
 import { getSshSecret, setSshSecret } from './keychain'
 import type {
   AuthPromptEvent,
+  Host,
   SessionId,
   SshConnectArgs,
   TermDataEvent,
@@ -142,18 +143,14 @@ async function openJumpChannel(
   return { sock, client: jumpClient }
 }
 
-export async function connectSsh(args: SshConnectArgs): Promise<void> {
-  // A tab whose session already exists (e.g. it was just moved to another
-  // window and its TerminalPane remounted) must not dial a second connection —
-  // the original would leak, orphaned and unkillable via closeSsh. Treat this
-  // as a no-op: the caller just starts receiving the existing session's
-  // already-broadcast term:data events.
-  if (sessions.has(args.sessionId)) return
-
-  const host = getHost(args.hostId)
-  if (!host) throw new Error(`Unknown host id ${args.hostId}`)
-  const sessionId = args.sessionId
-
+/** Dials a host, handling proxy-jump, identity/agent auth, and the
+ *  password-prompt-and-retry flow shared by interactive shells (connectSsh)
+ *  and one-off SFTP connections (sftp.ts). Does not attach a shell or any
+ *  other channel — callers do that with the returned, ready `Client`. */
+export async function dialHost(
+  host: Host,
+  sessionId: SessionId
+): Promise<{ client: Client; jumpClient?: Client }> {
   let savedPassword = await getSshSecret(host.id, 'password')
   let savedPassphrase = await getSshSecret(host.id, 'passphrase')
   const identities = await loadIdentities(host.identityFile)
@@ -294,7 +291,21 @@ export async function connectSsh(args: SshConnectArgs): Promise<void> {
     client.connect(baseConfig)
   })
 
-  await attachShell(activeClient, args, sessionId, jumpClient)
+  return { client: activeClient, jumpClient }
+}
+
+export async function connectSsh(args: SshConnectArgs): Promise<void> {
+  // A tab whose session already exists (e.g. it was just moved to another
+  // window and its TerminalPane remounted) must not dial a second connection —
+  // the original would leak, orphaned and unkillable via closeSsh. Treat this
+  // as a no-op: the caller just starts receiving the existing session's
+  // already-broadcast term:data events.
+  if (sessions.has(args.sessionId)) return
+
+  const host = getHost(args.hostId)
+  if (!host) throw new Error(`Unknown host id ${args.hostId}`)
+  const { client, jumpClient } = await dialHost(host, args.sessionId)
+  await attachShell(client, args, args.sessionId, jumpClient)
 }
 
 async function attachShell(
