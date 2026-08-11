@@ -39,6 +39,7 @@ export default function GitPanel({
     current: '',
     all: []
   })
+  const [loadError, setLoadError] = useState<string | null>(null)
   const [commitMsg, setCommitMsg] = useState('')
   const [amend, setAmend] = useState(false)
   const [busy, setBusy] = useState(false)
@@ -57,8 +58,10 @@ export default function GitPanel({
       ])
       setStatus(s as GitStatus)
       setBranches(b as { current: string; all: string[] })
+      setLoadError(null)
     } catch (e) {
       console.error(e)
+      setLoadError((e as Error).message || 'Failed to load git status')
     }
   }, [repoPath])
 
@@ -90,7 +93,22 @@ export default function GitPanel({
     }
   }, [view, openLog, openTags])
 
-  if (!status) return <div className="empty">Loading…</div>
+  if (!status) {
+    return (
+      <div className="empty">
+        {loadError ? (
+          <>
+            Couldn&apos;t load git status: {loadError}
+            <div>
+              <button onClick={() => void refresh()}>Retry</button>
+            </div>
+          </>
+        ) : (
+          'Loading…'
+        )}
+      </div>
+    )
+  }
 
   const staged = status.files.filter((f) => f.index !== ' ' && f.index !== '?')
   const unstaged = status.files.filter((f) => f.workingDir !== ' ' && f.index !== '?')

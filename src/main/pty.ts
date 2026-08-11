@@ -2,7 +2,7 @@ import { spawn, type IPty } from 'node-pty'
 import { BrowserWindow } from 'electron'
 import { homedir } from 'os'
 import { existsSync } from 'fs'
-import { execSync } from 'child_process'
+import { execSync, execFileSync } from 'child_process'
 import type {
   PtySpawnArgs,
   SessionId,
@@ -13,9 +13,37 @@ import type {
 
 interface Session {
   pty: IPty
+  /** Set when this session is a tmux client attached to a named session
+   *  (see tmuxSessionName). Only explicit tab-close kills it; app quit or
+   *  crash just kills this client, leaving the tmux server (a separate
+   *  daemon process, not a child of Electron) and everything running inside
+   *  it — e.g. `claude` — alive to reattach to next launch. */
+  tmuxSession?: string
 }
 
 const sessions = new Map<SessionId, Session>()
+
+// Common tmux install locations. We resolve an absolute path rather than
+// relying on PATH lookup inside node-pty's spawn, since Electron launched
+// from Finder/Dock/Spotlight often has a bare PATH that misses brew/user
+// install dirs.
+const TMUX_CANDIDATES = [
+  '/opt/homebrew/bin/tmux',
+  '/usr/local/bin/tmux',
+  '/usr/bin/tmux',
+  '/bin/tmux'
+]
+
+function findTmux(): string | null {
+  for (const p of TMUX_CANDIDATES) {
+    if (existsSync(p)) return p
+  }
+  return null
+}
+
+function tmuxSessionName(sessionId: SessionId): string {
+  return `saterm-${String(sessionId).replace(/[^a-zA-Z0-9_-]/g, '')}`
+}
 
 const send = (event: string, payload: unknown): void => {
   for (const win of BrowserWindow.getAllWindows()) win.webContents.send(event, payload)
@@ -117,6 +145,13 @@ const shellArgs = (shell: string): string[] => {
 }
 
 export function spawnPty(args: PtySpawnArgs): void {
+  // A tab whose session already exists (e.g. it was just moved to another
+  // window and its TerminalPane remounted) must not spawn a second process —
+  // the original would leak, orphaned and unkillable via closePty. Treat this
+  // as a no-op: the caller just starts receiving the existing session's
+  // already-broadcast term:data events.
+  if (sessions.has(args.sessionId)) return
+
   const cwd = args.cwd && existsSync(args.cwd) ? args.cwd : homedir()
   const shell = args.shell ?? defaultShell()
   const env: NodeJS.ProcessEnv = {
@@ -126,7 +161,24 @@ export function spawnPty(args: PtySpawnArgs): void {
     LANG: process.env.LANG ?? 'en_US.UTF-8',
     ...(args.env ?? {})
   }
-  const pty = spawn(shell, shellArgs(shell), {
+
+  // "Open Claude Code in this project" tabs run inside a named tmux session
+  // (when tmux is installed) instead of a bare shell. tmux's server is a
+  // separate daemon process, not a child of Electron — so if Saterm crashes
+  // or is quit, killing this pty only kills the tmux *client*; the server,
+  // the `claude` process inside it, and its conversation all keep running.
+  // The session name is derived from the tab's stable id (tabs/ids are
+  // persisted across restarts), so reopening the same tab attaches to
+  // whatever was left running (`-A`) instead of starting a fresh session.
+  const tmuxBin = !isWindows && args.initialCommand === 'claude' ? findTmux() : null
+  const tmuxName = tmuxBin ? tmuxSessionName(args.sessionId) : null
+
+  const file = tmuxBin ?? shell
+  const fileArgs = tmuxBin
+    ? ['new-session', '-A', '-s', tmuxName as string, '-c', cwd, shell, '-i', '-l', '-c', 'claude']
+    : shellArgs(shell)
+
+  const pty = spawn(file, fileArgs, {
     name: 'xterm-256color',
     cols: args.cols,
     rows: args.rows,
@@ -134,7 +186,7 @@ export function spawnPty(args: PtySpawnArgs): void {
     env,
     useConpty: isWindows ? true : undefined
   } as Parameters<typeof spawn>[2])
-  sessions.set(args.sessionId, { pty })
+  sessions.set(args.sessionId, { pty, tmuxSession: tmuxName ?? undefined })
   pty.onData((data) =>
     send('term:data', { sessionId: args.sessionId, data } satisfies TermDataEvent)
   )
@@ -150,8 +202,10 @@ export function spawnPty(args: PtySpawnArgs): void {
   // login shell a moment to finish sourcing rc files (so PATH is populated)
   // before we write — otherwise the command can race the shell's startup and
   // land before the prompt is drawn, or run in a shell that hasn't yet
-  // picked up user-installed CLIs like `claude`.
-  if (args.initialCommand) {
+  // picked up user-installed CLIs like `claude`. Not needed on the tmux path
+  // above, which already runs the command directly (and re-attaches rather
+  // than re-running it when the session already existed).
+  if (args.initialCommand && !tmuxBin) {
     const cmd = args.initialCommand
     setTimeout(() => {
       sessions.get(args.sessionId)?.pty.write(`${cmd}\r`)
@@ -170,6 +224,19 @@ export function resizePty(sessionId: SessionId, cols: number, rows: number): voi
 export function closePty(sessionId: SessionId): void {
   const s = sessions.get(sessionId)
   if (!s) return
+  // Explicitly closing a tab is the one path that should actually end a
+  // tmux-backed claude session — app quit/crash intentionally leave it
+  // running (see spawnPty), so this is the only place kill-session belongs.
+  if (s.tmuxSession) {
+    const tmuxBin = findTmux()
+    if (tmuxBin) {
+      try {
+        execFileSync(tmuxBin, ['kill-session', '-t', s.tmuxSession])
+      } catch {
+        /* session may already be gone */
+      }
+    }
+  }
   try {
     s.pty.kill()
   } catch {

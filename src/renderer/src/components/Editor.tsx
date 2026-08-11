@@ -124,6 +124,7 @@ const EXT_LANG: Record<string, string> = {
   css: 'css',
   scss: 'scss',
   sql: 'sql',
+  dump: 'sql',
   dockerfile: 'dockerfile'
 }
 

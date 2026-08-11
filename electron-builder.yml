@@ -72,6 +72,14 @@ fileAssociations:
     name: Shell Script
     description: Shell Script
     role: Editor
+  - ext: sql
+    name: SQL File
+    description: SQL File
+    role: Editor
+  - ext: dump
+    name: Database Dump
+    description: Database Dump
+    role: Editor
 win:
   executableName: saterm
   icon: build/icon.ico

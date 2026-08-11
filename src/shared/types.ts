@@ -140,6 +140,8 @@ export interface PersistedTab {
   filePath?: string
   /** Rendering hint for file tabs. */
   fileContent?: FileTabContent
+  /** Command auto-run in the shell on open (e.g. 'claude', 'k9s'). */
+  initialCommand?: string
 }
 
 export interface PersistedLayout {

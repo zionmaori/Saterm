@@ -3,6 +3,8 @@ import type { editor as monacoEditor } from 'monaco-editor'
 import {
   GitCompare,
   PanelBottom,
+  PanelLeft,
+  PanelRight,
   PanelTop,
   Plus,
   SplitSquareHorizontal,
@@ -59,10 +61,29 @@ interface TerminalColumn {
   activeTabId: string
 }
 
+type TermPos = 'top' | 'bottom' | 'left' | 'right'
+
+// Cycle order for the terminal-placement button: top -> right -> bottom -> left -> top.
+const NEXT_TERM_POS: Record<TermPos, TermPos> = {
+  top: 'right',
+  right: 'bottom',
+  bottom: 'left',
+  left: 'top'
+}
+const TERM_POS_ICON: Record<TermPos, typeof PanelTop> = {
+  top: PanelTop,
+  right: PanelRight,
+  bottom: PanelBottom,
+  left: PanelLeft
+}
+
 interface LayoutBlob {
   treeWidth?: number
   vcsWidth?: number
   termHeight?: number
+  termWidth?: number
+  termPos?: TermPos
+  /** @deprecated superseded by termPos; still read for backward compatibility. */
   termAtBottom?: boolean
   openItems?: Array<
     { kind: 'file'; path: string } | { kind: 'diff'; path: string; staged: boolean }
@@ -129,7 +150,8 @@ export default function ProjectView({ tab, visible }: Props): React.JSX.Element 
   const [treeWidth, setTreeWidth] = useState(240)
   const [vcsWidth, setVcsWidth] = useState(320)
   const [termHeight, setTermHeight] = useState(220)
-  const [termAtBottom, setTermAtBottom] = useState(false)
+  const [termWidth, setTermWidth] = useState(360)
+  const [termPos, setTermPos] = useState<TermPos>('top')
   const [shells, setShells] = useState<ShellOption[]>([])
 
   // Terminals — multiple columns, each with tabs.
@@ -156,7 +178,17 @@ export default function ProjectView({ tab, visible }: Props): React.JSX.Element 
       if (typeof saved.treeWidth === 'number') setTreeWidth(saved.treeWidth)
       if (typeof saved.vcsWidth === 'number') setVcsWidth(saved.vcsWidth)
       if (typeof saved.termHeight === 'number') setTermHeight(saved.termHeight)
-      if (typeof saved.termAtBottom === 'boolean') setTermAtBottom(saved.termAtBottom)
+      if (typeof saved.termWidth === 'number') setTermWidth(saved.termWidth)
+      if (
+        saved.termPos === 'top' ||
+        saved.termPos === 'bottom' ||
+        saved.termPos === 'left' ||
+        saved.termPos === 'right'
+      ) {
+        setTermPos(saved.termPos)
+      } else if (typeof saved.termAtBottom === 'boolean') {
+        setTermPos(saved.termAtBottom ? 'bottom' : 'top')
+      }
       if (saved.search) {
         setSearchQuery(saved.search.query ?? '')
         setSearchOpen(!!saved.search.open)
@@ -240,7 +272,8 @@ export default function ProjectView({ tab, visible }: Props): React.JSX.Element 
         treeWidth,
         vcsWidth,
         termHeight,
-        termAtBottom,
+        termWidth,
+        termPos,
         openItems,
         activeKey,
         viewStates: viewStatesRef.current,
@@ -256,7 +289,8 @@ export default function ProjectView({ tab, visible }: Props): React.JSX.Element 
     treeWidth,
     vcsWidth,
     termHeight,
-    termAtBottom,
+    termWidth,
+    termPos,
     items,
     activeKey,
     searchOpen,
@@ -616,6 +650,25 @@ export default function ProjectView({ tab, visible }: Props): React.JSX.Element 
     })
   }
 
+  // Terminal-block placement relative to the editor: stacked (top/bottom) or
+  // side by side (left/right). `terminalFirst` controls both DOM visual order
+  // (via flex `order`) and which side of the splitter grows on drag.
+  const terminalFirst = termPos === 'top' || termPos === 'left'
+  const workAreaDirection: 'row' | 'column' =
+    termPos === 'left' || termPos === 'right' ? 'row' : 'column'
+  const splitterAxis: 'horizontal' | 'vertical' =
+    workAreaDirection === 'row' ? 'horizontal' : 'vertical'
+  const nextTermPos = NEXT_TERM_POS[termPos]
+  const NextTermPosIcon = TERM_POS_ICON[nextTermPos]
+  const termBorder: React.CSSProperties =
+    termPos === 'top'
+      ? { borderBottom: '1px solid var(--border)' }
+      : termPos === 'bottom'
+        ? { borderTop: '1px solid var(--border)' }
+        : termPos === 'left'
+          ? { borderRight: '1px solid var(--border)' }
+          : { borderLeft: '1px solid var(--border)' }
+
   return (
     <div
       className="project-wrap"
@@ -632,7 +685,7 @@ export default function ProjectView({ tab, visible }: Props): React.JSX.Element 
           flex: 1,
           minWidth: 0,
           gridTemplateColumns: `${treeWidth}px 6px 1fr 6px ${vcsWidth}px`,
-          gridTemplateRows: termAtBottom ? `1fr 6px ${termHeight}px` : `${termHeight}px 6px 1fr`
+          gridTemplateRows: '1fr'
         }}
       >
         <FileTree root={repoPath} onOpenFile={openFile} selectedPath={activeFile?.path ?? null} />
@@ -645,151 +698,262 @@ export default function ProjectView({ tab, visible }: Props): React.JSX.Element 
           ariaLabel="Resize file tree"
         />
 
-        <div className="editor-wrap" style={termAtBottom ? { gridRow: 1 } : undefined}>
-          <div className="editor-tabs">
-            {items.map((f) => {
-              const name = f.path.split('/').pop() ?? f.path
-              const isDiff = f.kind === 'diff'
-              const title =
-                f.kind === 'file'
-                  ? f.path
-                  : `${f.path} — diff (${f.staged ? 'staged' : 'working tree'})`
-              return (
-                <div
-                  key={f.key}
-                  className={`etab ${f.key === activeKey ? 'active' : ''}`}
-                  onClick={() => setActiveKey(f.key)}
-                  onContextMenu={(e) => {
-                    e.preventDefault()
-                    setTabMenu({ key: f.key, x: e.clientX, y: e.clientY })
-                  }}
-                  onAuxClick={(e) => {
-                    if (e.button === 1) {
+        <div
+          className="work-area"
+          style={{
+            gridColumn: 3,
+            gridRow: 1,
+            display: 'flex',
+            flexDirection: workAreaDirection,
+            minWidth: 0,
+            minHeight: 0
+          }}
+        >
+          <div className="editor-wrap" style={{ order: terminalFirst ? 2 : 0, flex: '1 1 auto' }}>
+            <div className="editor-tabs">
+              {items.map((f) => {
+                const name = f.path.split('/').pop() ?? f.path
+                const isDiff = f.kind === 'diff'
+                const title =
+                  f.kind === 'file'
+                    ? f.path
+                    : `${f.path} — diff (${f.staged ? 'staged' : 'working tree'})`
+                return (
+                  <div
+                    key={f.key}
+                    className={`etab ${f.key === activeKey ? 'active' : ''}`}
+                    onClick={() => setActiveKey(f.key)}
+                    onContextMenu={(e) => {
                       e.preventDefault()
-                      closeItem(f.key)
+                      setTabMenu({ key: f.key, x: e.clientX, y: e.clientY })
+                    }}
+                    onAuxClick={(e) => {
+                      if (e.button === 1) {
+                        e.preventDefault()
+                        closeItem(f.key)
+                      }
+                    }}
+                    title={title}
+                  >
+                    {isDiff && (
+                      <GitCompare
+                        size={11}
+                        strokeWidth={2}
+                        style={{ opacity: 0.7, flexShrink: 0 }}
+                      />
+                    )}
+                    {f.kind === 'file' && f.dirty && <span className="dot" />}
+                    <span>{name}</span>
+                    {isDiff && (
+                      <span style={{ opacity: 0.55, fontSize: 10 }}>
+                        {f.staged ? 'staged' : 'diff'}
+                      </span>
+                    )}
+                    <button
+                      className="close"
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        closeItem(f.key)
+                      }}
+                    >
+                      ×
+                    </button>
+                  </div>
+                )
+              })}
+            </div>
+            <div className="editor-host">
+              {activeItem?.kind === 'file' ? (
+                <CodeEditor
+                  key={activeItem.key}
+                  value={activeItem.content}
+                  language={languageFor(activeItem.path)}
+                  onChange={(v) =>
+                    setItems((arr) =>
+                      arr.map((f) =>
+                        f.kind === 'file' && f.path === activeItem.path
+                          ? { ...f, content: v, dirty: v !== f.content || f.dirty }
+                          : f
+                      )
+                    )
+                  }
+                  onSelectionChange={setSelection}
+                  onReady={(ed) => {
+                    editorsRef.current.set(activeItem.path, ed)
+                    const saved = viewStatesRef.current[activeItem.path]
+                    if (saved) {
+                      try {
+                        ed.restoreViewState(saved)
+                      } catch {
+                        /* stale viewState — ignore */
+                      }
                     }
+                    // Snapshot on blur / change so we keep the latest position.
+                    ed.onDidBlurEditorText(() => {
+                      const s = ed.saveViewState()
+                      if (s) viewStatesRef.current[activeItem.path] = s
+                    })
                   }}
-                  title={title}
-                >
-                  {isDiff && (
-                    <GitCompare size={11} strokeWidth={2} style={{ opacity: 0.7, flexShrink: 0 }} />
-                  )}
-                  {f.kind === 'file' && f.dirty && <span className="dot" />}
-                  <span>{name}</span>
-                  {isDiff && (
-                    <span style={{ opacity: 0.55, fontSize: 10 }}>
-                      {f.staged ? 'staged' : 'diff'}
-                    </span>
-                  )}
-                  <button
-                    className="close"
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      closeItem(f.key)
+                />
+              ) : activeItem?.kind === 'diff' ? (
+                <DiffView
+                  key={activeItem.key}
+                  original={activeItem.original}
+                  modified={activeItem.modified}
+                  language={languageFor(activeItem.path)}
+                />
+              ) : (
+                <div className="empty">Open a file to start editing.</div>
+              )}
+
+              {searchOpen && (
+                <div className="search-panel">
+                  <div
+                    style={{
+                      padding: 10,
+                      display: 'flex',
+                      gap: 8,
+                      borderBottom: '1px solid var(--border)'
                     }}
                   >
-                    ×
-                  </button>
+                    <input
+                      autoFocus
+                      placeholder="Search in project (ripgrep)…"
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') void runSearch(searchQuery)
+                      }}
+                      style={{ flex: 1 }}
+                    />
+                    <button onClick={() => void runSearch(searchQuery)} disabled={searching}>
+                      Search
+                    </button>
+                    <button onClick={() => setSearchOpen(false)}>Close</button>
+                  </div>
+                  <div style={{ flex: 1, overflowY: 'auto' }}>
+                    {searchHits.length === 0 && !searching ? (
+                      <div className="empty">No results.</div>
+                    ) : (
+                      searchHits.map((h, i) => {
+                        const rel = h.file.startsWith(repoPath)
+                          ? h.file.slice(repoPath.length + 1)
+                          : h.file
+                        return (
+                          <div
+                            key={i}
+                            className="hit"
+                            onClick={() => {
+                              setSearchOpen(false)
+                              void openFile(h.file)
+                            }}
+                          >
+                            <span className="file">{rel}</span>
+                            <span className="lineno">:{h.line}</span>
+                            <span>{h.text.trim()}</span>
+                          </div>
+                        )
+                      })
+                    )}
+                  </div>
                 </div>
-              )
-            })}
+              )}
+            </div>
           </div>
-          <div className="editor-host">
-            {activeItem?.kind === 'file' ? (
-              <CodeEditor
-                key={activeItem.key}
-                value={activeItem.content}
-                language={languageFor(activeItem.path)}
-                onChange={(v) =>
-                  setItems((arr) =>
-                    arr.map((f) =>
-                      f.kind === 'file' && f.path === activeItem.path
-                        ? { ...f, content: v, dirty: v !== f.content || f.dirty }
-                        : f
-                    )
-                  )
-                }
-                onSelectionChange={setSelection}
-                onReady={(ed) => {
-                  editorsRef.current.set(activeItem.path, ed)
-                  const saved = viewStatesRef.current[activeItem.path]
-                  if (saved) {
-                    try {
-                      ed.restoreViewState(saved)
-                    } catch {
-                      /* stale viewState — ignore */
-                    }
-                  }
-                  // Snapshot on blur / change so we keep the latest position.
-                  ed.onDidBlurEditorText(() => {
-                    const s = ed.saveViewState()
-                    if (s) viewStatesRef.current[activeItem.path] = s
-                  })
-                }}
-              />
-            ) : activeItem?.kind === 'diff' ? (
-              <DiffView
-                key={activeItem.key}
-                original={activeItem.original}
-                modified={activeItem.modified}
-                language={languageFor(activeItem.path)}
-              />
-            ) : (
-              <div className="empty">Open a file to start editing.</div>
-            )}
 
-            {searchOpen && (
-              <div className="search-panel">
-                <div
-                  style={{
-                    padding: 10,
-                    display: 'flex',
-                    gap: 8,
-                    borderBottom: '1px solid var(--border)'
-                  }}
-                >
-                  <input
-                    autoFocus
-                    placeholder="Search in project (ripgrep)…"
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter') void runSearch(searchQuery)
+          <div style={{ order: 1, flex: '0 0 6px' }}>
+            <Splitter
+              axis={splitterAxis}
+              size={splitterAxis === 'vertical' ? termHeight : termWidth}
+              onSize={splitterAxis === 'vertical' ? setTermHeight : setTermWidth}
+              min={80}
+              max={splitterAxis === 'vertical' ? 1200 : 900}
+              inverse={!terminalFirst}
+              ariaLabel="Resize terminal"
+            />
+          </div>
+
+          <div
+            className="bottom-term"
+            style={{
+              order: terminalFirst ? 0 : 2,
+              flex: `0 0 ${splitterAxis === 'vertical' ? termHeight : termWidth}px`,
+              ...termBorder
+            }}
+          >
+            <div className="bottom-term-header">
+              <span>Terminal</span>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                {shells.length > 1 && (
+                  <select
+                    className="shell-select"
+                    value=""
+                    onChange={(e) => {
+                      if (!e.target.value) return
+                      addTerminalTab(activeColumn.id, e.target.value)
+                      e.currentTarget.value = ''
                     }}
-                    style={{ flex: 1 }}
-                  />
-                  <button onClick={() => void runSearch(searchQuery)} disabled={searching}>
-                    Search
-                  </button>
-                  <button onClick={() => setSearchOpen(false)}>Close</button>
-                </div>
-                <div style={{ flex: 1, overflowY: 'auto' }}>
-                  {searchHits.length === 0 && !searching ? (
-                    <div className="empty">No results.</div>
-                  ) : (
-                    searchHits.map((h, i) => {
-                      const rel = h.file.startsWith(repoPath)
-                        ? h.file.slice(repoPath.length + 1)
-                        : h.file
-                      return (
-                        <div
-                          key={i}
-                          className="hit"
-                          onClick={() => {
-                            setSearchOpen(false)
-                            void openFile(h.file)
-                          }}
-                        >
-                          <span className="file">{rel}</span>
-                          <span className="lineno">:{h.line}</span>
-                          <span>{h.text.trim()}</span>
-                        </div>
-                      )
-                    })
-                  )}
-                </div>
+                    title="Open a new terminal tab with this shell"
+                  >
+                    <option value="">+ shell…</option>
+                    {shells.map((s) => (
+                      <option key={s.path} value={s.path}>
+                        {s.label}
+                      </option>
+                    ))}
+                  </select>
+                )}
+                <button
+                  className="bottom-term-flip"
+                  onClick={() => addTerminalTab(activeColumn.id)}
+                  title="New terminal tab (in focused column)"
+                >
+                  <Plus size={12} strokeWidth={2} />
+                </button>
+                <button
+                  className="bottom-term-flip"
+                  onClick={() => splitRight(activeColumn.id)}
+                  disabled={terminals.columns.length >= MAX_COLUMNS}
+                  title={
+                    terminals.columns.length >= MAX_COLUMNS
+                      ? `Max ${MAX_COLUMNS} columns`
+                      : 'Split right — add another terminal pane'
+                  }
+                >
+                  <SplitSquareHorizontal size={12} strokeWidth={2} />
+                </button>
+                <button
+                  className="bottom-term-flip"
+                  onClick={() => setTermPos(nextTermPos)}
+                  title={`Move terminal to ${nextTermPos}`}
+                >
+                  <NextTermPosIcon size={12} strokeWidth={2} />
+                </button>
               </div>
-            )}
+            </div>
+            <div className="term-cols" style={{ flex: 1, minHeight: 0, display: 'flex' }}>
+              {terminals.columns.map((col, idx) => {
+                const isLast = idx === terminals.columns.length - 1
+                const flexBasis = `${(col.width / terminals.columns.reduce((s, c) => s + c.width, 0)) * 100}%`
+                return (
+                  <TerminalColumnView
+                    key={col.id}
+                    column={col}
+                    focused={col.id === terminals.activeColumnId}
+                    repoPath={repoPath}
+                    visible={visible}
+                    termPos={termPos}
+                    flexBasis={flexBasis}
+                    hasResizer={!isLast}
+                    onResize={(deltaFraction) => resizeColumn(col.id, deltaFraction)}
+                    onFocus={() => focusColumn(col.id)}
+                    onAddTab={() => addTerminalTab(col.id)}
+                    onSelectTab={(tabId) => setActiveTerminalTab(col.id, tabId)}
+                    onCloseTab={(tabId) => closeTerminalTab(col.id, tabId)}
+                  />
+                )
+              })}
+            </div>
           </div>
         </div>
 
@@ -855,97 +1019,6 @@ export default function ProjectView({ tab, visible }: Props): React.JSX.Element 
               </div>
             )}
           </div>
-        </div>
-
-        <div className="bottom-term" style={{ gridColumn: 3, gridRow: termAtBottom ? 3 : 1 }}>
-          <div className="bottom-term-header">
-            <span>Terminal</span>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-              {shells.length > 1 && (
-                <select
-                  className="shell-select"
-                  value=""
-                  onChange={(e) => {
-                    if (!e.target.value) return
-                    addTerminalTab(activeColumn.id, e.target.value)
-                    e.currentTarget.value = ''
-                  }}
-                  title="Open a new terminal tab with this shell"
-                >
-                  <option value="">+ shell…</option>
-                  {shells.map((s) => (
-                    <option key={s.path} value={s.path}>
-                      {s.label}
-                    </option>
-                  ))}
-                </select>
-              )}
-              <button
-                className="bottom-term-flip"
-                onClick={() => addTerminalTab(activeColumn.id)}
-                title="New terminal tab (in focused column)"
-              >
-                <Plus size={12} strokeWidth={2} />
-              </button>
-              <button
-                className="bottom-term-flip"
-                onClick={() => splitRight(activeColumn.id)}
-                disabled={terminals.columns.length >= MAX_COLUMNS}
-                title={
-                  terminals.columns.length >= MAX_COLUMNS
-                    ? `Max ${MAX_COLUMNS} columns`
-                    : 'Split right — add another terminal pane'
-                }
-              >
-                <SplitSquareHorizontal size={12} strokeWidth={2} />
-              </button>
-              <button
-                className="bottom-term-flip"
-                onClick={() => setTermAtBottom((v) => !v)}
-                title={termAtBottom ? 'Move terminal to top' : 'Move terminal to bottom'}
-              >
-                {termAtBottom ? (
-                  <PanelTop size={12} strokeWidth={2} />
-                ) : (
-                  <PanelBottom size={12} strokeWidth={2} />
-                )}
-              </button>
-            </div>
-          </div>
-          <div className="term-cols" style={{ flex: 1, minHeight: 0, display: 'flex' }}>
-            {terminals.columns.map((col, idx) => {
-              const isLast = idx === terminals.columns.length - 1
-              const flexBasis = `${(col.width / terminals.columns.reduce((s, c) => s + c.width, 0)) * 100}%`
-              return (
-                <TerminalColumnView
-                  key={col.id}
-                  column={col}
-                  focused={col.id === terminals.activeColumnId}
-                  repoPath={repoPath}
-                  visible={visible}
-                  termAtBottom={termAtBottom}
-                  flexBasis={flexBasis}
-                  hasResizer={!isLast}
-                  onResize={(deltaFraction) => resizeColumn(col.id, deltaFraction)}
-                  onFocus={() => focusColumn(col.id)}
-                  onAddTab={() => addTerminalTab(col.id)}
-                  onSelectTab={(tabId) => setActiveTerminalTab(col.id, tabId)}
-                  onCloseTab={(tabId) => closeTerminalTab(col.id, tabId)}
-                />
-              )
-            })}
-          </div>
-        </div>
-        <div style={{ gridColumn: 3, gridRow: 2 }}>
-          <Splitter
-            axis="vertical"
-            size={termHeight}
-            onSize={setTermHeight}
-            min={80}
-            max={1200}
-            inverse={termAtBottom}
-            ariaLabel="Resize terminal"
-          />
         </div>
       </div>
       {logTail && (
@@ -1031,7 +1104,7 @@ interface TerminalColumnProps {
   focused: boolean
   repoPath: string
   visible: boolean
-  termAtBottom: boolean
+  termPos: TermPos
   flexBasis: string
   hasResizer: boolean
   onResize: (deltaFraction: number) => void
@@ -1046,7 +1119,7 @@ function TerminalColumnView({
   focused,
   repoPath,
   visible,
-  termAtBottom,
+  termPos,
   flexBasis,
   hasResizer,
   onResize,
@@ -1151,7 +1224,7 @@ function TerminalColumnView({
                 <TerminalPane
                   tab={paneTab}
                   visible={visible && isActive}
-                  resizeKey={`${termAtBottom ? 'b' : 't'}:${flexBasis}`}
+                  resizeKey={`${termPos}:${flexBasis}`}
                 />
               </div>
             )

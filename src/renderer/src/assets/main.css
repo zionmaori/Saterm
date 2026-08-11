@@ -1862,9 +1862,11 @@ html.theme-system .titlebar-meta-logo {
 .project {
   flex: 1;
   display: grid;
-  /* Columns: tree · v-splitter · main · v-splitter · vcs.
-     Rows:    terminal · h-splitter · editor.
-     The column/row tracks are set inline so JS can resize them. */
+  /* Columns: tree · v-splitter · work-area · v-splitter · vcs. Single row.
+     work-area is itself a flex box (editor + splitter + terminal) whose
+     direction/order flips for top/bottom/left/right terminal placement.
+     The column tracks and work-area direction are set inline so JS can
+     resize/reposition them. */
   min-height: 0;
   min-width: 0;
 }
@@ -1908,7 +1910,7 @@ html.theme-system .titlebar-meta-logo {
 
 .project .file-tree {
   grid-column: 1;
-  grid-row: 1 / span 3;
+  grid-row: 1;
   border-right: 1px solid var(--border);
   background: var(--bg-2);
   overflow-y: auto;
@@ -1918,9 +1920,8 @@ html.theme-system .titlebar-meta-logo {
 }
 
 .project .editor-wrap {
-  /* Row 3, column 3 — terminal in row 1, h-splitter in row 2. */
-  grid-row: 3;
-  grid-column: 3;
+  /* Positioned via flex `order` inside .work-area, not grid placement — see
+     work-area's inline style in ProjectView.tsx. */
   display: flex;
   flex-direction: column;
   min-width: 0;
@@ -1929,7 +1930,7 @@ html.theme-system .titlebar-meta-logo {
 
 .project .vcs-panel {
   grid-column: 5;
-  grid-row: 1 / span 3;
+  grid-row: 1;
   border-left: 1px solid var(--border);
   background: var(--bg-2);
   min-height: 0;
@@ -2169,9 +2170,10 @@ html.theme-system .titlebar-meta-logo {
 }
 
 .project .bottom-term {
-  border-bottom: 1px solid var(--border);
+  /* Border edge facing the editor is set inline (varies with terminal position). */
   display: flex;
   flex-direction: column;
+  min-width: 0;
   min-height: 0;
 }
 

@@ -1,5 +1,19 @@
 import { spawnSync } from 'child_process'
-import { existsSync } from 'fs'
+import { existsSync, readFileSync, unlinkSync } from 'fs'
+import { tmpdir } from 'os'
+import { join } from 'path'
+import { randomUUID } from 'crypto'
+
+function parseNullDelimitedEnv(raw: string): Record<string, string> {
+  const out: Record<string, string> = {}
+  for (const entry of raw.split('\0')) {
+    if (!entry) continue
+    const eq = entry.indexOf('=')
+    if (eq <= 0) continue
+    out[entry.slice(0, eq)] = entry.slice(eq + 1)
+  }
+  return out
+}
 
 /**
  * Read an environment variable from the user's login shell.
@@ -26,59 +40,76 @@ function unixShell(): string {
 }
 
 function loadUnixEnv(): Record<string, string> {
-  const out: Record<string, string> = {}
   const shell = unixShell()
+  const outFile = join(tmpdir(), `saterm-env-${randomUUID()}.txt`)
   try {
     // -i -l so .zshrc + .zprofile both run; `env -0` is null-delimited so
     // values with newlines don't corrupt the parse. Timeout is generous
     // because noisy zsh init (nvm, gitstatus, plugin managers) can take
     // several seconds on Electron cold start.
-    const res = spawnSync(shell, ['-i', '-l', '-c', 'env -0'], {
-      encoding: 'utf8',
+    //
+    // Output is redirected to a real file rather than captured via a pipe
+    // (stdio 'ignore'), and stdin is ignored too. A noisy rc file (nvm,
+    // gitstatusd, powerlevel10k instant-prompt, direnv, ...) can fork a
+    // background helper that inherits our stdout fd; if we captured output
+    // over a pipe, Node would block reading it until EVERY holder of that fd
+    // closes — which can hang indefinitely, well past `timeout`, since the
+    // timeout only kills the shell we're tracking, not its orphaned
+    // grandchildren. A real file has no such lingering-writer problem, so a
+    // killed-on-timeout shell can't wedge the whole main process (which is
+    // what made every main-process feature — git status included — get
+    // permanently stuck "loading" the first time this probe hung).
+    spawnSync(shell, ['-i', '-l', '-c', `env -0 > '${outFile}'`], {
       timeout: 8000,
-      env: process.env
+      env: process.env,
+      stdio: ['ignore', 'ignore', 'ignore']
     })
-    if (res.status !== 0 || !res.stdout) return out
-    for (const entry of res.stdout.split('\0')) {
-      if (!entry) continue
-      const eq = entry.indexOf('=')
-      if (eq <= 0) continue
-      out[entry.slice(0, eq)] = entry.slice(eq + 1)
-    }
+    if (!existsSync(outFile)) return {}
+    return parseNullDelimitedEnv(readFileSync(outFile, 'utf8'))
   } catch {
-    /* leave empty on failure */
+    return {}
+  } finally {
+    try {
+      unlinkSync(outFile)
+    } catch {
+      /* file was never created */
+    }
   }
-  return out
 }
 
 function loadWindowsEnv(): Record<string, string> {
-  const out: Record<string, string> = {}
   // Prefer modern PowerShell ("pwsh"); fall back to Windows PowerShell.
   // We DO want $PROFILE to run, so omit -NoProfile. The script dumps env vars
-  // as "KEY=value" lines joined by NUL so newline values can't corrupt parse.
+  // as "KEY=value" entries joined by NUL so newline values can't corrupt
+  // parse, written to a real file (see loadUnixEnv for why: a pipe can hang
+  // past `timeout` if $PROFILE spawns a background process that inherits
+  // our stdout handle).
+  const outFile = join(tmpdir(), `saterm-env-${randomUUID()}.txt`)
   const script =
-    'Get-ChildItem env: | ForEach-Object { "$($_.Name)=$($_.Value)" } | Join-String -Separator [char]0 | Write-Output'
+    `Get-ChildItem env: | ForEach-Object { "$($_.Name)=$($_.Value)" } | ` +
+    `Join-String -Separator ([char]0) | Set-Content -NoNewline -Path '${outFile}'`
   for (const exe of ['pwsh.exe', 'powershell.exe']) {
     try {
-      const res = spawnSync(exe, ['-NoLogo', '-Command', script], {
-        encoding: 'utf8',
+      spawnSync(exe, ['-NoLogo', '-Command', script], {
         timeout: 8000,
         env: process.env,
-        windowsHide: true
+        windowsHide: true,
+        stdio: ['ignore', 'ignore', 'ignore']
       })
-      if (res.status !== 0 || !res.stdout) continue
-      for (const entry of res.stdout.split('\0')) {
-        if (!entry) continue
-        const eq = entry.indexOf('=')
-        if (eq <= 0) continue
-        out[entry.slice(0, eq).trim()] = entry.slice(eq + 1).replace(/\r?\n$/, '')
-      }
+      if (!existsSync(outFile)) continue
+      const out = parseNullDelimitedEnv(readFileSync(outFile, 'utf8'))
       if (Object.keys(out).length > 0) return out
     } catch {
       /* try the next exe */
+    } finally {
+      try {
+        unlinkSync(outFile)
+      } catch {
+        /* file was never created */
+      }
     }
   }
-  return out
+  return {}
 }
 
 function loadShellEnv(): Record<string, string> {

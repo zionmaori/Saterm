@@ -1,4 +1,4 @@
-import { app, dialog, ipcMain, shell } from 'electron'
+import { app, dialog, ipcMain, shell, BrowserWindow } from 'electron'
 import { homedir } from 'os'
 import { join } from 'path'
 import { existsSync, readdirSync, statSync } from 'fs'
@@ -36,6 +36,7 @@ import { getProjectsRoot, setProjectsRoot } from './settings'
 import { clearHostSecrets, getSshSecret, setSshSecret, deleteSshSecret } from './keychain'
 import { connectSsh, writeSsh, resizeSsh, closeSsh, isSshSession, resolveAuthPrompt } from './ssh'
 import { spawnPty, writePty, resizePty, closePty, isPtySession, detectShells } from './pty'
+import { getMainWindow, windowById, createSecondaryWindow, confirmWindowClose } from './windows'
 import {
   addProject,
   listProjects,
@@ -138,6 +139,34 @@ export function registerIpcHandlers(): void {
   ipcMain.handle('app:version', () => app.getVersion())
   ipcMain.handle('app:platform', () => process.platform)
 
+  // Windows — multi-window tab tear-off (TabBar.tsx drag out / drag between
+  // windows). `window:info` is answered synchronously so it's available
+  // before the renderer's first `persistLayout()` call — no async race for
+  // whether this window is the one allowed to write the shared layout key.
+  ipcMain.on('window:info', (event) => {
+    const win = BrowserWindow.fromWebContents(event.sender)
+    event.returnValue = {
+      id: win?.id ?? -1,
+      isPrimary: !!win && win === getMainWindow()
+    }
+  })
+  ipcMain.handle(
+    'window:createFromDrop',
+    (_e, args: { screenX: number; screenY: number; tab: unknown }) => {
+      const win = createSecondaryWindow(args.screenX, args.screenY, (w) => {
+        w.webContents.send('tab:incoming', { tab: args.tab, activate: true })
+      })
+      return win.id
+    }
+  )
+  ipcMain.on('window:tabAccepted', (_e, args: { sourceWindowId: number; tabId: string }) => {
+    windowById(args.sourceWindowId)?.webContents.send('tab:removed-remote', args.tabId)
+  })
+  ipcMain.on('window:confirmClose', (event) => {
+    const win = BrowserWindow.fromWebContents(event.sender)
+    if (win) confirmWindowClose(win.id)
+  })
+
   ipcMain.handle('kv:get', (_e, key: string) => kvGet(key))
   ipcMain.handle('kv:set', (_e, key: string, value: string) => kvSet(key, value))
 
@@ -221,6 +250,14 @@ export function registerIpcHandlers(): void {
   ipcMain.handle('projects:detectVcs', (_e, path: string) => detectVcs(path))
 
   // FS
+  ipcMain.handle('fs:pickFile', async () => {
+    const r = await dialog.showOpenDialog({
+      title: 'Open File',
+      properties: ['openFile', 'multiSelections']
+    })
+    if (r.canceled) return []
+    return r.filePaths
+  })
   ipcMain.handle('fs:readDir', (_e, path: string) => readDir(path))
   ipcMain.handle('fs:readText', (_e, path: string) => readTextFile(path))
   ipcMain.handle('fs:readBinary', (_e, path: string) => readBinaryFile(path))
@@ -347,9 +384,7 @@ export function registerIpcHandlers(): void {
   ipcMain.handle('tasks:list', (_e, projectId: number | null | undefined) =>
     listTasks(projectId).map(rowToTask)
   )
-  ipcMain.handle('tasks:create', (_e, input: TaskCreateInput) =>
-    rowToTask(createTask(input))
-  )
+  ipcMain.handle('tasks:create', (_e, input: TaskCreateInput) => rowToTask(createTask(input)))
   ipcMain.handle('tasks:update', (_e, id: number, patch: TaskPatch) =>
     rowToTask(updateTask(id, patch))
   )

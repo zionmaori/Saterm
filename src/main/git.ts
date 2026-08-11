@@ -22,9 +22,40 @@ export interface GitStatus {
 // that isn't there), no GPG_TTY, and a minimal PATH that misses brew's `gpg`
 // (signed commits fail). We inject the login-shell env so git can reach
 // ssh-agent, gpg, and any hook interpreters the repo relies on.
+//
+// simple-git's built-in block-unsafe-operations-plugin refuses to spawn git
+// at all if it sees certain env vars set (PAGER, EDITOR, GIT_SSH_COMMAND,
+// ...) — it's guarding against config/env injection from untrusted repos.
+// A user's login shell commonly sets PAGER/EDITOR for interactive use, but
+// we only ever run git programmatically here and never page or edit, so we
+// drop those specific vars rather than disabling the safety check.
+const UNSAFE_ENV_KEYS = new Set([
+  'pager',
+  'editor',
+  'prefix',
+  'git_pager',
+  'git_editor',
+  'git_sequence_editor',
+  'git_askpass',
+  'ssh_askpass',
+  'git_ssh',
+  'git_ssh_command',
+  'git_proxy_command',
+  'git_template_dir',
+  'git_external_diff',
+  'git_exec_path',
+  'git_config',
+  'git_config_global',
+  'git_config_system',
+  'git_config_count'
+])
+
 const g = (repoPath: string): SimpleGit => {
   const git = simpleGit({ baseDir: repoPath })
-  for (const [k, v] of Object.entries(getShellEnv())) git.env(k, v)
+  for (const [k, v] of Object.entries(getShellEnv())) {
+    if (UNSAFE_ENV_KEYS.has(k.toLowerCase())) continue
+    git.env(k, v)
+  }
   return git
 }
 

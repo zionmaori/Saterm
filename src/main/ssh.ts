@@ -143,6 +143,13 @@ async function openJumpChannel(
 }
 
 export async function connectSsh(args: SshConnectArgs): Promise<void> {
+  // A tab whose session already exists (e.g. it was just moved to another
+  // window and its TerminalPane remounted) must not dial a second connection —
+  // the original would leak, orphaned and unkillable via closeSsh. Treat this
+  // as a no-op: the caller just starts receiving the existing session's
+  // already-broadcast term:data events.
+  if (sessions.has(args.sessionId)) return
+
   const host = getHost(args.hostId)
   if (!host) throw new Error(`Unknown host id ${args.hostId}`)
   const sessionId = args.sessionId

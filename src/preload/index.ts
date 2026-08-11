@@ -50,10 +50,37 @@ const on = <T>(channel: string, fn: Listener<T>): (() => void) => {
   return () => ipcRenderer.removeListener(channel, handler)
 }
 
+interface WindowInfo {
+  id: number
+  isPrimary: boolean
+}
+
+/** Tab payload is opaque here — main/preload never inspect its shape, they
+ *  just relay it between renderers. The renderer casts it back to its own
+ *  `Tab` type (defined in store/app.ts, not shared across the preload
+ *  boundary). */
+interface IncomingTabEvent {
+  tab: unknown
+  activate: boolean
+}
+
 const api = {
   app: {
     version: (): Promise<string> => ipcRenderer.invoke('app:version'),
     platform: (): Promise<NodeJS.Platform> => ipcRenderer.invoke('app:platform')
+  },
+  window: {
+    // Sync so it's available before the renderer's first persistLayout()
+    // call — see the window:info handler in ipc.ts.
+    info: (): WindowInfo => ipcRenderer.sendSync('window:info') as WindowInfo,
+    createFromDrop: (args: { screenX: number; screenY: number; tab: unknown }): Promise<number> =>
+      ipcRenderer.invoke('window:createFromDrop', args),
+    tabAccepted: (args: { sourceWindowId: number; tabId: string }): void =>
+      ipcRenderer.send('window:tabAccepted', args),
+    confirmClose: (): void => ipcRenderer.send('window:confirmClose'),
+    onIncomingTab: (fn: Listener<IncomingTabEvent>) => on('tab:incoming', fn),
+    onRemoteRemove: (fn: Listener<string>) => on('tab:removed-remote', fn),
+    onRequestClose: (fn: Listener<void>) => on('window:request-close', fn)
   },
   shell: {
     showItem: (path: string): Promise<void> => ipcRenderer.invoke('shell:showItem', path)
@@ -138,6 +165,7 @@ const api = {
     detectVcs: (path: string): Promise<VcsKind> => ipcRenderer.invoke('projects:detectVcs', path)
   },
   fs: {
+    pickFile: (): Promise<string[]> => ipcRenderer.invoke('fs:pickFile'),
     readDir: (path: string): Promise<{ name: string; path: string; isDir: boolean }[]> =>
       ipcRenderer.invoke('fs:readDir', path),
     readText: (path: string): Promise<string> => ipcRenderer.invoke('fs:readText', path),
@@ -288,9 +316,7 @@ const api = {
     status: (): Promise<OnboardingStatus> => ipcRenderer.invoke('onboarding:status'),
     pickProjectsRoot: (): Promise<{ path: string; childCount: number } | null> =>
       ipcRenderer.invoke('onboarding:pickProjectsRoot'),
-    setProjectsRoot: (
-      path: string
-    ): Promise<{ path: string; childCount: number }> =>
+    setProjectsRoot: (path: string): Promise<{ path: string; childCount: number }> =>
       ipcRenderer.invoke('onboarding:setProjectsRoot', path),
     importSsh: (input: OnboardingImportSshInput): Promise<OnboardingImportSshResult> =>
       ipcRenderer.invoke('onboarding:importSsh', input),

@@ -72,6 +72,13 @@ interface AppState {
   openProjectTab: (project: Project) => Tab
   openFileTab: (filePath: string) => Tab
   closeTab: (id: SessionId) => void
+  /** Removes a tab from this window's list without closing its underlying
+   *  session — used when the tab is being handed off to another window
+   *  (tear-off / cross-window drag), not actually closed. */
+  removeTabWithoutClosing: (id: SessionId) => void
+  /** Adds a tab handed off from another window (already-serialized Tab,
+   *  session unaffected — it was never closed on the sending side). */
+  addTransferredTab: (tab: Tab, activate: boolean) => void
   setActiveTab: (id: SessionId) => void
   renameTab: (id: SessionId, title: string) => void
   reorderTab: (from: number, to: number) => void
@@ -209,6 +216,27 @@ export const useApp = create<AppState>((set, get) => ({
     void get().persistLayout()
   },
 
+  removeTabWithoutClosing: (id) => {
+    set((s) => {
+      const idx = s.tabs.findIndex((t) => t.id === id)
+      const tabs = s.tabs.filter((t) => t.id !== id)
+      const wasActive = s.activeTabId === id
+      const activeTabId = wasActive
+        ? (tabs[Math.max(0, idx - 1)]?.id ?? tabs[0]?.id ?? null)
+        : s.activeTabId
+      return { tabs, activeTabId }
+    })
+    void get().persistLayout()
+  },
+
+  addTransferredTab: (tab, activate) => {
+    set((s) => ({
+      tabs: [...s.tabs, tab],
+      activeTabId: activate ? tab.id : s.activeTabId
+    }))
+    void get().persistLayout()
+  },
+
   setActiveTab: (id) => {
     set({ activeTabId: id })
     void get().persistLayout()
@@ -230,6 +258,10 @@ export const useApp = create<AppState>((set, get) => ({
   },
 
   persistLayout: async () => {
+    // Only the primary window's tab list round-trips through the shared
+    // 'layout' kv key — secondary (tear-off) windows keep their tabs purely
+    // in-memory so they can't race the primary's save on every mutation.
+    if (!window.api.window.info().isPrimary) return
     const { tabs, activeTabId } = get()
     const layout: PersistedLayout = {
       tabs: tabs.map<PersistedTab>((t) => ({
@@ -240,7 +272,8 @@ export const useApp = create<AppState>((set, get) => ({
         projectId: t.projectId,
         cwd: t.cwd,
         filePath: t.filePath,
-        fileContent: t.fileContent
+        fileContent: t.fileContent,
+        initialCommand: t.initialCommand
       })),
       activeTabId
     }
@@ -266,7 +299,8 @@ export const useApp = create<AppState>((set, get) => ({
         projectId: t.projectId,
         cwd: t.cwd,
         filePath: t.filePath,
-        fileContent: t.fileContent
+        fileContent: t.fileContent,
+        initialCommand: t.initialCommand
       }))
     const awsRegions: Record<string, string | null> = {}
     for (const p of awsProfiles) awsRegions[p.name] = p.region

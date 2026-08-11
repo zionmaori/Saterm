@@ -1,5 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
-import { Terminal } from '@xterm/xterm'
+import { Terminal, type ITheme } from '@xterm/xterm'
 import { FitAddon } from '@xterm/addon-fit'
 import { WebLinksAddon } from '@xterm/addon-web-links'
 import { SearchAddon } from '@xterm/addon-search'
@@ -12,11 +12,12 @@ interface Props {
   resizeKey?: number | string
 }
 
-const THEME = {
-  background: '#0a0c10',
-  foreground: '#e6edf3',
+// Mirrors the dark palette in tokens.css (:root).
+const THEME_DARK: ITheme = {
+  background: '#06070d',
+  foreground: '#e8ecff',
   cursor: '#7ee2b8',
-  cursorAccent: '#0a0c10',
+  cursorAccent: '#06070d',
   selectionBackground: '#264f78',
   black: '#484f58',
   red: '#ff7b72',
@@ -36,6 +37,44 @@ const THEME = {
   brightWhite: '#f0f6fc'
 }
 
+// Mirrors the light palette in tokens.css (html.theme-light).
+const THEME_LIGHT: ITheme = {
+  background: '#eef3fb',
+  foreground: '#1a2140',
+  cursor: '#0a75d1',
+  cursorAccent: '#eef3fb',
+  selectionBackground: 'rgba(10, 117, 209, 0.18)',
+  black: '#3a4363',
+  red: '#c62d3c',
+  green: '#1a7f37',
+  yellow: '#9a6700',
+  blue: '#0a75d1',
+  magenta: '#7a4bc9',
+  cyan: '#0a7ea3',
+  white: '#4a5578',
+  brightBlack: '#6f7a9a',
+  brightRed: '#e0374a',
+  brightGreen: '#2ea043',
+  brightYellow: '#bf8700',
+  brightBlue: '#3b8fe0',
+  brightMagenta: '#9068d6',
+  brightCyan: '#1596bd',
+  brightWhite: '#1a2140'
+}
+
+function isLightThemeActive(): boolean {
+  const html = document.documentElement
+  if (html.classList.contains('theme-light')) return true
+  if (html.classList.contains('theme-system')) {
+    return window.matchMedia('(prefers-color-scheme: light)').matches
+  }
+  return false
+}
+
+function currentXtermTheme(): ITheme {
+  return isLightThemeActive() ? THEME_LIGHT : THEME_DARK
+}
+
 export default function TerminalPane({ tab, visible, resizeKey }: Props): React.JSX.Element {
   const hostRef = useRef<HTMLDivElement>(null)
   const termRef = useRef<Terminal | null>(null)
@@ -49,7 +88,7 @@ export default function TerminalPane({ tab, visible, resizeKey }: Props): React.
   useLayoutEffect(() => {
     if (!hostRef.current || termRef.current) return
     const term = new Terminal({
-      theme: THEME,
+      theme: currentXtermTheme(),
       fontFamily: 'ui-monospace, SFMono-Regular, "JetBrains Mono", Menlo, monospace',
       fontSize: 13,
       cursorBlink: true,
@@ -170,6 +209,22 @@ export default function TerminalPane({ tab, visible, resizeKey }: Props): React.
       g.__termionTerms?.delete(tab.id)
     }
   }, [tab.id, tab.kind, tab.hostId, tab.cwd, sessionId])
+
+  // Keep xterm's palette in sync with the app theme (dark/light/system),
+  // including live OS appearance changes while "system" is selected.
+  useEffect(() => {
+    const applyTheme = (): void => {
+      if (termRef.current) termRef.current.options.theme = currentXtermTheme()
+    }
+    const observer = new MutationObserver(applyTheme)
+    observer.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] })
+    const media = window.matchMedia('(prefers-color-scheme: light)')
+    media.addEventListener('change', applyTheme)
+    return () => {
+      observer.disconnect()
+      media.removeEventListener('change', applyTheme)
+    }
+  }, [])
 
   // Re-fit when the tab becomes visible (xterm needs a real layout).
   useEffect(() => {

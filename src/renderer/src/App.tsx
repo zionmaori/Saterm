@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { useApp } from './store/app'
+import { useApp, type Tab } from './store/app'
 import { useAi } from './store/ai'
 import Sidebar from './components/Sidebar'
 import TabBar from './components/TabBar'
@@ -40,6 +40,8 @@ export default function App(): React.JSX.Element {
   const closeTab = useApp((s) => s.closeTab)
   const setActiveTab = useApp((s) => s.setActiveTab)
   const openFileTab = useApp((s) => s.openFileTab)
+  const addTransferredTab = useApp((s) => s.addTransferredTab)
+  const removeTabWithoutClosing = useApp((s) => s.removeTabWithoutClosing)
 
   const [authQueue, setAuthQueue] = useState<AuthPromptEvent[]>([])
   const [paletteOpen, setPaletteOpen] = useState(false)
@@ -106,6 +108,28 @@ export default function App(): React.JSX.Element {
     return off
   }, [openFileTab])
 
+  // Multi-window tab tear-off (TabBar.tsx drag-out / drag-between-windows).
+  useEffect(() => {
+    const offIncoming = window.api.window.onIncomingTab(({ tab, activate }) => {
+      addTransferredTab(tab as Tab, activate)
+    })
+    const offRemoved = window.api.window.onRemoteRemove((tabId) => {
+      removeTabWithoutClosing(tabId)
+    })
+    // Main asks before actually closing this window so already-open tabs get
+    // their pty/ssh sessions closed properly (closeTab's existing cleanup)
+    // instead of leaking orphaned processes.
+    const offRequestClose = window.api.window.onRequestClose(() => {
+      for (const t of useApp.getState().tabs) closeTab(t.id)
+      window.api.window.confirmClose()
+    })
+    return () => {
+      offIncoming()
+      offRemoved()
+      offRequestClose()
+    }
+  }, [addTransferredTab, removeTabWithoutClosing, closeTab])
+
   useEffect(() => {
     const handler = (e: KeyboardEvent): void => {
       const meta = e.metaKey || e.ctrlKey
@@ -115,6 +139,11 @@ export default function App(): React.JSX.Element {
       } else if (meta && e.key.toLowerCase() === 'p' && !e.shiftKey) {
         e.preventDefault()
         setQuickOpenOpen(true)
+      } else if (meta && e.key.toLowerCase() === 'o') {
+        e.preventDefault()
+        void window.api.fs.pickFile().then((paths) => {
+          for (const p of paths) useApp.getState().openFileTab(p)
+        })
       } else if (meta && e.key.toLowerCase() === 'j') {
         e.preventDefault()
         setTerminalCopilotOpen((v) => !v)

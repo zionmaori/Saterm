@@ -5,6 +5,7 @@ import { BrowserWindow } from 'electron'
 import { readFileSync } from 'fs'
 import { homedir } from 'os'
 import { join } from 'path'
+import keytar from 'keytar'
 import { readEnv } from './shellEnv'
 import {
   getAiApiKey,
@@ -279,16 +280,35 @@ interface ClaudeCodeCredentials {
   claudeAiOauth?: { accessToken?: string; expiresAt?: number }
 }
 
-export async function signInWithClaudeCode(): Promise<AiStatus> {
+/** Recent Claude Code CLI versions on macOS no longer write
+ *  ~/.claude/.credentials.json — they store the OAuth token in the login
+ *  Keychain instead (service "Claude Code-credentials"), which is why
+ *  `claude` working fine in a terminal doesn't mean the file exists. Try the
+ *  file first (still how Linux/older CLI versions store it), then fall back
+ *  to the Keychain entry before giving up. */
+async function readClaudeCodeCredentials(): Promise<ClaudeCodeCredentials> {
   const credPath = join(homedir(), '.claude', '.credentials.json')
-  let creds: ClaudeCodeCredentials
   try {
-    creds = JSON.parse(readFileSync(credPath, 'utf8')) as ClaudeCodeCredentials
+    return JSON.parse(readFileSync(credPath, 'utf8')) as ClaudeCodeCredentials
   } catch {
-    throw new Error(
-      'Claude Code credentials not found. Run `claude` in a terminal and sign in first.'
-    )
+    /* fall through to the Keychain */
   }
+  if (process.platform === 'darwin') {
+    try {
+      const entries = await keytar.findCredentials('Claude Code-credentials')
+      const raw = entries[0]?.password
+      if (raw) return JSON.parse(raw) as ClaudeCodeCredentials
+    } catch {
+      /* Keychain probe failed — fall through to the error below */
+    }
+  }
+  throw new Error(
+    'Claude Code credentials not found. Run `claude` in a terminal and sign in first.'
+  )
+}
+
+export async function signInWithClaudeCode(): Promise<AiStatus> {
+  const creds = await readClaudeCodeCredentials()
   const token = creds.claudeAiOauth?.accessToken
   const expiresAt = creds.claudeAiOauth?.expiresAt
   if (!token)

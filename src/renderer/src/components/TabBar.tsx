@@ -39,10 +39,14 @@ export default function TabBar(): React.JSX.Element {
   const closeTab = useApp((s) => s.closeTab)
   const openLocalTab = useApp((s) => s.openLocalTab)
   const reorderTab = useApp((s) => s.reorderTab)
+  const removeTabWithoutClosing = useApp((s) => s.removeTabWithoutClosing)
+  const addTransferredTab = useApp((s) => s.addTransferredTab)
 
   const [menu, setMenu] = useState<CtxMenuState | null>(null)
   const [drag, setDrag] = useState<DragState | null>(null)
   const menuRef = useRef<HTMLDivElement | null>(null)
+  // Computed once — a window's own id never changes for its lifetime.
+  const [ownWindowId] = useState(() => window.api.window.info().id)
 
   // Dismiss context menu on outside click or Escape.
   useEffect(() => {
@@ -92,6 +96,14 @@ export default function TabBar(): React.JSX.Element {
     e.dataTransfer.effectAllowed = 'move'
     // Firefox requires some payload for the drag to actually start.
     e.dataTransfer.setData('text/plain', String(index))
+    // Cross-window payload — every Saterm window runs this same component,
+    // so a tab bar in ANOTHER window can recognize and accept this drag via
+    // its own onDrop below. Reading this back out only works at drop time
+    // (HTML5 DnD restricts getData during dragover for security reasons).
+    e.dataTransfer.setData(
+      'application/x-saterm-tab',
+      JSON.stringify({ tab: tabs[index], sourceWindowId: ownWindowId })
+    )
     setDrag({ fromIndex: index, overIndex: null, after: false })
   }
 
@@ -106,6 +118,25 @@ export default function TabBar(): React.JSX.Element {
 
   const onDrop = (e: React.DragEvent, index: number): void => {
     e.preventDefault()
+    // Cross-window drop: this bar didn't originate the drag (local `drag`
+    // state is null here, or belongs to a different tab entirely), so check
+    // the payload's source window before falling back to same-window reorder
+    // below. Always appends + activates — no cross-window insertion preview
+    // in v1, matching TabBar's plan-file scope.
+    const raw = e.dataTransfer.getData('application/x-saterm-tab')
+    if (raw) {
+      try {
+        const { tab, sourceWindowId } = JSON.parse(raw) as { tab: Tab; sourceWindowId: number }
+        if (sourceWindowId !== ownWindowId) {
+          addTransferredTab(tab, true)
+          window.api.window.tabAccepted({ sourceWindowId, tabId: tab.id })
+          setDrag(null)
+          return
+        }
+      } catch {
+        /* not a tab payload — ignore, fall through */
+      }
+    }
     if (!drag) return
     let target = index + (drag.after ? 1 : 0)
     // Same-slot no-op (dropping just before/after itself).
@@ -114,7 +145,21 @@ export default function TabBar(): React.JSX.Element {
     setDrag(null)
   }
 
-  const onDragEnd = (): void => setDrag(null)
+  const onDragEnd = (e: React.DragEvent): void => {
+    const fromIndex = drag?.fromIndex
+    setDrag(null)
+    // dropEffect !== 'none' means either the same-window reorder above
+    // already handled it, or a foreign window's onDrop accepted it (it will
+    // message back via tab:removed-remote to remove it here). Only
+    // 'none' — nothing anywhere accepted the drop — means tear-off: nobody
+    // wanted it, so spin up a new window and keep it there.
+    if (fromIndex === undefined || e.dataTransfer.dropEffect !== 'none') return
+    const tab = tabs[fromIndex]
+    if (!tab) return
+    void window.api.window
+      .createFromDrop({ screenX: e.screenX, screenY: e.screenY, tab })
+      .then(() => removeTabWithoutClosing(tab.id))
+  }
 
   const activeMenuTabIndex = menu ? tabs.findIndex((t) => t.id === menu.tabId) : -1
   const hasTabsToRight = activeMenuTabIndex >= 0 && activeMenuTabIndex < tabs.length - 1

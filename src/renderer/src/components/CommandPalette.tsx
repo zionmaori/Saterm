@@ -28,6 +28,7 @@ export default function CommandPalette({
   const openSshTab = useApp((s) => s.openSshTab)
   const openProjectTab = useApp((s) => s.openProjectTab)
   const openLocalTab = useApp((s) => s.openLocalTab)
+  const openFileTab = useApp((s) => s.openFileTab)
   const refreshHosts = useApp((s) => s.refreshHosts)
   const refreshProjects = useApp((s) => s.refreshProjects)
 
@@ -68,6 +69,16 @@ export default function CommandPalette({
         meta: 'terminal',
         run: () => {
           openLocalTab()
+          onClose()
+        }
+      },
+      {
+        id: 'cmd:open-file',
+        label: 'Open file…',
+        meta: '⌘O',
+        run: async () => {
+          const paths = await window.api.fs.pickFile()
+          for (const p of paths) openFileTab(p)
           onClose()
         }
       },

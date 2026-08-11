@@ -1,7 +1,6 @@
 import { app, shell, BrowserWindow } from 'electron'
 import { join, isAbsolute, resolve } from 'path'
-import { electronApp, optimizer, is } from '@electron-toolkit/utils'
-import icon from '../../resources/icon.png?asset'
+import { electronApp, optimizer } from '@electron-toolkit/utils'
 import { existsSync, readdirSync, statSync } from 'fs'
 import { getDb, kvGet, kvSet } from './db'
 import { registerIpcHandlers } from './ipc'
@@ -12,6 +11,14 @@ import { addProject, refreshAllProjectVcs } from './projects'
 import { initAi, reinitAi } from './ai'
 import { getProjectsRoot } from './settings'
 import { closeAllPtys } from './pty'
+import {
+  baseWindowOptions,
+  loadApp,
+  setMainWindow,
+  installCloseConfirm,
+  markAppQuitting,
+  isAppQuitting
+} from './windows'
 
 let mainWindowRef: BrowserWindow | null = null
 let rendererReady = false
@@ -56,22 +63,11 @@ function createWindow(): void {
     ? (JSON.parse(boundsRaw) as { x?: number; y?: number; width: number; height: number })
     : null
   const mainWindow = new BrowserWindow({
+    ...baseWindowOptions(),
     width: bounds?.width ?? 1400,
     height: bounds?.height ?? 900,
     x: bounds?.x,
-    y: bounds?.y,
-    show: false,
-    // macOS: hide the titlebar so the in-app Titlebar component owns the chrome,
-    // with traffic lights overlayed. Windows/Linux: use the system frame so the
-    // user gets native min/max/close in the top-right.
-    titleBarStyle: process.platform === 'darwin' ? 'hiddenInset' : 'default',
-    backgroundColor: '#0a0c10',
-    ...(process.platform === 'linux' ? { icon } : {}),
-    webPreferences: {
-      preload: join(__dirname, '../preload/index.js'),
-      sandbox: false,
-      contextIsolation: true
-    }
+    y: bounds?.y
   })
 
   mainWindow.on('ready-to-show', () => mainWindow.show())
@@ -86,6 +82,8 @@ function createWindow(): void {
     }
   })
   mainWindowRef = mainWindow
+  setMainWindow(mainWindow)
+  installCloseConfirm(mainWindow)
 
   mainWindow.webContents.setWindowOpenHandler((details) => {
     shell.openExternal(details.url)
@@ -100,11 +98,7 @@ function createWindow(): void {
   mainWindow.on('move', saveBounds)
   mainWindow.on('close', saveBounds)
 
-  if (is.dev && process.env['ELECTRON_RENDERER_URL']) {
-    mainWindow.loadURL(process.env['ELECTRON_RENDERER_URL'])
-  } else {
-    mainWindow.loadFile(join(__dirname, '../renderer/index.html'))
-  }
+  loadApp(mainWindow)
 }
 
 async function firstLaunchImport(): Promise<void> {
@@ -251,10 +245,9 @@ app.on('window-all-closed', () => {
 // Kill every pty and wait for their exit callbacks before Electron tears the
 // Node env down. Without this, a pty child dying mid-teardown fires its
 // napi ThreadSafeFunction into a half-destroyed env and aborts the process.
-let quitting = false
 app.on('before-quit', (event) => {
-  if (quitting) return
-  quitting = true
+  if (isAppQuitting()) return
+  markAppQuitting()
   event.preventDefault()
   closeAllPtys().finally(() => app.exit(0))
 })
