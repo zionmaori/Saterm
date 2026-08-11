@@ -12,7 +12,16 @@ export interface CliCommand {
 const SENTINEL = '--saterm-cli'
 
 export function parseCliArgv(argv: readonly string[]): CliCommand | null {
-  const idx = argv.indexOf(SENTINEL)
-  if (idx === -1 || idx + 1 >= argv.length) return null
-  return { cwd: argv[idx + 1], tokens: argv.slice(idx + 2) }
+  if (argv.indexOf(SENTINEL) === -1) return null
+  // Electron's single-instance forwarding rebuilds argv from Chromium's
+  // CommandLine before delivering the 'second-instance' event: it groups all
+  // switches (including ones Chromium injects itself, e.g.
+  // --enable-avfoundation, --allow-file-access-from-files) ahead of all
+  // positional args, so the token right after the sentinel is no longer
+  // reliably our cwd. Positional args keep their relative order though, so
+  // pull cwd/tokens from there instead of by adjacency to the sentinel.
+  const positional = argv.slice(1).filter((a) => !a.startsWith('-'))
+  if (positional.length === 0) return null
+  const [cwd, ...tokens] = positional
+  return { cwd, tokens }
 }
