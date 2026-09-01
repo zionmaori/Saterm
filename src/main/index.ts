@@ -1,6 +1,6 @@
 import { app, shell, BrowserWindow } from 'electron'
 import { join, isAbsolute, resolve } from 'path'
-import { electronApp, optimizer } from '@electron-toolkit/utils'
+import { electronApp } from '@electron-toolkit/utils'
 import { existsSync, readdirSync, statSync } from 'fs'
 import { getDb, kvGet, kvSet } from './db'
 import { registerIpcHandlers } from './ipc'
@@ -251,8 +251,6 @@ app.whenReady().then(async () => {
     if (refreshed.available) console.log('[ai] using API key from Keychain')
     else console.log(`[ai] disabled: ${refreshed.reason}`)
   }
-
-  app.on('browser-window-created', (_, window) => optimizer.watchWindowShortcuts(window))
 
   createWindow()
 

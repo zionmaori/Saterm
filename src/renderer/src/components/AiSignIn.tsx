@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { ExternalLink, KeyRound, Terminal } from 'lucide-react'
 import { useAi } from '../store/ai'
 import type { AiProvider } from '../../../shared/types'
@@ -40,6 +40,7 @@ export default function AiSignIn({ reason, currentProvider }: Props): React.JSX.
   const [apiKey, setApiKey] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const apiKeyRef = useRef<HTMLInputElement>(null)
 
   const clearError = (): void => setError(null)
 
@@ -70,6 +71,11 @@ export default function AiSignIn({ reason, currentProvider }: Props): React.JSX.
   const submit = async (e: React.FormEvent): Promise<void> => {
     e.preventDefault()
     if (!apiKey.trim() || busy) return
+    // Blur before a successful sign-in swaps this form out (see refreshStatus
+    // below) — an Enter-submitted password field removed from the DOM
+    // without a clean blur can leave macOS secure-event-input stuck on,
+    // which then silently swallows Ctrl-key combos app-wide.
+    apiKeyRef.current?.blur()
     setBusy(true)
     clearError()
     try {
@@ -146,6 +152,7 @@ export default function AiSignIn({ reason, currentProvider }: Props): React.JSX.
       <form onSubmit={submit} className="ai-signin-form">
         <label htmlFor="ai-key">Paste API key</label>
         <input
+          ref={apiKeyRef}
           id="ai-key"
           type="password"
           autoComplete="off"
