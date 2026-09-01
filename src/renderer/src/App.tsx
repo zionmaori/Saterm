@@ -14,11 +14,13 @@ import TerminalCopilot from './components/TerminalCopilot'
 import Titlebar, { type Theme } from './components/Titlebar'
 import HelpModal from './components/HelpModal'
 import NotesModal from './components/NotesModal'
+import ThemeEditor from './components/ThemeEditor'
 import OnboardingWizard from './components/OnboardingWizard'
 import SpaceBackground from './components/SpaceBackground'
 import SaturnLogo from './components/SaturnLogo'
 import TipOfTheDay from './components/TipOfTheDay'
 import { runCliCommand } from './lib/cliCommands'
+import { applyUiColors, COLORS_CHANGED_EVENT } from './lib/theme'
 import type { AuthPromptEvent, OnboardingStatus } from '../../shared/types'
 
 function readLS<T extends string>(key: string, fallback: T): T {
@@ -54,19 +56,35 @@ export default function App(): React.JSX.Element {
   const [theme, setTheme] = useState<Theme>(() => readLS<Theme>('theme', 'dark'))
   const [helpOpen, setHelpOpen] = useState(false)
   const [notesOpen, setNotesOpen] = useState(false)
+  const [themeEditorOpen, setThemeEditorOpen] = useState(false)
   const [onboardingStatus, setOnboardingStatus] = useState<OnboardingStatus | null>(null)
 
   const installAiListeners = useAi((s) => s.installListeners)
   const refreshAiStatus = useAi((s) => s.refreshStatus)
 
-  // Apply theme class to <html>
+  // Apply theme class to <html>, then layer any manual color overrides on
+  // top (see lib/theme.ts) — inline custom properties beat the class rules.
   useEffect(() => {
     const html = document.documentElement
     html.classList.remove('theme-light', 'theme-system')
     if (theme === 'light') html.classList.add('theme-light')
     else if (theme === 'system') html.classList.add('theme-system')
     localStorage.setItem('theme', theme)
+    applyUiColors()
   }, [theme])
+
+  // Re-apply color overrides when the OS appearance flips while "system" is
+  // selected, or when the ThemeEditor saves a change.
+  useEffect(() => {
+    const media = window.matchMedia('(prefers-color-scheme: light)')
+    const reapply = (): void => applyUiColors()
+    media.addEventListener('change', reapply)
+    window.addEventListener(COLORS_CHANGED_EVENT, reapply)
+    return () => {
+      media.removeEventListener('change', reapply)
+      window.removeEventListener(COLORS_CHANGED_EVENT, reapply)
+    }
+  }, [])
 
   useEffect(() => {
     localStorage.setItem('sidebarOpen', String(sidebarOpen))
@@ -216,6 +234,7 @@ export default function App(): React.JSX.Element {
         onTheme={setTheme}
         onHelp={() => setHelpOpen(true)}
         onOpenNotes={() => setNotesOpen(true)}
+        onOpenThemeEditor={() => setThemeEditorOpen(true)}
       />
       <div className={`main${sidebarOpen ? '' : ' sidebar-hidden'}`}>
         <Sidebar />
@@ -270,6 +289,7 @@ export default function App(): React.JSX.Element {
       {notesOpen && (
         <NotesModal projectId={activeProject?.id} onClose={() => setNotesOpen(false)} />
       )}
+      {themeEditorOpen && <ThemeEditor onClose={() => setThemeEditorOpen(false)} />}
       {onboardingStatus && (
         <OnboardingWizard
           status={onboardingStatus}

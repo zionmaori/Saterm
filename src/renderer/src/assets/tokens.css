@@ -28,18 +28,22 @@
   /* Accents — cyan (nav ping) + amber (thruster) */
   --accent: #6dd0ff; /* cyan — primary action / focused state */
   --accent-2: #ffb066; /* amber — secondary */
-  --accent-soft: rgba(109, 208, 255, 0.14);
-  --accent-2-soft: rgba(255, 176, 102, 0.14);
 
   /* Semantic */
   --danger: #ff6b7a;
-  --danger-soft: rgba(255, 107, 122, 0.14);
   --green: #7ee2b8;
-  --green-soft: rgba(126, 226, 184, 0.14);
   --yellow: #f0c674;
-  --yellow-soft: rgba(240, 198, 116, 0.14);
   --magenta: #c39aff;
-  --magenta-soft: rgba(195, 154, 255, 0.14);
+
+  /* Soft tints — derived from the base color above so a manual override of
+   * --accent/--danger/etc (see ThemeEditor) automatically recolors these too,
+   * instead of needing a separate override per tint. */
+  --accent-soft: color-mix(in srgb, var(--accent) 14%, transparent);
+  --accent-2-soft: color-mix(in srgb, var(--accent-2) 14%, transparent);
+  --danger-soft: color-mix(in srgb, var(--danger) 14%, transparent);
+  --green-soft: color-mix(in srgb, var(--green) 14%, transparent);
+  --yellow-soft: color-mix(in srgb, var(--yellow) 14%, transparent);
+  --magenta-soft: color-mix(in srgb, var(--magenta) 14%, transparent);
 
   /* Radii */
   --radius-sm: 4px;
@@ -65,10 +69,11 @@
   --tabbar-height: 32px;
   --sidebar-width: 260px;
 
-  /* Space background — knobs for the SpaceBackground component */
-  --space-nebula-1: rgba(109, 208, 255, 0.10);
-  --space-nebula-2: rgba(195, 154, 255, 0.09);
-  --space-nebula-3: rgba(255, 176, 102, 0.05);
+  /* Space background — derived from accent/magenta/accent-2 so it follows a
+   * manual color override too. */
+  --space-nebula-1: color-mix(in srgb, var(--accent) 10%, transparent);
+  --space-nebula-2: color-mix(in srgb, var(--magenta) 9%, transparent);
+  --space-nebula-3: color-mix(in srgb, var(--accent-2) 5%, transparent);
 }
 
 /* ---- Light theme — "daytime sky", still Interstellar-inspired ---- */
@@ -87,19 +92,12 @@ html.theme-light {
   --text-dimer: #6f7a9a;
   --accent: #0a75d1;
   --accent-2: #c26208;
-  --accent-soft: rgba(10, 117, 209, 0.10);
-  --accent-2-soft: rgba(194, 98, 8, 0.10);
   --danger: #c62d3c;
-  --danger-soft: rgba(198, 45, 60, 0.10);
   --green: #1a7f37;
-  --green-soft: rgba(26, 127, 55, 0.10);
   --yellow: #9a6700;
-  --yellow-soft: rgba(154, 103, 0, 0.10);
   --magenta: #7a4bc9;
-  --magenta-soft: rgba(122, 75, 201, 0.10);
-  --space-nebula-1: rgba(10, 117, 209, 0.05);
-  --space-nebula-2: rgba(122, 75, 201, 0.05);
-  --space-nebula-3: rgba(194, 98, 8, 0.04);
+  /* Soft tints and the space background inherit the color-mix() formulas
+   * from :root and recompute from the accent/danger/etc values above. */
 }
 
 /* ---- System theme (follows OS preference) ---- */
@@ -119,18 +117,9 @@ html.theme-light {
     --text-dimer: #6f7a9a;
     --accent: #0a75d1;
     --accent-2: #c26208;
-    --accent-soft: rgba(10, 117, 209, 0.10);
-    --accent-2-soft: rgba(194, 98, 8, 0.10);
     --danger: #c62d3c;
-    --danger-soft: rgba(198, 45, 60, 0.10);
     --green: #1a7f37;
-    --green-soft: rgba(26, 127, 55, 0.10);
     --yellow: #9a6700;
-    --yellow-soft: rgba(154, 103, 0, 0.10);
     --magenta: #7a4bc9;
-    --magenta-soft: rgba(122, 75, 201, 0.10);
-    --space-nebula-1: rgba(10, 117, 209, 0.05);
-    --space-nebula-2: rgba(122, 75, 201, 0.05);
-    --space-nebula-3: rgba(194, 98, 8, 0.04);
   }
 }

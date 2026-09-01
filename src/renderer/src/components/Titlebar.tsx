@@ -1,5 +1,14 @@
 import { useEffect, useState } from 'react'
-import { HelpCircle, Monitor, Moon, NotebookPen, PanelLeft, Search, Sun } from 'lucide-react'
+import {
+  HelpCircle,
+  Monitor,
+  Moon,
+  NotebookPen,
+  PanelLeft,
+  Palette,
+  Search,
+  Sun
+} from 'lucide-react'
 import SaturnLogo from './SaturnLogo'
 import TitlebarHint from './TitlebarHint'
 
@@ -13,6 +22,7 @@ interface Props {
   onTheme: (t: Theme) => void
   onHelp: () => void
   onOpenNotes: () => void
+  onOpenThemeEditor: () => void
 }
 
 export default function Titlebar({
@@ -22,7 +32,8 @@ export default function Titlebar({
   theme,
   onTheme,
   onHelp,
-  onOpenNotes
+  onOpenNotes,
+  onOpenThemeEditor
 }: Props): React.JSX.Element {
   const [version, setVersion] = useState<string | null>(null)
   const [platform, setPlatform] = useState<NodeJS.Platform | null>(null)
@@ -84,6 +95,14 @@ export default function Titlebar({
             <Moon size={13} strokeWidth={2} />
           </button>
         </div>
+        <button
+          type="button"
+          className="titlebar-icon-btn"
+          onClick={onOpenThemeEditor}
+          title="Customize colors"
+        >
+          <Palette size={13} strokeWidth={2} />
+        </button>
         <button
           type="button"
           className="titlebar-icon-btn"
