@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Code2, Eye, FolderOpen, RefreshCw, Save } from 'lucide-react'
 import type { Tab } from '../store/app'
-import { CodeEditor, languageFor } from './Editor'
+import { CodeEditor } from './Editor'
+import { languageFor } from './languages'
 
 interface Props {
   tab: Tab
@@ -70,6 +71,7 @@ export default function FileView({ tab, visible }: Props): React.JSX.Element {
   }
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- async fetch from external source
     void load()
     return () => {
       if (previewUrlRef.current) {

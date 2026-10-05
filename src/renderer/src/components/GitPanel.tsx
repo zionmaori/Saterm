@@ -66,6 +66,7 @@ export default function GitPanel({
   }, [repoPath])
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- async fetch from external source
     void refresh()
     const id = setInterval(() => void refresh(), 5000)
     return () => clearInterval(id)

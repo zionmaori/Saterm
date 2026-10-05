@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import ChatPanel from './ChatPanel'
-import { DiffView, languageFor } from './Editor'
+import { DiffView } from './Editor'
+import { languageFor } from './languages'
 import { applyUnifiedDiff } from '../lib/applyDiff'
 import type { AiContext } from '../../../shared/types'
 

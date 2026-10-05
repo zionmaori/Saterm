@@ -173,6 +173,7 @@ const api = {
     list: (): Promise<Project[]> => ipcRenderer.invoke('projects:list'),
     pick: (): Promise<Project | null> => ipcRenderer.invoke('projects:pick'),
     add: (path: string): Promise<Project> => ipcRenderer.invoke('projects:add', path),
+    sync: (): Promise<{ added: number; root: string }> => ipcRenderer.invoke('projects:sync'),
     remove: (id: number): Promise<void> => ipcRenderer.invoke('projects:remove', id),
     touch: (id: number): Promise<void> => ipcRenderer.invoke('projects:touch', id),
     detectVcs: (path: string): Promise<VcsKind> => ipcRenderer.invoke('projects:detectVcs', path)

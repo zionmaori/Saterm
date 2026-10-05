@@ -1,4 +1,4 @@
-import { existsSync, statSync, watch as fsWatch, type FSWatcher } from 'fs'
+import { existsSync, readdirSync, statSync, watch as fsWatch, type FSWatcher } from 'fs'
 import { readdir, readFile, writeFile, mkdir, rename } from 'fs/promises'
 import { join, basename, relative, sep, dirname } from 'path'
 import { spawn } from 'child_process'
@@ -86,6 +86,30 @@ export function refreshAllProjectVcs(): number {
   })
   tx(rows)
   return changed
+}
+
+/** Add every top-level folder under `root` that isn't already a project.
+ *  Existing rows are left untouched so their recent-order doesn't change. */
+export function syncProjectsFromRoot(root: string): { added: number; root: string } {
+  if (!existsSync(root)) return { added: 0, root }
+  const db = getDb()
+  const insert = db.prepare(
+    `INSERT INTO projects(name, path, vcs, last_opened_at) VALUES (?, ?, ?, ?)
+     ON CONFLICT(path) DO NOTHING`
+  )
+  let added = 0
+  const now = Date.now()
+  for (const e of readdirSync(root, { withFileTypes: true })) {
+    if (e.name.startsWith('.')) continue
+    const full = join(root, e.name)
+    try {
+      if (!statSync(full).isDirectory()) continue
+    } catch {
+      continue
+    }
+    added += insert.run(e.name, full, detectVcs(full), now).changes
+  }
+  return { added, root }
 }
 
 export function removeProject(id: number): void {

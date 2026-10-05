@@ -43,12 +43,13 @@ export default function NotesModal({ projectId, onClose }: Props): React.JSX.Ele
   const [scope, setScope] = useState<Scope>('global')
   const [mode, setMode] = useState<Mode>('edit')
   const [value, setValue] = useState('')
-  const [loaded, setLoaded] = useState(false)
+  const [loadedKey, setLoadedKey] = useState<string | null>(null)
   const [status, setStatus] = useState<'idle' | 'saving' | 'saved'>('idle')
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const savedFlashTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const key = scope === 'project' && projectId != null ? `project.notes:${projectId}` : GLOBAL_KEY
+  const loaded = loadedKey === key
 
   useEffect(() => {
     let cancelled = false
@@ -67,32 +68,31 @@ export default function NotesModal({ projectId, onClose }: Props): React.JSX.Ele
 
   useEffect(() => {
     let cancelled = false
-    setLoaded(false)
     void window.api.kv.getJSON<{ text: string }>(key).then((saved) => {
       if (cancelled) return
       setValue(saved?.text ?? '')
-      setLoaded(true)
+      setLoadedKey(key)
     })
     return () => {
       cancelled = true
     }
   }, [key])
 
-  useEffect(() => {
+  // Debounced autosave, scheduled from the edit itself so it always targets
+  // the key the text was typed under.
+  const onEdit = (text: string): void => {
+    setValue(text)
     if (!loaded) return
     setStatus('saving')
     if (saveTimer.current) clearTimeout(saveTimer.current)
     saveTimer.current = setTimeout(() => {
-      void window.api.kv.setJSON(key, { text: value }).then(() => {
+      void window.api.kv.setJSON(key, { text }).then(() => {
         setStatus('saved')
         if (savedFlashTimer.current) clearTimeout(savedFlashTimer.current)
         savedFlashTimer.current = setTimeout(() => setStatus('idle'), 1200)
       })
     }, 500)
-    return () => {
-      if (saveTimer.current) clearTimeout(saveTimer.current)
-    }
-  }, [value, key, loaded])
+  }
 
   const switchScope = (s: Scope): void => {
     if (s === 'project' && projectId == null) return
@@ -169,7 +169,7 @@ export default function NotesModal({ projectId, onClose }: Props): React.JSX.Ele
           {mode === 'edit' ? (
             <textarea
               value={value}
-              onChange={(e) => setValue(e.target.value)}
+              onChange={(e) => onEdit(e.target.value)}
               placeholder={
                 scope === 'global'
                   ? 'Global notes — markdown supported. Use ## Heading to group sections. Saved automatically.'

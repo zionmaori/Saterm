@@ -45,7 +45,8 @@ import BugReportDialog from './BugReportDialog'
 import TagForm from './TagForm'
 import GroupForm from './GroupForm'
 import Modal from './Modal'
-import Chip, { intentForTag } from './Chip'
+import Chip from './Chip'
+import { intentForTag } from './chipIntent'
 import SidebarTipsWidget from './SidebarTipsWidget'
 
 const COMMON_AWS_REGIONS = [
@@ -372,6 +373,19 @@ export default function Sidebar(): React.JSX.Element {
     document.addEventListener('saterm:run-snippet', handler)
     return () => document.removeEventListener('saterm:run-snippet', handler)
   }, [snippets, openLocalTab, insertSnippet])
+
+  const [syncingProjects, setSyncingProjects] = useState(false)
+  const syncProjects = async (): Promise<void> => {
+    setSyncingProjects(true)
+    try {
+      await window.api.projects.sync()
+      await refreshProjects()
+    } catch (err) {
+      alert(`Project sync failed: ${err instanceof Error ? err.message : String(err)}`)
+    } finally {
+      setSyncingProjects(false)
+    }
+  }
 
   const pickProject = async (): Promise<void> => {
     const p = await window.api.projects.pick()
@@ -759,6 +773,17 @@ export default function Sidebar(): React.JSX.Element {
               </button>
               <button
                 className="sidebar2-icon"
+                title="Sync with projects folder"
+                disabled={syncingProjects}
+                onClick={(e) => {
+                  e.stopPropagation()
+                  void syncProjects()
+                }}
+              >
+                <RefreshCw size={13} className={syncingProjects ? 'spin' : undefined} />
+              </button>
+              <button
+                className="sidebar2-icon"
                 title="Add project"
                 onClick={(e) => {
                   e.stopPropagation()
@@ -887,6 +912,7 @@ export default function Sidebar(): React.JSX.Element {
 
       {editing !== undefined && (
         <HostForm
+          key={editing?.id ?? 'new'}
           initial={editing}
           onSave={onSaveHost}
           onCancel={() => setEditing(undefined)}

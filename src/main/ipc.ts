@@ -42,6 +42,7 @@ import { getMainWindow, windowById, createSecondaryWindow, confirmWindowClose } 
 import {
   addProject,
   listProjects,
+  syncProjectsFromRoot,
   removeProject,
   touchProject,
   detectVcs,
@@ -260,6 +261,7 @@ export function registerIpcHandlers(): void {
     return addProject(r.filePaths[0])
   })
   ipcMain.handle('projects:add', (_e, path: string) => addProject(path))
+  ipcMain.handle('projects:sync', () => syncProjectsFromRoot(getProjectsRoot()))
   ipcMain.handle('projects:remove', (_e, id: number) => removeProject(id))
   ipcMain.handle('projects:touch', (_e, id: number) => touchProject(id))
   ipcMain.handle('projects:detectVcs', (_e, path: string) => detectVcs(path))

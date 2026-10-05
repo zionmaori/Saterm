@@ -37,7 +37,10 @@ export default function SvnPanel({ repoPath, onOpenLog }: Props): React.JSX.Elem
   )
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [selectedFile, setSelectedFile] = useState<string | null>(null)
-  const [diff, setDiff] = useState('')
+  // Tagged with the file it belongs to so a stale diff is never shown for a
+  // different (or no) selection.
+  const [loadedDiff, setLoadedDiff] = useState<{ file: string; text: string } | null>(null)
+  const diff = selectedFile && loadedDiff?.file === selectedFile ? loadedDiff.text : ''
   const [commitMsg, setCommitMsg] = useState('')
   const [busy, setBusy] = useState(false)
   const [view, setView] = useState<'changes' | 'history'>('changes')
@@ -57,20 +60,18 @@ export default function SvnPanel({ repoPath, onOpenLog }: Props): React.JSX.Elem
   }
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- async fetch from external source
     void refresh()
   }, [repoPath])
 
   useEffect(() => {
-    if (!selectedFile) {
-      setDiff('')
-      return
-    }
+    if (!selectedFile) return
     void (async () => {
       try {
         const d = (await window.api.svn.diff(repoPath, selectedFile)) as string
-        setDiff(d)
+        setLoadedDiff({ file: selectedFile, text: d })
       } catch (e) {
-        setDiff(`error: ${(e as Error).message}`)
+        setLoadedDiff({ file: selectedFile, text: `error: ${(e as Error).message}` })
       }
     })()
   }, [selectedFile, repoPath])

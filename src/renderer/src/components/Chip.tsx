@@ -1,11 +1,12 @@
 import type React from 'react'
+import type { ChipIntent } from './chipIntent'
 
 type Kind = 'tag' | 'count' | 'env' | 'status' | 'mono'
 
 interface Props {
   kind?: Kind
   active?: boolean
-  intent?: 'neutral' | 'success' | 'warning' | 'danger' | 'info' | 'magenta'
+  intent?: ChipIntent
   onClick?: (e: React.MouseEvent) => void
   onContextMenu?: (e: React.MouseEvent) => void
   title?: string
@@ -49,16 +50,4 @@ export default function Chip({
       {children}
     </span>
   )
-}
-
-/** Pick a color intent based on a tag string. `prod` → danger-tinted,
- *  `dev`/`test` → info, `couchbase`/`db` → magenta, otherwise neutral. */
-export function intentForTag(tag: string): NonNullable<Props['intent']> {
-  const t = tag.toLowerCase()
-  if (t === 'prod' || t === 'production') return 'danger'
-  if (t === 'test' || t === 'staging') return 'warning'
-  if (t === 'dev' || t === 'development') return 'info'
-  if (t === 'couchbase' || t === 'db' || t === 'database') return 'magenta'
-  if (t === 'app' || t === 'admin') return 'success'
-  return 'neutral'
 }

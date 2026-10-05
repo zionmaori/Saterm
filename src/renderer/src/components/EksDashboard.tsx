@@ -197,6 +197,7 @@ export default function EksDashboard({ tab, visible }: Props): React.JSX.Element
 
   useEffect(() => {
     if (!visible || !env) return
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- async fetch from external source
     if (!bundle.data && !bundle.loading && !bundle.error) void fetchBundle()
   }, [visible, env, bundle, fetchBundle])
 

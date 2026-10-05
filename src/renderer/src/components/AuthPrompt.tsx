@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useRef, useState } from 'react'
 import type { AuthPromptEvent } from '../../../shared/types'
 
 interface Props {
@@ -10,10 +10,6 @@ export default function AuthPrompt({ event, onReply }: Props): React.JSX.Element
   const [secret, setSecret] = useState('')
   const [remember, setRemember] = useState(true)
   const secretRef = useRef<HTMLInputElement>(null)
-
-  useEffect(() => {
-    setSecret('')
-  }, [event.sessionId])
 
   // Blur the password field before it (potentially) unmounts. Submitting via
   // Enter or Cancel removes this dialog in the same React commit, and on

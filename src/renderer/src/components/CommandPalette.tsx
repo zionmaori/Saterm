@@ -38,12 +38,18 @@ export default function CommandPalette({
     { name: string; relPath: string; absPath: string }[]
   >([])
 
+  // Reset the query when the palette closes and the selection whenever it
+  // opens/closes or switches mode (adjusting state during render rather than
+  // in an effect avoids an extra render pass).
+  const [prevOpenMode, setPrevOpenMode] = useState({ open, mode })
+  if (prevOpenMode.open !== open || prevOpenMode.mode !== mode) {
+    setPrevOpenMode({ open, mode })
+    setSelectedIndex(0)
+    if (!open) setQuery('')
+  }
+
   useEffect(() => {
-    if (!open) {
-      setQuery('')
-      setSelectedIndex(0)
-      return
-    }
+    if (!open) return
     if (mode === 'quickopen' && projectRoot) {
       void window.api.fs.quickOpen(projectRoot).then(setQuickFiles)
     }
@@ -190,10 +196,6 @@ export default function CommandPalette({
       .slice(0, 200)
   }, [commands, query])
 
-  useEffect(() => {
-    setSelectedIndex(0)
-  }, [query, mode, open])
-
   if (!open) return null
 
   return (
@@ -207,7 +209,10 @@ export default function CommandPalette({
           autoFocus
           placeholder={mode === 'quickopen' ? 'Open file in project…' : 'Type a command or host…'}
           value={query}
-          onChange={(e) => setQuery(e.target.value)}
+          onChange={(e) => {
+            setQuery(e.target.value)
+            setSelectedIndex(0)
+          }}
           onKeyDown={(e) => {
             if (e.key === 'ArrowDown') {
               e.preventDefault()

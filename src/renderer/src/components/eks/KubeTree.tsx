@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import {
   Box as BoxIcon,
   Boxes,
@@ -115,19 +115,18 @@ export default function KubeTree({
   onSelect,
   defaultExpandedIds
 }: Props): React.JSX.Element {
-  const [expanded, setExpanded] = useState<Set<string>>(
-    () => new Set(defaultExpandedIds ?? [root.id])
-  )
+  const [expanded, setExpanded] = useState<Set<string>>(() => {
+    const initial = new Set(defaultExpandedIds ?? [root.id])
+    if (selectedId) initial.add(selectedId)
+    return initial
+  })
 
   // Keep the selected id's ancestors expanded when it changes from outside (e.g. after refresh).
-  useEffect(() => {
-    if (!selectedId) return
-    setExpanded((prev) => {
-      const next = new Set(prev)
-      next.add(selectedId)
-      return next
-    })
-  }, [selectedId])
+  const [prevSelectedId, setPrevSelectedId] = useState(selectedId)
+  if (selectedId !== prevSelectedId) {
+    setPrevSelectedId(selectedId)
+    if (selectedId && !expanded.has(selectedId)) setExpanded(new Set(expanded).add(selectedId))
+  }
 
   const toggle = (id: string): void => {
     setExpanded((prev) => {

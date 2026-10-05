@@ -5646,3 +5646,7 @@ html.theme-system .titlebar-meta-logo {
 .local-term-header {
   background-color: color-mix(in srgb, var(--bg-2) 88%, transparent);
 }
+
+.sidebar2-icon .spin {
+  animation: spin 0.8s linear infinite;
+}

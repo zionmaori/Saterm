@@ -41,22 +41,6 @@ export default function HostForm({
     void window.api.hosts.listGroups().then((rows) => setKnownGroups(rows.map((r) => r.group)))
   }, [])
 
-  useEffect(() => {
-    if (initial) {
-      setName(initial.name)
-      setHostname(initial.hostname)
-      setPort(initial.port)
-      setUser(initial.user)
-      setIdentityFile(initial.identityFile ?? '')
-      setProxyJump(initial.proxyJump ?? '')
-      setGroup(initial.group ?? '')
-      setGroupInput(initial.group ?? '')
-      setRole(initial.role)
-      setEnv(initial.env)
-      setTags(initial.tags ?? [])
-    }
-  }, [initial])
-
   const addTag = (raw: string): void => {
     const t = raw.trim().toLowerCase().replace(/^#/, '').replace(/\s+/g, '-')
     if (!t) return

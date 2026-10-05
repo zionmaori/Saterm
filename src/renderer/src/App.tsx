@@ -301,7 +301,9 @@ export default function App(): React.JSX.Element {
           }}
         />
       )}
-      {authQueue[0] && <AuthPrompt event={authQueue[0]} onReply={onAuthReply} />}
+      {authQueue[0] && (
+        <AuthPrompt key={authQueue[0].sessionId} event={authQueue[0]} onReply={onAuthReply} />
+      )}
 
       <TipOfTheDay suppress={!!onboardingStatus || authQueue.length > 0} />
 
